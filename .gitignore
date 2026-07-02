@@ -27,3 +27,13 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# Proje talimat dosyası — yerelde kalır, repoya gitmez
+CLAUDE.md
+
+# Referans belgeleri — yerelde kalır, repoya gitmez (db-uzmani ajanı okur)
+docs/VeriTabani_Guvenlik_Kurallari.md
+docs/veritabani_semasi_guncel.md
+
+# Claude Code yerel yapılandırması / ajan tanımları — yerelde kalır, repoya gitmez
+.claude/

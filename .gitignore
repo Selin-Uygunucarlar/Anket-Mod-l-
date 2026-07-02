@@ -1,0 +1,29 @@
+# Sırlar / ortam değişkenleri — repoya asla girmez
+.env
+.env.*
+*.pem
+*.key
+secrets/
+*.secret
+
+# Bağımlılıklar
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Build / çıktı
+dist/
+build/
+out/
+*.log
+
+# IDE / editör
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

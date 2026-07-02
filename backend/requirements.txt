@@ -1,0 +1,8 @@
+# Backend Python bağımlılıkları.
+# Kurulum: python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+
+# MariaDB/MySQL veritabanı sürücüsü (Repository katmanı kullanır)
+PyMySQL==1.2.0
+
+# Şifre hash'leme (yavaş/adaptive; auth modülü login doğrulamada kullanır)
+bcrypt==5.0.0

@@ -1,0 +1,245 @@
+/*
+  Anasayfa yerleşiminin stilleri: kalın üst bar, hamburger butonu, kişi
+  göstergesi ile açılır kişi menüsü ve sağdan kayan admin paneli (drawer).
+  Admin paneli üst barın altında konumlanır; açıkken arkasında beyaza yakın,
+  hafif buzlu bir perde belirir (sayfayı karartmaz) ve bu perdeye tıklamak
+  paneli kapatır. Renk değişkenleri global olarak login.css'te tanımlıdır;
+  burada yeniden kullanılır. Yalnızca sunum (görsel) sorumluluğundadır.
+*/
+
+/* Sayfa sarmalayıcı: üst bar + altında içerik alanı için tam yükseklik.
+   Zemin, temiz ve canlı bir his için beyaza yakın çok açık serin bir tondur
+   (global --renk-zemin-acik'ten bilinçli olarak daha beyaz tutulmuştur). */
+.anasayfa {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+/* Kalın üst bar: belirgin yükseklik, lacivert zemin, içeriği sağa yaslar. */
+.ust-bar {
+  height: 72px;
+  background: var(--renk-lacivert);
+  color: var(--renk-beyaz);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 24px;
+  box-shadow: 0 2px 8px rgba(31, 37, 48, 0.18);
+}
+
+/* Üst barın sağ bölümü: kişi menüsü ve hamburger yan yana. */
+.ust-bar-sag {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Hamburger (üç çizgi) butonu: sade, odak/hover'da hafif zemin vurgusu. */
+.hamburger-buton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--renk-beyaz);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.hamburger-buton:hover,
+.hamburger-buton:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+/* Kişi menüsü sarmalayıcı: dropdown'u tetikleyiciye göre konumlar. */
+.kisi-menu {
+  position: relative;
+}
+
+/* Kişi göstergesi butonu: ikon + ad soyad; hover/odakta hafif vurgu. */
+.kisi-gosterge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--renk-beyaz);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.kisi-gosterge:hover,
+.kisi-gosterge:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.kisi-ad {
+  white-space: nowrap;
+}
+
+/* Açılır kişi menüsü: üst barın altında, sağa hizalı küçük kart. */
+.kisi-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(31, 37, 48, 0.18);
+  padding: 6px;
+  z-index: 30;
+}
+
+/* Menü öğesi: tam genişlik, sol hizalı, hover'da açık zemin. */
+.kisi-dropdown-oge {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--renk-lacivert);
+  font-size: 14px;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.kisi-dropdown-oge:hover,
+.kisi-dropdown-oge:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}
+
+/* Üst barın altındaki içerik alanı: ileride doldurulacak boş alan. */
+.anasayfa-icerik {
+  padding: 24px;
+}
+
+/* Admin perdesi (overlay): panel açıkken üst barın (72px) ALTINDAN başlayarak
+   sayfayı örter. Koyu değil; beyaza yakın, hafif buzlu (frosted) bir perdedir,
+   yani altındaki içeriği karartmadan belli belirsiz yumuşatır. Perdeye tıklamak
+   paneli kapatır (dış tıklama). Üst bar ve hamburger perdenin dışında kalır,
+   erişilebilir olur. Panelin (z-index: 50) altında (z-index: 40) durur. */
+.admin-overlay {
+  position: fixed;
+  inset: 72px 0 0 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.admin-overlay.acik {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Sağdan kayan admin paneli: sabit ve dar genişlik, tüm sayfayı kaplamaz.
+   Üst barın (72px) hemen altında başlar. Kapalıyken sağ kenarın dışına
+   ötelenir; açılınca CSS transition ile kayar. */
+.admin-panel {
+  position: fixed;
+  top: 72px;
+  right: 0;
+  height: calc(100vh - 72px);
+  width: 320px;
+  max-width: 85vw;
+  background: var(--renk-beyaz);
+  border-left: 1px solid var(--renk-kenarlik);
+  box-shadow: -8px 0 24px rgba(31, 37, 48, 0.18);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-panel.acik {
+  transform: translateX(0);
+}
+
+/* Panel başlığı: başlık metni + kapatma (sağ ok) butonu. */
+.admin-panel-baslik {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--renk-kenarlik);
+}
+
+.admin-panel-baslik h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Kapatma butonu: SVG ok simgesini ortalar, hover'da açık zemin. */
+.admin-kapat-buton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--renk-metin-soluk);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-kapat-buton:hover,
+.admin-kapat-buton:focus-visible {
+  background: var(--renk-zemin-acik);
+  color: var(--renk-lacivert);
+  outline: none;
+}
+
+/* Panel içindeki yer tutucu seçenek listesi. */
+.admin-secenek-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-secenek {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--renk-lacivert);
+  font-size: 14px;
+  text-align: left;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-secenek:hover,
+.admin-secenek:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}

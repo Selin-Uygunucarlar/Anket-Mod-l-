@@ -73,17 +73,45 @@ class ValidationError(AppError):
 
 
 class AuthError(AppError):
-    """Kimlik doğrulama başarısızlığı için TEK genel/güvenli hata tipi.
+    """Kimlik doğrulama başarısızlığı için genel/güvenli hata tipi.
 
-    Neden tek tip: Kullanıcı enumerasyonunu önlemek için "kayıt yok", "şifre
-    yanlış" ve "hesap kilitli" durumları AYNI mesajla döner; saldırgan hangi
-    kimliğin var olduğunu ayırt edemez. Şifre/hash asla mesaja konmaz.
+    Neden tek genel mesaj: Kullanıcı enumerasyonunu önlemek için "kayıt yok" ve
+    "şifre yanlış" durumları AYNI mesajla döner; saldırgan hangi kimliğin var
+    olduğunu ayırt edemez. "Hesap kilitli" durumu ise AYRI HesapKilitliError ile
+    döner (kullanıcının kendi hesabı için anlaşılır uyarı). Şifre/hash asla
+    mesaja konmaz.
     """
 
     kod = "AUTH_ERROR"
     severity = Severity.WARNING
-    # Tüm auth başarısızlıklarında aynı güvenli mesaj (enumerasyon önleme).
+    # Kayıt yok / şifre yanlış durumlarında aynı güvenli mesaj (enumerasyon önleme).
     _VARSAYILAN_MESAJ = "Kullanıcı adı/e-posta veya şifre hatalı."
+
+    def __init__(
+        self,
+        mesaj: str | None = None,
+        *,
+        kod: str | None = None,
+        severity: Severity | None = None,
+    ) -> None:
+        super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
+
+
+class HesapKilitliError(AppError):
+    """Hesabın geçici kilit süresi dolmadan yapılan giriş denemesi.
+
+    Kaba kuvvet koruması: eşik aşıldığında hesap KILIT_SURESI_DAKIKA boyunca
+    kilitlenir. Kilit süresi dolmadan gelen deneme bu hata ile reddedilir; şifre
+    kontrol EDİLMEZ. Mesaj sabittir: kalan süre, hash veya teknik detay konmaz.
+    """
+
+    kod = "ACCOUNT_LOCKED"
+    severity = Severity.WARNING
+    # Kalan süre GÖSTERİLMEZ; her kilitli denemede aynı sabit güvenli mesaj döner.
+    _VARSAYILAN_MESAJ = (
+        "Çok sayıda hatalı giriş nedeniyle hesabınız geçici olarak kilitlendi. "
+        "Lütfen bir süre sonra tekrar deneyin."
+    )
 
     def __init__(
         self,

@@ -9,6 +9,7 @@ loglara) girmez. sifre_hash asla loglanmaz veya kullanıcıya döndürülmez.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -22,3 +23,6 @@ class KullaniciKimlikKaydi:
     kullanici_turu: str
     sifre_hash: str = field(repr=False)  # gösterime/loglara sızmaması için
     hatali_giris_sayisi: int
+    # En son başarısız giriş anı (NULL = bekleyen hatalı deneme yok). Service,
+    # bunu + kilit süresini kullanarak geçici kilidin dolup dolmadığına karar verir.
+    son_hatali_giris_tarihi: datetime | None

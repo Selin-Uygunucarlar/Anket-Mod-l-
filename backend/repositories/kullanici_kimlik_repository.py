@@ -24,21 +24,35 @@ _KIMLIK_SORGUSU = """
            k.email,
            k.kullanici_turu,
            kk.sifre_hash,
-           kk.hatali_giris_sayisi
+           kk.hatali_giris_sayisi,
+           kk.son_hatali_giris_tarihi
     FROM Kullanici k
     JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
     WHERE k.email = %s OR k.kullanici_kodu = %s
 """
 
+# Başarısız denemede: sayacı arttır ve o anın zamanını (hata_zamani) yaz.
 _HATALI_GIRIS_ARTTIR_SORGUSU = """
     UPDATE KullaniciKimlik
-    SET hatali_giris_sayisi = hatali_giris_sayisi + 1
+    SET hatali_giris_sayisi = hatali_giris_sayisi + 1,
+        son_hatali_giris_tarihi = %s
     WHERE kullanici_kodu = %s
 """
 
+# Kilit süresi dolunca taze başlangıç: yalnızca sayaç/hata zamanı temizlenir;
+# gerçek bir giriş olmadığından son_giris_tarihi'ne DOKUNULMAZ.
+_HATALI_GIRIS_SAYAC_SIFIRLA_SORGUSU = """
+    UPDATE KullaniciKimlik
+    SET hatali_giris_sayisi = 0,
+        son_hatali_giris_tarihi = NULL
+    WHERE kullanici_kodu = %s
+"""
+
+# Başarılı giriş: sayaç ve hata zamanı temizlenir, son_giris_tarihi yazılır.
 _HATALI_GIRIS_SIFIRLA_SORGUSU = """
     UPDATE KullaniciKimlik
     SET hatali_giris_sayisi = 0,
+        son_hatali_giris_tarihi = NULL,
         son_giris_tarihi = %s
     WHERE kullanici_kodu = %s
 """
@@ -70,21 +84,42 @@ def find_kimlik_by_identifier(kimlik: str) -> KullaniciKimlikKaydi | None:
         kullanici_turu=satir["kullanici_turu"],
         sifre_hash=satir["sifre_hash"],
         hatali_giris_sayisi=satir["hatali_giris_sayisi"],
+        son_hatali_giris_tarihi=satir["son_hatali_giris_tarihi"],
     )
 
 
-def increment_hatali_giris(kullanici_kodu: str) -> None:
-    """Başarısız giriş sonrası hatalı deneme sayacını bir arttırır (kilitleme için)."""
+def increment_hatali_giris(kullanici_kodu: str, hata_zamani) -> None:
+    """Başarısız giriş sonrası sayacı bir arttırır ve son hatalı giriş zamanını yazar.
+
+    hata_zamani (datetime), denemenin gerçekleştiği andır; Service geçici kilidin
+    (kaba kuvvet koruması) dolup dolmadığını bu zamana göre hesaplar.
+    """
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(_HATALI_GIRIS_ARTTIR_SORGUSU, (kullanici_kodu,))
+                imlec.execute(
+                    _HATALI_GIRIS_ARTTIR_SORGUSU, (hata_zamani, kullanici_kodu)
+                )
     except pymysql.MySQLError as hata:
         raise DataAccessError("Hatalı giriş sayısı güncellenemedi.") from hata
 
 
+def reset_hatali_giris_sayaci(kullanici_kodu: str) -> None:
+    """Kilit süresi dolunca sayacı ve son hatalı giriş zamanını temizler (taze başlangıç).
+
+    Gerçek bir giriş gerçekleşmediği için son_giris_tarihi'ne dokunmaz; yalnızca
+    kaba kuvvet sayacını sıfırlar ki kullanıcı yeniden deneme hakkı kazansın.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(_HATALI_GIRIS_SAYAC_SIFIRLA_SORGUSU, (kullanici_kodu,))
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Hatalı giriş sayacı sıfırlanamadı.") from hata
+
+
 def reset_hatali_giris_and_son_giris(kullanici_kodu: str, giris_zamani) -> None:
-    """Başarılı giriş sonrası sayacı sıfırlar ve son giriş zamanını yazar."""
+    """Başarılı giriş sonrası sayacı ve son hatalı giriş zamanını sıfırlar, son giriş zamanını yazar."""
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:

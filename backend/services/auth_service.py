@@ -1,20 +1,26 @@
 """Giriş (login) iş katmanı.
 
-Neden: Tüm kimlik doğrulama iş kuralları burada toplanır: kaba kuvvet kilidi,
-şifre doğrulama, kullanıcı enumerasyonu önleme. Bu katman HTTP ve SQL bilmez;
-veriye Repository üzerinden erişir, DB'ye doğrudan dokunmaz.
+Neden: Tüm kimlik doğrulama iş kuralları burada toplanır: kaba kuvvet kilidi ve
+onun 5 dakikalık geçici penceresinin yorumlanması, şifre doğrulama, kullanıcı
+enumerasyonu önleme. Bu katman HTTP ve SQL bilmez; veriye Repository üzerinden
+erişir, DB'ye doğrudan dokunmaz.
 
-Hata yönetimi: Hatalar burada LOGLANMAZ, yukarı fırlatılır. Kimlik doğrulama
-başarısızlıkları tek genel AuthError ile döner. sifre/sifre_hash asla loglara,
-hata mesajlarına veya döndürülen DTO'ya sızmaz.
+Kilit yorumu: DB kilidin bitişini SAKLAMAZ; yalnızca son hatalı giriş anını
+tutar. 5 dakikalık pencere burada (Service) yorumlanır; süre dolunca hesap
+otomatik açılır.
+
+Hata yönetimi: Hatalar burada LOGLANMAZ, yukarı fırlatılır. "Kayıt yok" ve
+"şifre yanlış" tek genel AuthError ile döner; "hesap kilitli" ayrı
+HesapKilitliError ile döner. sifre/sifre_hash asla loglara, hata mesajlarına
+veya döndürülen DTO'ya sızmaz.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import bcrypt
 
-from common.constants import MAKS_HATALI_GIRIS
-from common.errors import AuthError
+from common.constants import KILIT_SURESI_DAKIKA, MAKS_HATALI_GIRIS
+from common.errors import AuthError, HesapKilitliError
 from models.giris_sonucu import GirisSonucu
 from repositories import kullanici_kimlik_repository as kimlik_repo
 
@@ -24,34 +30,43 @@ def verify_login(kimlik: str, sifre: str) -> GirisSonucu:
 
     Akış:
       1. Kaydı Repository'den çek; yoksa genel AuthError (enumerasyon önleme).
-      2. Hesap kilitli mi (hatali_giris_sayisi >= eşik) → şifreyi KONTROL ETMEDEN
-         AuthError.
-      3. bcrypt ile şifreyi doğrula; yanlışsa hatalı sayacı arttır, AuthError.
+      2. Kaba kuvvet kilidi: sayaç eşiğe ulaşmışsa geçici kilidin (5 dk) dolup
+         dolmadığına bakılır. Süre dolmamışsa şifre KONTROL EDİLMEDEN
+         HesapKilitliError. Süre dolmuşsa sayaç sıfırlanır ve deneme sürer.
+      3. bcrypt ile şifreyi doğrula; yanlışsa hatalı sayacı (o anki zamanla)
+         arttır, AuthError.
       4. Doğruysa sayacı sıfırla + son giriş zamanını yaz, GirisSonucu döndür.
 
-    Başarısız durumların hepsi AYNI genel AuthError mesajını taşır; "kayıt yok",
-    "şifre yanlış", "kilitli" ayrımı dışarı sızdırılmaz.
+    "Kayıt yok" ve "şifre yanlış" AYNI genel AuthError mesajını taşır (ayrım
+    sızdırılmaz); "hesap kilitli" ayrı HesapKilitliError ile bildirilir.
     """
+    # Kilit penceresi ve zaman damgaları için tek bir referans an kullanılır.
+    simdi = datetime.now()
+
     kayit = kimlik_repo.find_kimlik_by_identifier(kimlik)
 
     # Kayıt yoksa şifre yanlışıyla aynı genel hata döner (enumerasyon önleme).
     if kayit is None:
         raise AuthError()
 
-    # Kaba kuvvet kilidi: eşiğe ulaşmışsa şifre doğrulaması bile yapılmaz.
+    # Kaba kuvvet kilidi: eşiğe ulaşılmışsa geçici kilit süresini yorumla.
     if kayit.hatali_giris_sayisi >= MAKS_HATALI_GIRIS:
-        raise AuthError()
+        if _kilit_suresi_doldu_mu(kayit.son_hatali_giris_tarihi, simdi):
+            # Süre dolmuş: taze başlangıç. Sayacı sıfırla ki tek yanlış giriş
+            # hesabı hemen yeniden kilitlemesin; deneme aşağıda sürer.
+            kimlik_repo.reset_hatali_giris_sayaci(kayit.kullanici_kodu)
+        else:
+            # Kilit hâlâ aktif: şifre doğrulaması bile yapılmaz.
+            raise HesapKilitliError()
 
     sifre_dogru = bcrypt.checkpw(
         sifre.encode("utf-8"), kayit.sifre_hash.encode("utf-8")
     )
     if not sifre_dogru:
-        kimlik_repo.increment_hatali_giris(kayit.kullanici_kodu)
+        kimlik_repo.increment_hatali_giris(kayit.kullanici_kodu, simdi)
         raise AuthError()
 
-    kimlik_repo.reset_hatali_giris_and_son_giris(
-        kayit.kullanici_kodu, datetime.now()
-    )
+    kimlik_repo.reset_hatali_giris_and_son_giris(kayit.kullanici_kodu, simdi)
 
     # Yalnızca güvenli alanlar döner; sifre_hash bilerek taşınmaz.
     return GirisSonucu(
@@ -60,3 +75,16 @@ def verify_login(kimlik: str, sifre: str) -> GirisSonucu:
         soyad=kayit.soyad,
         kullanici_turu=kayit.kullanici_turu,
     )
+
+
+def _kilit_suresi_doldu_mu(
+    son_hatali_giris_tarihi: datetime | None, simdi: datetime
+) -> bool:
+    """Geçici kilit penceresinin (KILIT_SURESI_DAKIKA) dolup dolmadığını söyler.
+
+    son_hatali_giris_tarihi None ise (ör. migration öncesi kilitli eski satır)
+    kalıcı kilit oluşmaması için SÜRESİ DOLMUŞ sayılır ve denemeye izin verilir.
+    """
+    if son_hatali_giris_tarihi is None:
+        return True
+    return simdi >= son_hatali_giris_tarihi + timedelta(minutes=KILIT_SURESI_DAKIKA)

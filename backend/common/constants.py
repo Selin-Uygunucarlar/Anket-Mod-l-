@@ -13,3 +13,7 @@ MAKS_HATALI_GIRIS = 5
 # korumasının süresini belirler; MAKS_HATALI_GIRIS ile aynı aile. DB kilit
 # bitişini saklamaz; Service, son hatalı giriş anına bu pencereyi ekleyerek yorumlar.
 KILIT_SURESI_DAKIKA = 5
+
+# Sunucu tarafı oturumun kayan (sliding) pencere uzunluğu (dakika). Her geçerli
+# doğrulamada oturumun geçerlilik bitişi "şu an + bu süre" olarak yenilenir.
+OTURUM_SURESI_DAKIKA = 480

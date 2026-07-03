@@ -6,3 +6,10 @@ PyMySQL==1.2.0
 
 # Şifre hash'leme (yavaş/adaptive; auth modülü login doğrulamada kullanır)
 bcrypt==5.0.0
+
+# HTTP/sınır katmanı web framework'ü (Controller'ı HTTP'ye açan api/ adaptörü)
+# Pydantic v2 fastapi ile transitively gelir.
+fastapi==0.115.6
+
+# ASGI sunucusu (uvicorn[standard]: uvloop/httptools ile hızlı çalıştırma)
+uvicorn[standard]==0.34.0

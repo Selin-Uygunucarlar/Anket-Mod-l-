@@ -156,6 +156,16 @@ body {
   padding: 10px 12px;
 }
 
+/* Başarılı giriş geri bildirimi (yeşil kutu). Yönlendirme yok; sadece görsel. */
+.genel-basari {
+  font-size: 13px;
+  color: #1e7d4f;
+  background: rgba(30, 125, 79, 0.08);
+  border: 1px solid rgba(30, 125, 79, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
 /* Giriş butonu: tam genişlik, royal mavi, hover'da koyulaşır. */
 .giris-buton {
   width: 100%;

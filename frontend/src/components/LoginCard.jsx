@@ -3,8 +3,10 @@
 // getirir. Yalnızca girdi toplar ve durumu gösterir; kimlik doğrulama işi
 // useLogin hook'u aracılığıyla API katmanına devredilir.
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PasswordField from './PasswordField.jsx'
 import { useLogin } from '../hooks/useLogin.js'
+import { useAuth } from '../auth/AuthContext.jsx'
 
 // LoginCard: giriş formunu yönetir (girdi toplama + durum gösterimi).
 function LoginCard() {
@@ -12,6 +14,8 @@ function LoginCard() {
   const [sifre, setSifre] = useState('')
   const [alanHatalari, setAlanHatalari] = useState({ kimlik: '', sifre: '' })
   const loginMutation = useLogin()
+  const { girisYap } = useAuth()
+  const navigate = useNavigate()
 
   // validateInputs: yalnızca boş alan kontrolü yapar (UX amaçlı anlık geri
   // bildirim). Asıl doğrulama sunucuda yapılır. Hatasızsa true döner.
@@ -31,7 +35,17 @@ function LoginCard() {
     if (!validateInputs()) {
       return
     }
-    loginMutation.mutate({ kimlik: kimlik.trim(), sifre })
+    // Başarıda oturum bağlamı doldurulur ve anasayfaya yönlendirilir; oturum
+    // kimliği httpOnly cookie'de taşınır (istemci depolamasına yazılmaz).
+    loginMutation.mutate(
+      { kimlik: kimlik.trim(), sifre },
+      {
+        onSuccess: (kullanici) => {
+          girisYap(kullanici)
+          navigate('/', { replace: true })
+        },
+      },
+    )
   }
 
   return (
@@ -66,7 +80,8 @@ function LoginCard() {
 
         {loginMutation.isError && (
           <div className="genel-hata" role="alert">
-            Giriş yapılamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin.
+            {loginMutation.error?.message ||
+              'Giriş yapılamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin.'}
           </div>
         )}
 

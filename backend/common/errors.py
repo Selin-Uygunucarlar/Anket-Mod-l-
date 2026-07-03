@@ -97,6 +97,30 @@ class AuthError(AppError):
         super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
 
 
+class OturumError(AppError):
+    """Geçersiz/süresi dolmuş sunucu tarafı oturum (session) hatası.
+
+    /me benzeri korumalı uçlarda, cookie'deki jeton yoksa/boşsa ya da eşleşen
+    geçerli bir oturum bulunmuyorsa fırlatılır. Kullanıcı hatasıdır (yeniden
+    giriş gerekir), bu yüzden severity WARNING. Jeton/hash veya teknik detay
+    mesaja KONMAZ; yalnızca güvenli, yönlendirici bir metin döner.
+    """
+
+    kod = "SESSION_INVALID"
+    severity = Severity.WARNING
+    # Geçersiz/süresi dolmuş oturumda döner; ham jeton/hash asla konmaz.
+    _VARSAYILAN_MESAJ = "Oturumunuz geçersiz veya sona ermiş. Lütfen tekrar giriş yapın."
+
+    def __init__(
+        self,
+        mesaj: str | None = None,
+        *,
+        kod: str | None = None,
+        severity: Severity | None = None,
+    ) -> None:
+        super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
+
+
 class HesapKilitliError(AppError):
     """Hesabın geçici kilit süresi dolmadan yapılan giriş denemesi.
 

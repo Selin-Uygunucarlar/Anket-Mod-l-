@@ -1,0 +1,199 @@
+/*
+  Giriş ekranının stilleri. Tam ekran arka plan, sol-orta hizalı kart,
+  yuvarlatılmış köşeler, belirgin gölge ve görselden alınan renk paletini
+  içerir. Yalnızca sunum (görsel) sorumluluğundadır.
+*/
+
+:root {
+  --renk-lacivert: #1f2530;
+  --renk-mavi: #2f5cff;
+  --renk-mavi-koyu: #2447cc;
+  --renk-zemin-acik: #eef1f6;
+  --renk-kenarlik: #d5dae4;
+  --renk-metin-soluk: #6b7385;
+  --renk-hata: #c0392b;
+  --renk-beyaz: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  color: var(--renk-lacivert);
+}
+
+/* Sayfa: arka plan görseli tam görünür (contain, kırpılmaz); görsel oranı
+   ekrandan farklı olduğu için kalan kenar boşlukları, görselin köşe rengiyle
+   (#fafbfd) eşleşen düz zeminle kaynaşır. Kartı sola yaslar, dikeyde ortalar. */
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+  background-color: #fafbfd;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 24px clamp(24px, 8vw, 120px);
+}
+
+/* Kart: beyaz zemin, yuvarlatılmış köşeler, belirgin gölge. Ferah dursun diye
+   genişçe ve iç boşluğu bol. */
+.login-kart {
+  width: 100%;
+  max-width: 470px;
+  background: var(--renk-beyaz);
+  border-radius: 24px;
+  /* Çok katmanlı gölge: mavi vurgu + beyazımsı parıltı + hafif nötr derinlik;
+     kart arka plandan ferah ve modern bir mavi-beyaz karışımıyla ayrışır. */
+  box-shadow:
+    0 20px 45px rgba(47, 92, 255, 0.22),
+    0 10px 24px rgba(255, 255, 255, 0.55),
+    0 6px 14px rgba(31, 37, 48, 0.10);
+  padding: 44px 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Logo için üst-orta boş yer tutucu; gerçek logo ileride konacak. */
+.logo-placeholder {
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  background: var(--renk-zemin-acik);
+  border: 1px dashed var(--renk-kenarlik);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--renk-metin-soluk);
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 26px;
+}
+
+.form-alan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Input'lar: yuvarlatılmış köşeler, açık gri-mavi kenarlık, odakta mavi vurgu.
+   Etiketler kutu içinde placeholder olarak gösterilir. */
+.form-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-zemin-acik);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-input::placeholder {
+  color: var(--renk-metin-soluk);
+}
+
+.form-input:focus {
+  border-color: var(--renk-mavi);
+  box-shadow: 0 0 0 3px rgba(47, 92, 255, 0.15);
+  background: var(--renk-beyaz);
+}
+
+/* Parola alanı: göz butonuna yer açmak için sağ iç boşluk. */
+.parola-sarmalayici {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.parola-input {
+  padding-right: 44px;
+}
+
+.goz-buton {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: var(--renk-metin-soluk);
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.goz-buton:hover {
+  color: var(--renk-lacivert);
+}
+
+.alan-hata {
+  font-size: 12px;
+  color: var(--renk-hata);
+}
+
+.genel-hata {
+  font-size: 13px;
+  color: var(--renk-hata);
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* Giriş butonu: tam genişlik, royal mavi, hover'da koyulaşır. */
+.giris-buton {
+  width: 100%;
+  padding: 15px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--renk-beyaz);
+  background: var(--renk-mavi);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.giris-buton:hover:not(:disabled) {
+  background: var(--renk-mavi-koyu);
+}
+
+.giris-buton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.parola-unuttum {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--renk-mavi);
+  text-decoration: none;
+}
+
+.parola-unuttum:hover {
+  text-decoration: underline;
+}
+
+/* Küçük ekran: kartı yatayda ortala, kenar boşluklarını daralt. */
+@media (max-width: 640px) {
+  .login-page {
+    justify-content: center;
+    padding: 24px 16px;
+  }
+}

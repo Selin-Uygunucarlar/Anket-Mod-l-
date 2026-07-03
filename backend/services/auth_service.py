@@ -34,7 +34,8 @@ def verify_login(kimlik: str, sifre: str) -> GirisSonucu:
          dolmadığına bakılır. Süre dolmamışsa şifre KONTROL EDİLMEDEN
          HesapKilitliError. Süre dolmuşsa sayaç sıfırlanır ve deneme sürer.
       3. bcrypt ile şifreyi doğrula; yanlışsa hatalı sayacı (o anki zamanla)
-         arttır, AuthError.
+         arttır. Bu artışla sayaç eşiğe (MAKS_HATALI_GIRIS) ulaşıyorsa hesap o
+         denemede kilitlenir ve HesapKilitliError döner; aksi halde AuthError.
       4. Doğruysa sayacı sıfırla + son giriş zamanını yaz, GirisSonucu döndür.
 
     "Kayıt yok" ve "şifre yanlış" AYNI genel AuthError mesajını taşır (ayrım
@@ -49,12 +50,16 @@ def verify_login(kimlik: str, sifre: str) -> GirisSonucu:
     if kayit is None:
         raise AuthError()
 
+    # Bu denemeden önceki geçerli hatalı sayaç; reset dalında 0'a düşer.
+    mevcut_hatali_sayi = kayit.hatali_giris_sayisi
+
     # Kaba kuvvet kilidi: eşiğe ulaşılmışsa geçici kilit süresini yorumla.
     if kayit.hatali_giris_sayisi >= MAKS_HATALI_GIRIS:
         if _kilit_suresi_doldu_mu(kayit.son_hatali_giris_tarihi, simdi):
             # Süre dolmuş: taze başlangıç. Sayacı sıfırla ki tek yanlış giriş
             # hesabı hemen yeniden kilitlemesin; deneme aşağıda sürer.
             kimlik_repo.reset_hatali_giris_sayaci(kayit.kullanici_kodu)
+            mevcut_hatali_sayi = 0
         else:
             # Kilit hâlâ aktif: şifre doğrulaması bile yapılmaz.
             raise HesapKilitliError()
@@ -64,6 +69,11 @@ def verify_login(kimlik: str, sifre: str) -> GirisSonucu:
     )
     if not sifre_dogru:
         kimlik_repo.increment_hatali_giris(kayit.kullanici_kodu, simdi)
+        # Bu hatalı deneme sayacı eşiğe taşıyorsa hesap ŞİMDİ kilitlenir; kilit
+        # bir sonraki denemeye ertelenmez (off-by-one önlenir).
+        yeni_hatali_sayi = mevcut_hatali_sayi + 1
+        if yeni_hatali_sayi >= MAKS_HATALI_GIRIS:
+            raise HesapKilitliError()
         raise AuthError()
 
     kimlik_repo.reset_hatali_giris_and_son_giris(kayit.kullanici_kodu, simdi)

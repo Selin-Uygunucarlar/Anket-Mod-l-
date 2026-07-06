@@ -7,7 +7,8 @@
 // veriyi client-side süzer (ad soyad, durum, e-posta, sicil, eklenme tarihi);
 // backend'e ek istek atmaz. Çalışan ve yönetici adları tıklanınca üst bileşene
 // iletilir (onKisiSec) ve sağdan kayan kişi detay panelinde gösterilir. Başlık
-// satırındaki "Kullanıcı Ekle" butonu şimdilik işlevsiz görsel yer tutucudur.
+// satırındaki "Kullanıcı Ekle" butonu, üst bileşene (onKullaniciEkle) haber
+// vererek içerik alanında kullanıcı ekleme formunu açar.
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -36,7 +37,7 @@ function tarihiBicimlendir(isoMetin) {
 }
 
 // ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Kullanıcı Ekle"
-// butonunda kullanılır; şimdilik yalnızca görsel yer tutucudur.
+// butonunda kullanılır.
 function ArtiIcon() {
   return (
     <svg
@@ -116,8 +117,10 @@ function UcNoktaIcon() {
 
 // KullaniciListesi: kullanıcıları React Query ile çeker ve durumuna göre
 // yükleniyor / hata / boş / tablo gösterir. props: onKisiSec(kisi) -> bir
-// çalışan veya yönetici adına tıklanınca { ad, soyad } ile çağrılır.
-function KullaniciListesi({ onKisiSec }) {
+// çalışan veya yönetici adına tıklanınca { ad, soyad } ile çağrılır;
+// onKullaniciEkle() -> "Kullanıcı Ekle" butonuna tıklanınca çağrılır (üst
+// bileşen kullanıcı ekleme görünümünü açar).
+function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
   const [aramaMetni, setAramaMetni] = useState('')
   const {
     data: kullanicilar,
@@ -173,8 +176,11 @@ function KullaniciListesi({ onKisiSec }) {
             />
           </div>
         </div>
-        {/* Şimdilik işlevsiz görsel yer tutucu: onClick bağlı değil. */}
-        <button type="button" className="kullanici-ekle-buton">
+        <button
+          type="button"
+          className="kullanici-ekle-buton"
+          onClick={onKullaniciEkle}
+        >
           <ArtiIcon />
           <span>Kullanıcı Ekle</span>
         </button>

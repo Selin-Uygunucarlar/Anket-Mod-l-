@@ -43,3 +43,42 @@ export async function listKullanicilar() {
   // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
   throw new Error(govde?.mesaj || GENEL_HATA_MESAJI)
 }
+
+// Kullanıcı eklemede gösterilecek jenerik, güvenli hata mesajı (teknik detay yok).
+const EKLE_HATA_MESAJI = 'Kullanıcı eklenemedi. Lütfen tekrar deneyin.'
+
+// createKullanici: yeni kullanıcı oluşturur (yalnızca admin; yetki sunucuda).
+// veri, form alanlarını içeren düz nesnedir; boş opsiyoneller boş string olarak
+// gönderilir, backend normalize eder. Başarılıysa { kullanici_kodu, gecici_sifre }
+// döndürür (geçici şifre admin'e bir kez iletilir). Başarısızsa backend'in
+// güvenli mesajını taşıyan Error fırlar; ağ/parse hatasında da güvenli Error.
+export async function createKullanici(veri) {
+  let yanit
+  try {
+    yanit = await fetch(`${API_BASE}/api/kullanicilar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(veri),
+      credentials: 'include',
+    })
+  } catch {
+    throw new Error('Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deneyin.')
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(EKLE_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return {
+      kullanici_kodu: govde.kullanici_kodu,
+      gecici_sifre: govde.gecici_sifre,
+    }
+  }
+
+  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  throw new Error(govde?.mesaj || EKLE_HATA_MESAJI)
+}

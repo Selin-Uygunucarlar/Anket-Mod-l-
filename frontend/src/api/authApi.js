@@ -73,6 +73,39 @@ export async function me() {
   return govde?.basari === true ? govde.kullanici : null
 }
 
+// sifreBelirle: geçici şifreyle giren kullanıcının kendi kalıcı şifresini
+// belirlemesini backend'e iletir (kimlik oturum cookie'sinden okunur; kişi
+// yalnızca kendi şifresini değiştirir, sahiplik sunucuda). Başarıda sessizce
+// döner. Başarısızsa (ör. minimum uzunluk ihlali) backend'in güvenli mesajını
+// taşıyan Error fırlar; ağ/parse hatasında da güvenli Error.
+export async function sifreBelirle(yeniSifre) {
+  let yanit
+  try {
+    yanit = await fetch(`${API_BASE}/api/auth/sifre-belirle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yeni_sifre: yeniSifre }),
+      credentials: 'include',
+    })
+  } catch {
+    throw new Error('Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deneyin.')
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error('Şifre belirlenemedi. Lütfen tekrar deneyin.')
+  }
+
+  if (govde?.basari === true) {
+    return
+  }
+
+  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  throw new Error(govde?.mesaj || 'Şifre belirlenemedi. Lütfen tekrar deneyin.')
+}
+
 // logout: sunucudaki oturumu sonlandırır (cookie sunucuda silinir).
 // Gövde göndermez; kimlik cookie ile taşınır. Başarıda sessizce döner.
 export async function logout() {

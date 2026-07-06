@@ -94,6 +94,21 @@
 
 .kisi-ad {
   white-space: nowrap;
+  font-size: 18px;
+}
+
+/* Kişi ikonu amblemi: PersonIcon'u yuvarlak, sabit boyutlu bir kabın içinde
+   ortalar. Dekoratiftir; ikon rengi .kisi-gosterge'den (lacivert) miras alınır
+   ve #B3B7D9 zemin üzerinde okunur kalır. */
+.kisi-amblem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #B3B7D9;
+  flex-shrink: 0;
 }
 
 /* Açılır kişi menüsü: üst barın altında, sağa hizalı küçük kart. */

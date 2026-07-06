@@ -1,0 +1,232 @@
+/*
+  Ayarlar (seçenek tanımları) sayfasının stilleri: içerik alanında ortalanmış
+  beyaz bir A4 sayfası (gölgeli kart) içinde başlık + tıklamayla açılan bilgi
+  baloncuğu (açıklama), kategori seçimi +
+  değer girişi + Ekle satırı, hata metni ve kategoriye göre gruplu mevcut seçenek
+  listesi (değerler silinebilir). Anasayfa içinde render edilir; yerel
+  --renk-vurgu (anasayfa.css) ve global palet (login.css) miras alınır.
+  Birincil/ikincil buton stilleri kullanici-ekle.css'te tanımlıdır (aynı anasayfa
+  modül grafında daima yüklenir) ve burada yeniden kullanılır. Yalnızca sunum
+  sorumluluğundadır.
+*/
+
+/* Sayfa sarmalayıcısı: içerik alanında ortalanan, A4 genişliğine yakın beyaz
+   sayfa (kullanici-ekle ile birebir tutarlı). Başlık, form ve liste bu sayfanın
+   iç boşluğu içinde kalır. */
+.ayarlar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+  margin: 24px auto 0;
+  padding: 48px;
+  background: var(--renk-beyaz);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 30, 60, 0.14);
+}
+
+/* Başlık + bilgi düğmesi yan yana. */
+.ayarlar-baslik-satiri {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ayarlar-baslik {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Baloncuğu başlık satırına göre konumlandıran relative kapsayıcı. */
+.ayarlar-bilgi-sarmalayici {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Bilgi (ⓘ) düğmesi: küçük, dairesel, sade; hover/odakta vurgu rengine döner. */
+.ayarlar-bilgi-dugmesi {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--renk-metin-soluk);
+  cursor: pointer;
+}
+
+.ayarlar-bilgi-dugmesi:hover,
+.ayarlar-bilgi-dugmesi:focus-visible {
+  color: var(--renk-vurgu);
+}
+
+.ayarlar-bilgi-dugmesi:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+/* Açıklama baloncuğu: başlığın altında beliren küçük kart (A4 kartının üstünde). */
+.ayarlar-bilgi-baloncuk {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  max-width: 320px;
+  width: max-content;
+  padding: 12px 14px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  box-shadow: 0 8px 28px rgba(15, 30, 60, 0.14);
+  color: var(--renk-metin);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Ekleme satırı: kategori + değer + Ekle butonu yan yana; dar ekranda sarar. */
+.ayarlar-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ayarlar-alan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ayarlar-etiket {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+.ayarlar-kutu {
+  box-sizing: border-box;
+  height: 42px;
+  min-width: 220px;
+  padding: 0 12px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+}
+
+.ayarlar-kutu:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+  border-color: var(--renk-vurgu);
+}
+
+/* Hata kutusu: güvenli mesaj (zaten tanımlı seçenek uyarısı dahil). */
+.ayarlar-hata {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: var(--renk-hata);
+  font-size: 14px;
+}
+
+/* Mevcut seçenekler listesi: kategori grupları alt alta. */
+.ayarlar-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ayarlar-durum {
+  margin: 0;
+  color: var(--renk-metin-soluk);
+  font-size: 13px;
+}
+
+.ayarlar-durum-hata {
+  color: var(--renk-hata);
+}
+
+.ayarlar-grup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+.ayarlar-grup-baslik {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Değer rozetleri: sarılabilen küçük etiketler. */
+.ayarlar-deger-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Değer rozeti: metin + küçük sil düğmesi yan yana, dikeyde ortalı. */
+.ayarlar-deger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--renk-zemin-acik);
+  color: var(--renk-lacivert);
+  font-size: 13px;
+}
+
+/* Sil düğmesi: çerçevesiz/şeffaf sade × ; hover'da hata rengiyle vurgulanır. */
+.ayarlar-deger-sil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--renk-metin-soluk);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.ayarlar-deger-sil:hover:not(:disabled),
+.ayarlar-deger-sil:focus-visible {
+  color: var(--renk-hata);
+}
+
+.ayarlar-deger-sil:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+.ayarlar-deger-sil:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Dar ekran: A4 iç boşluğunu daralt (kullanici-ekle ile tutarlı). */
+@media (max-width: 640px) {
+  .ayarlar {
+    padding: 24px;
+  }
+}

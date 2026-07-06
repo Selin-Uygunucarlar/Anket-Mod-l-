@@ -26,3 +26,6 @@ class KullaniciKimlikKaydi:
     # En son başarısız giriş anı (NULL = bekleyen hatalı deneme yok). Service,
     # bunu + kilit süresini kullanarak geçici kilidin dolup dolmadığına karar verir.
     son_hatali_giris_tarihi: datetime | None
+    # Kimlik geçici (tek kullanımlık) şifre taşıyor mu. TRUE ise Service, başarılı
+    # girişten sonra kullanıcıyı zorunlu şifre belirlemeye yönlendirir. Hassas değil.
+    sifre_degistirilmeli: bool = False

@@ -17,3 +17,8 @@ KILIT_SURESI_DAKIKA = 5
 # Sunucu tarafı oturumun kayan (sliding) pencere uzunluğu (dakika). Her geçerli
 # doğrulamada oturumun geçerlilik bitişi "şu an + bu süre" olarak yenilenir.
 OTURUM_SURESI_DAKIKA = 480
+
+# Kullanıcının kendi kalıcı şifresini belirlerken uyması gereken en az uzunluk.
+# Zayıf şifreyi Service reddeder; geçici (sistem üretimi) şifreler için değil,
+# kullanıcı tarafından belirlenen kalıcı şifreler için alt sınırdır.
+MIN_SIFRE_UZUNLUK = 8

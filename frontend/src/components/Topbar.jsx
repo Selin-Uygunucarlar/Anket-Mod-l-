@@ -26,22 +26,26 @@ function HamburgerIcon() {
 
 // Topbar: kişi menüsü ve hamburger butonunu yerleştirir.
 // props:
+//   adminMi -> yönetim panelinin giriş noktası olan hamburger butonunu yalnızca
+//     admin kullanıcıya göstermek için kullanılır (gösterim kararı).
 //   adminPaneliniDegistir() -> hamburger tıklanınca paneli açar/kapatır.
 //   adminPaneliniKapat() -> kişi menüsü açılınca admin panelini kapatmak için
 //     KisiMenu'ye geçilir (dropdown panelin arkasında kalmasın diye).
-function Topbar({ adminPaneliniDegistir, adminPaneliniKapat }) {
+function Topbar({ adminMi, adminPaneliniDegistir, adminPaneliniKapat }) {
   return (
     <header className="ust-bar">
       <div className="ust-bar-sag">
         <KisiMenu adminPaneliniKapat={adminPaneliniKapat} />
-        <button
-          type="button"
-          className="hamburger-buton"
-          onClick={adminPaneliniDegistir}
-          aria-label="Yönetim panelini aç/kapat"
-        >
-          <HamburgerIcon />
-        </button>
+        {adminMi && (
+          <button
+            type="button"
+            className="hamburger-buton"
+            onClick={adminPaneliniDegistir}
+            aria-label="Yönetim panelini aç/kapat"
+          >
+            <HamburgerIcon />
+          </button>
+        )}
       </div>
     </header>
   )

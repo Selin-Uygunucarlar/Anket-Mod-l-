@@ -25,10 +25,22 @@ _KIMLIK_SORGUSU = """
            k.kullanici_turu,
            kk.sifre_hash,
            kk.hatali_giris_sayisi,
-           kk.son_hatali_giris_tarihi
+           kk.son_hatali_giris_tarihi,
+           kk.sifre_degistirilmeli
     FROM Kullanici k
     JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
     WHERE k.email = %s OR k.kullanici_kodu = %s
+"""
+
+# Kullanıcı kendi (kalıcı) şifresini belirleyince: yeni hash yazılır, geçici şifre
+# bayrağı düşürülür ve kilit sayacı sıfırlanır (temiz başlangıç).
+_SIFRE_GUNCELLE_SORGUSU = """
+    UPDATE KullaniciKimlik
+    SET sifre_hash = %s,
+        sifre_degistirilmeli = FALSE,
+        sifre_guncelleme_tarihi = %s,
+        hatali_giris_sayisi = 0
+    WHERE kullanici_kodu = %s
 """
 
 # Başarısız denemede: sayacı arttır ve o anın zamanını (hata_zamani) yaz.
@@ -85,6 +97,8 @@ def find_kimlik_by_identifier(kimlik: str) -> KullaniciKimlikKaydi | None:
         sifre_hash=satir["sifre_hash"],
         hatali_giris_sayisi=satir["hatali_giris_sayisi"],
         son_hatali_giris_tarihi=satir["son_hatali_giris_tarihi"],
+        # TINYINT gelebileceğinden Python bool'a çevrilir.
+        sifre_degistirilmeli=bool(satir["sifre_degistirilmeli"]),
     )
 
 
@@ -128,3 +142,21 @@ def reset_hatali_giris_and_son_giris(kullanici_kodu: str, giris_zamani) -> None:
                 )
     except pymysql.MySQLError as hata:
         raise DataAccessError("Giriş bilgileri güncellenemedi.") from hata
+
+
+def sifre_guncelle(kullanici_kodu: str, yeni_sifre_hash: str, guncelleme_zamani) -> None:
+    """Kullanıcının şifresini kalıcı olarak günceller ve geçici şifre bayrağını düşürür.
+
+    Yeni hash yazılır, sifre_degistirilmeli FALSE olur, hatali_giris_sayisi
+    sıfırlanır ve sifre_guncelleme_tarihi (guncelleme_zamani, datetime) yazılır.
+    Hash Service'te üretilir; burada asla loglanmaz. Yetki/sahiplik Service'in işi.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    _SIFRE_GUNCELLE_SORGUSU,
+                    (yeni_sifre_hash, guncelleme_zamani, kullanici_kodu),
+                )
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Şifre güncellenemedi.") from hata

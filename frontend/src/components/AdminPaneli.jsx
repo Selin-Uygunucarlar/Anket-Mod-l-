@@ -41,6 +41,10 @@ const YONETIM_SECENEKLERI = [
     ],
   },
   { baslik: 'Raporlar' },
+  {
+    baslik: 'Ayarlar',
+    altSecenekler: [{ baslik: 'Seçenek Tanımları', gorunum: 'ayarlar' }],
+  },
 ]
 
 // SagOkIcon: sağa dönük chevron (ok) simgesini çizer. Kapatma butonunda

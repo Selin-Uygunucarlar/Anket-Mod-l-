@@ -57,7 +57,32 @@ def me(ham_jeton: str) -> dict:
     baglam = {"islem": "me"}
     try:
         sahip = oturum_service.oturum_dogrula(ham_jeton)
-        return _oturum_sahibi_yaniti(sahip)
+        # OturumSahibi bayrağı taşımadığından geçici şifre durumu Service'ten okunur.
+        sifre_degistirilmeli = auth_service.sifre_degistirilmeli_mi(sahip.kullanici_kodu)
+        return _oturum_sahibi_yaniti(sahip, sifre_degistirilmeli)
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def sifre_belirle(ham_jeton: str, yeni_sifre: str) -> dict:
+    """Oturumu doğrulanmış kullanıcının kendi kalıcı şifresini belirlemesini karşılar.
+
+    Cookie'deki ham jeton doğrulanır (geçersiz -> OturumError); şifre kuralları ve
+    yazma Service'te yapılır. Sahiplik client'tan değil, doğrulanmış oturumdan gelir
+    (yalnızca kendi şifresini belirleyebilir). yeni_sifre loga/bağlama ASLA konmaz.
+
+    Başarılı: {"basari": True}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "sifre_belirle"}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        auth_service.sifre_belirle(sahip.kullanici_kodu, yeni_sifre)
+        return {"basari": True}
     except AppError as hata:
         logla_sinir_hatasi(hata, baglam=baglam)
         return _hata_yaniti(hata.kod, hata.mesaj)
@@ -108,15 +133,17 @@ def _basari_yaniti(sonuc: GirisSonucu, ham_jeton: str) -> dict:
             "ad": sonuc.ad,
             "soyad": sonuc.soyad,
             "kullanici_turu": sonuc.kullanici_turu,
+            "sifre_degistirilmeli": sonuc.sifre_degistirilmeli,
         },
         "oturum_jetonu": ham_jeton,
     }
 
 
-def _oturum_sahibi_yaniti(sahip: OturumSahibi) -> dict:
+def _oturum_sahibi_yaniti(sahip: OturumSahibi, sifre_degistirilmeli: bool) -> dict:
     """OturumSahibi DTO'sunu /me için güvenli kullanıcı sözlüğüne çevirir.
 
     gecerlilik_bitisi bilerek gövdeye konmaz; yalnızca güvenli kimlik alanları döner.
+    sifre_degistirilmeli, UI'ın zorunlu şifre belirleme akışı için taşınır.
     """
     return {
         "basari": True,
@@ -125,6 +152,7 @@ def _oturum_sahibi_yaniti(sahip: OturumSahibi) -> dict:
             "ad": sahip.ad,
             "soyad": sahip.soyad,
             "kullanici_turu": sahip.kullanici_turu,
+            "sifre_degistirilmeli": sifre_degistirilmeli,
         },
     }
 

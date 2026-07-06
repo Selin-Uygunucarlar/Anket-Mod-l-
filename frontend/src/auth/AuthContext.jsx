@@ -49,6 +49,15 @@ export function AuthProvider({ children }) {
     setOturumKullanici(kullanici)
   }
 
+  // oturumuTazele: oturum durumunu sunucudan (me) yeniden çeker ve bağlamı
+  // günceller. Örn. kullanıcı kalıcı şifresini belirleyince sifre_degistirilmeli
+  // bayrağının tazelenmesi için çağrılır (tek gerçek kaynak sunucudur;
+  // istemci depolamasına yazılmaz). me() null dönerse oturum yok sayılır.
+  async function oturumuTazele() {
+    const kullanici = await me()
+    setOturumKullanici(kullanici)
+  }
+
   // cikisYap: sunucudaki oturumu sonlandırır ve bağlamı temizler.
   async function cikisYap() {
     try {
@@ -59,7 +68,13 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const deger = { oturumKullanici, yukleniyor, girisYap, cikisYap }
+  const deger = {
+    oturumKullanici,
+    yukleniyor,
+    girisYap,
+    oturumuTazele,
+    cikisYap,
+  }
   return <AuthContext.Provider value={deger}>{children}</AuthContext.Provider>
 }
 

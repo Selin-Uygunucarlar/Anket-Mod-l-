@@ -93,7 +93,7 @@ function KisiMenu({ adminPaneliniKapat }) {
         aria-haspopup="menu"
         aria-expanded={acik}
       >
-        <PersonIcon />
+        <span className="kisi-amblem"><PersonIcon /></span>
         <span className="kisi-ad">{gosterilenAd}</span>
       </button>
 

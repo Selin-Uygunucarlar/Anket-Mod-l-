@@ -61,6 +61,29 @@ class DataAccessError(AppError):
     severity = Severity.ERROR
 
 
+class SecenekZatenVarError(AppError):
+    """Aynı (kategori, deger) seçeneği zaten tanımlıyken tekrar eklenmesi.
+
+    Repository, TanimliSecenek üzerindeki UNIQUE ihlalini (IntegrityError) bu tipe
+    sarmalayıp YUKARI FIRLATIR; sessizce yutulmaz, böylece çağıran katman durumu
+    anlamlı biçimde ele alabilir. Kullanıcı/veri hatasıdır (kritik değil), bu
+    yüzden severity WARNING. Mesaj sabittir: ham DB detayı/tablo adı konmaz.
+    """
+
+    kod = "SECENEK_ZATEN_VAR"
+    severity = Severity.WARNING
+    _VARSAYILAN_MESAJ = "Bu seçenek zaten tanımlı."
+
+    def __init__(
+        self,
+        mesaj: str | None = None,
+        *,
+        kod: str | None = None,
+        severity: Severity | None = None,
+    ) -> None:
+        super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
+
+
 class ValidationError(AppError):
     """Geçersiz/eksik girdi hatası (Controller validation veya Service iş kuralı).
 

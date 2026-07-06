@@ -17,3 +17,6 @@ class GirisSonucu:
     ad: str
     soyad: str
     kullanici_turu: str
+    # Kimlik geçici (tek kullanımlık) şifre taşıyor mu. TRUE ise UI, girişten sonra
+    # kullanıcıyı zorunlu kalıcı şifre belirlemeye yönlendirir. Hassas değildir.
+    sifre_degistirilmeli: bool = False

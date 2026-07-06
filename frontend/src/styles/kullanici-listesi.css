@@ -80,9 +80,9 @@
 }
 
 /* "Kullanıcı Ekle" butonu: yuvarlak köşeli, mavi zemin + beyaz metin; ikon ve
-   metin yan yana. Şimdilik işlevsiz görsel yer tutucudur. Hover/odakta hafif
-   koyulaşır; klavye odağında görünür dış çerçeve korunur. Mavi (#0072CE) marka
-   rengi sabittir; hover için biraz koyu tonu kullanılır. */
+   metin yan yana. Tıklanınca kullanıcı ekleme görünümü açılır. Hover/odakta
+   hafif koyulaşır; klavye odağında görünür dış çerçeve korunur. Mavi (#0072CE)
+   marka rengi sabittir; hover için biraz koyu tonu kullanılır. */
 .kullanici-ekle-buton {
   display: inline-flex;
   align-items: center;

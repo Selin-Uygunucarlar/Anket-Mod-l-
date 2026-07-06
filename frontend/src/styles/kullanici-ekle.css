@@ -1,0 +1,289 @@
+/*
+  Kullanıcı ekleme formunun stilleri: içerik alanında ortalanmış beyaz bir A4
+  sayfası (gölgeli kart) içinde başlık, her satırda etiketin girdinin solunda
+  durduğu yerleşim, Kaydet/Geri Dön butonları, hata/uyarı metinleri ve başarı
+  sonrası geçici şifre kutusu. Anasayfa içinde render edildiği için yerel
+  --renk-vurgu (anasayfa.css) ile global palet (login.css) buradan miras alınır.
+  Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Form sarmalayıcısı: içerik alanında ortalanan, A4 genişliğine yakın beyaz
+   sayfa. Yumuşak gölge, beyaz içerik zemininden ayrışmayı sağlar; tüm form,
+   butonlar ve geçici şifre kartı bu sayfanın iç boşluğu içinde kalır. */
+.kullanici-ekle {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+  margin: 24px auto 0;
+  padding: 48px;
+  background: var(--renk-beyaz);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 30, 60, 0.14);
+}
+
+/* Görünüm başlığı. */
+.kullanici-ekle-baslik {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+.kullanici-ekle-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Alan ızgarası: alanlar alt alta dizilir; her satır kendi içinde etiket + girdi
+   ikilisini yatay hizalar. */
+.kullanici-ekle-izgara {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+/* Tek alan yerleşimi: etiket solda sabit genişlikte, girdi sağda kalan alanı
+   doldurur; her ikisi dikeyde ortalanır. Dar ekranda (aşağıdaki media)
+   dikeye döner. */
+.form-satir {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.form-etiket {
+  flex: 0 0 180px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+/* Zorunlu alan yıldızı. */
+.zorunlu-yildiz {
+  color: var(--renk-hata);
+}
+
+/* Metin kutusu ve dropdown ortak görünümü: aynı yükseklik ve satırda kalan
+   alanı doldurur, böylece tüm alanlar görsel olarak eşit durur. */
+.form-kutu {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 17px;
+}
+
+.form-kutu:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+  border-color: var(--renk-vurgu);
+}
+
+/* Uyarı metni (seçenekler yüklenemedi gibi ikincil bilgilendirme). */
+.kullanici-ekle-uyari {
+  margin: 0;
+  color: var(--renk-metin-soluk);
+  font-size: 13px;
+}
+
+/* Hata kutusu: dikkat çekici ama teknik detay içermeyen güvenli mesaj. */
+.kullanici-ekle-hata {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: var(--renk-hata);
+  font-size: 14px;
+}
+
+/* Buton satırı: butonlar sağa hizalı; Kaydet en sağda, Geri Dön solunda.
+   Sıralama JSX değiştirilmeden CSS order ile sağlanır. */
+.kullanici-ekle-butonlar {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* Görsel sıra: Geri Dön (ikincil) solda, Kaydet (sarmalayıcı) sağda. Kaydet
+   butonu tooltip için bir span'e sarıldığından flex öğesi sarmalayıcıdır.
+   Yalnızca bu buton satırında geçerli; başka yerdeki butonlar etkilenmez. */
+.kullanici-ekle-butonlar .ikincil-buton {
+  order: 1;
+}
+
+.kullanici-ekle-butonlar .kaydet-sarmalayici {
+  order: 2;
+}
+
+/* Kaydet butonunu saran görsel-only kapsayıcı; tooltip'i konumlandırmak için
+   position:relative, buton satırında hizada kalmak için inline-flex. */
+.kaydet-sarmalayici {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Kaydet pasifken (data-uyari mevcut) hover'da beliren uyarı balonu. Buton
+   üstünde ortalı, koyu zemin/açık yazı; A4 taşmaması için z-index verilir. */
+.kaydet-sarmalayici[data-uyari]:hover::after {
+  content: attr(data-uyari);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--renk-lacivert);
+  color: var(--renk-beyaz);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(15, 30, 60, 0.18);
+  pointer-events: none;
+}
+
+/* Kaydet/Geri Dön'ü yalnızca bu bağlamda büyütür ve kalınlaştırır. Genel
+   .birincil-buton/.ikincil-buton kuralları (Ayarlar sayfasında da kullanılır)
+   bilinçli olarak ellenmez. */
+.kullanici-ekle-butonlar .birincil-buton,
+.kullanici-ekle-butonlar .ikincil-buton {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Geri Dön: çerçevesiz, zeminsiz sade metin görünümü. Yalnızca buton satırındaki
+   ikincil butonu hedefler; geçici şifre kartındaki "Kopyala" çerçeveli kalır. */
+.kullanici-ekle-butonlar .ikincil-buton {
+  border: none;
+  background: transparent;
+}
+
+/* Çerçevesiz görünümle tutarlı hover/focus: hafif zemin geri bildirim verir. */
+.kullanici-ekle-butonlar .ikincil-buton:hover,
+.kullanici-ekle-butonlar .ikincil-buton:focus-visible {
+  background: var(--renk-zemin-acik);
+}
+
+/* Birincil buton: mavi zemin + beyaz metin. Pasifken soluk ve tıklanamaz. */
+.birincil-buton {
+  padding: 10px 18px;
+  border: none;
+  background: #0072CE;
+  color: var(--renk-beyaz);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.birincil-buton:hover:not(:disabled),
+.birincil-buton:focus-visible {
+  background: #005ba6;
+  outline: none;
+}
+
+.birincil-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+.birincil-buton:disabled {
+  background: var(--renk-kenarlik);
+  color: var(--renk-metin-soluk);
+  cursor: not-allowed;
+}
+
+/* İkincil buton: kenarlıklı, zemin yok; Geri Dön / Kopyala için. */
+.ikincil-buton {
+  padding: 10px 18px;
+  border: 1px solid var(--renk-kenarlik);
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ikincil-buton:hover,
+.ikincil-buton:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}
+
+.ikincil-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+/* Başarı sonrası geçici şifre kutusu: belirgin, okunur bir kart. */
+.kullanici-ekle-sonuc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-zemin-acik);
+  max-width: 520px;
+}
+
+.kullanici-ekle-sonuc-baslik {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+.kullanici-ekle-sonuc-metin {
+  margin: 0;
+  font-size: 14px;
+  color: var(--renk-lacivert);
+}
+
+/* Geçici şifre satırı: kopyalanabilir kutu + Kopyala butonu yan yana. */
+.gecici-sifre-satiri {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.gecici-sifre-kutu {
+  flex: 1;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Dar ekran: A4 iç boşluğunu daralt ve satırı dikeye al (etiket kutunun üstüne),
+   böylece mobilde alanlar okunur ve dokunulabilir kalır. */
+@media (max-width: 640px) {
+  .kullanici-ekle {
+    padding: 24px;
+  }
+
+  .form-satir {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .form-etiket {
+    flex: none;
+  }
+}

@@ -1,0 +1,124 @@
+/*
+  Kalıcı şifre belirleme sayfasının stilleri: tam ekran, ortalanmış sade bir
+  kart; iki parola alanı, göster onay kutusu, uyarı/hata metinleri ve Kaydet
+  butonu. Standalone bir rotadır (anasayfa dışında), bu yüzden buton stilleri
+  burada kendi içinde tanımlıdır. Global palet login.css'ten miras alınır.
+  Yalnızca sunum sorumluluğundadır.
+*/
+
+.sifre-belirle-sayfa {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--renk-zemin-acik);
+}
+
+.sifre-belirle-kart {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  background: var(--renk-beyaz);
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(31, 37, 48, 0.12);
+}
+
+.sifre-belirle-baslik {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+.sifre-belirle-aciklama {
+  margin: 0;
+  font-size: 14px;
+  color: var(--renk-metin-soluk);
+}
+
+.sifre-belirle-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sifre-belirle-alan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sifre-belirle-etiket {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+.sifre-belirle-kutu {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+}
+
+.sifre-belirle-kutu:focus-visible {
+  outline: 2px solid var(--renk-mavi);
+  outline-offset: 2px;
+  border-color: var(--renk-mavi);
+}
+
+.sifre-belirle-goster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--renk-metin-soluk);
+  cursor: pointer;
+}
+
+.sifre-belirle-uyari {
+  font-size: 13px;
+  color: var(--renk-hata);
+}
+
+.sifre-belirle-hata {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: var(--renk-hata);
+  font-size: 14px;
+}
+
+.sifre-belirle-buton {
+  height: 44px;
+  border: none;
+  background: var(--renk-mavi);
+  color: var(--renk-beyaz);
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sifre-belirle-buton:hover:not(:disabled),
+.sifre-belirle-buton:focus-visible {
+  background: var(--renk-mavi-koyu);
+  outline: none;
+}
+
+.sifre-belirle-buton:disabled {
+  background: var(--renk-kenarlik);
+  color: var(--renk-metin-soluk);
+  cursor: not-allowed;
+}

@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from common.constants import OTURUM_SURESI_DAKIKA
-from controllers import auth_controller, kullanici_controller
+from controllers import auth_controller, kullanici_controller, secenek_controller
 
 # Geliştirme (Vite) origin'leri; üretimde ortam bazlı genişletilir. "*" AÇILMAZ.
 _IZINLI_ORIGINLER = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -32,6 +32,7 @@ _KOD_HTTP_ESLEME = {
     "ACCOUNT_LOCKED": 423,
     "SESSION_INVALID": 401,
     "YETKI_YOK": 403,
+    "SECENEK_ZATEN_VAR": 409,
     "UNEXPECTED_ERROR": 500,
 }
 
@@ -75,7 +76,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_IZINLI_ORIGINLER,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["content-type"],
 )
 
@@ -88,6 +89,52 @@ class GirisIstegi(BaseModel):
 
     kimlik: str
     sifre: str
+
+
+class SecenekEkleIstegi(BaseModel):
+    """Yeni dropdown seçeneği istek gövdesi. Kategori/deger doğrulaması Service'te."""
+
+    kategori: str
+    deger: str
+
+
+class SecenekSilIstegi(BaseModel):
+    """Silinecek dropdown seçeneği istek gövdesi. Kategori/deger doğrulaması Service'te."""
+
+    kategori: str
+    deger: str
+
+
+class SifreBelirleIstegi(BaseModel):
+    """Kalıcı şifre belirleme istek gövdesi. Uzunluk/kural doğrulaması Service'te."""
+
+    yeni_sifre: str
+
+
+class KullaniciEkleIstegi(BaseModel):
+    """Kullanıcı ekleme istek gövdesi (form alanları).
+
+    Zorunlu alanlar str; opsiyoneller varsayılan None. Boş->None normalizasyonu ve
+    tarih parse'ı Controller'da, iş kuralı doğrulaması Service'te yapılır.
+    """
+
+    kullanici_kodu: str
+    ad: str
+    soyad: str
+    email: str
+    kullanici_turu: str
+    ise_giris_tarihi: str | None = None
+    ilgili_yonetici_kodu: str | None = None
+    sirket: str | None = None
+    grup: str | None = None
+    bolum: str | None = None
+    birim: str | None = None
+    kadro_grubu: str | None = None
+    kadro_unvani: str | None = None
+    gorev_unvani: str | None = None
+    arge_personeli: str | None = None
+    personel_sigorta_is_yeri: str | None = None
+    gorev_yeri: str | None = None
 
 
 def _kod_to_http_durum(kod: str) -> int:
@@ -145,6 +192,91 @@ def list_kullanicilar(oturum: str | None = Cookie(default=None)) -> JSONResponse
     geçersiz oturum -> 401. Burada iş mantığı/loglama YOK; yalnızca protokol.
     """
     sonuc = kullanici_controller.list_kullanicilar(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/kullanicilar")
+def create_kullanici(
+    istek: KullaniciEkleIstegi, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için yeni kullanıcı oluşturur (yalnızca protokol adaptasyonu).
+
+    Gövde Controller'a dict olarak geçilir; oturum/yetki/doğrulama Controller/Service'te.
+    Başarılı yanıtta kayan pencere için cookie yenilenir. GET /api/kullanicilar ayrıdır
+    (aynı path, farklı method). Yanıt gövdesi Controller'ın güvenli sözlüğüdür.
+    """
+    sonuc = kullanici_controller.create_kullanici(oturum, istek.model_dump())
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/secenekler")
+def list_secenekler(oturum: str | None = Cookie(default=None)) -> JSONResponse:
+    """Oturumdaki admin için tüm dropdown seçeneklerini döndürür (yalnızca protokol).
+
+    Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular ve yetkiyi uygular.
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = secenek_controller.list_secenekler(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/secenekler")
+def ekle_secenek(
+    istek: SecenekEkleIstegi, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için yeni bir dropdown seçeneği ekler (yalnızca protokol).
+
+    Kategori/deger Controller'a iletilir; doğrulama/yetki Controller/Service'te. Aynı
+    seçenek zaten varsa SECENEK_ZATEN_VAR -> 409. Başarılıysa cookie yenilenir.
+    """
+    sonuc = secenek_controller.ekle_secenek(oturum, istek.kategori, istek.deger)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.delete("/api/secenekler")
+def sil_secenek(
+    istek: SecenekSilIstegi, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için bir dropdown seçeneğini siler (yalnızca protokol).
+
+    Kategori/deger Controller'a iletilir; doğrulama/yetki Controller/Service'te. Silme
+    idempotenttir. Başarılıysa kayan pencere için cookie yenilenir. Aynı path'teki
+    GET (liste) ve POST (ekle) uçlarından method ile ayrışır.
+    """
+    sonuc = secenek_controller.sil_secenek(oturum, istek.kategori, istek.deger)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/auth/sifre-belirle")
+def sifre_belirle(
+    istek: SifreBelirleIstegi, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumlu kullanıcının kalıcı şifresini belirler (yalnızca protokol adaptasyonu).
+
+    yeni_sifre Controller'a iletilir; kural/yazma Controller/Service'te. Kişi hâlâ
+    oturumlu olduğundan başarılı yanıtta cookie yenilenir. yeni_sifre gövdede DÖNMEZ.
+    """
+    sonuc = auth_controller.sifre_belirle(oturum, istek.yeni_sifre)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

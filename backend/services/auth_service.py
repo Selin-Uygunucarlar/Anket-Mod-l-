@@ -19,8 +19,13 @@ from datetime import datetime, timedelta
 
 import bcrypt
 
-from common.constants import KILIT_SURESI_DAKIKA, MAKS_HATALI_GIRIS
-from common.errors import AuthError, HesapKilitliError
+from common.constants import (
+    KILIT_SURESI_DAKIKA,
+    MAKS_HATALI_GIRIS,
+    MIN_SIFRE_UZUNLUK,
+)
+from common.errors import AuthError, HesapKilitliError, ValidationError
+from common.guvenlik import hash_sifre
 from models.giris_sonucu import GirisSonucu
 from repositories import kullanici_kimlik_repository as kimlik_repo
 
@@ -78,13 +83,46 @@ def verify_login(kimlik: str, sifre: str) -> GirisSonucu:
 
     kimlik_repo.reset_hatali_giris_and_son_giris(kayit.kullanici_kodu, simdi)
 
-    # Yalnızca güvenli alanlar döner; sifre_hash bilerek taşınmaz.
+    # Yalnızca güvenli alanlar döner; sifre_hash bilerek taşınmaz. Geçici şifre
+    # bayrağı (sifre_degistirilmeli) UI'ın zorunlu şifre belirleme akışı içindir.
     return GirisSonucu(
         kullanici_kodu=kayit.kullanici_kodu,
         ad=kayit.ad,
         soyad=kayit.soyad,
         kullanici_turu=kayit.kullanici_turu,
+        sifre_degistirilmeli=kayit.sifre_degistirilmeli,
     )
+
+
+def sifre_belirle(kullanici_kodu: str, yeni_sifre: str) -> None:
+    """Kullanıcının kalıcı şifresini belirler ve geçici şifre bayrağını düşürür.
+
+    Yeni şifre boş/whitespace olamaz ve en az MIN_SIFRE_UZUNLUK karakter olmalıdır;
+    aksi halde ValidationError fırlatılır. Geçerliyse bcrypt hash'i üretilir ve
+    Repository ile yazılır (bayrağı Repository FALSE yapar). Şifre veya hash asla
+    loglanmaz/döndürülmez. Sahiplik/oturum doğrulaması Controller'ın işidir; buraya
+    yalnızca doğrulanmış oturumun kullanici_kodu gelir.
+    """
+    if not yeni_sifre or not yeni_sifre.strip():
+        raise ValidationError("Şifre zorunludur.")
+    if len(yeni_sifre) < MIN_SIFRE_UZUNLUK:
+        raise ValidationError(f"Şifre en az {MIN_SIFRE_UZUNLUK} karakter olmalı.")
+
+    yeni_sifre_hash = hash_sifre(yeni_sifre)
+    guncelleme_zamani = datetime.now()
+    kimlik_repo.sifre_guncelle(kullanici_kodu, yeni_sifre_hash, guncelleme_zamani)
+
+
+def sifre_degistirilmeli_mi(kullanici_kodu: str) -> bool:
+    """Kullanıcının hâlâ geçici (tek kullanımlık) şifre taşıyıp taşımadığını döner.
+
+    /me akışında OturumSahibi bu bayrağı taşımadığından, kimlik kaydından okunur.
+    Kayıt bulunamazsa güvenli varsayılan olarak False döner (bilgi sızdırılmaz).
+    """
+    kayit = kimlik_repo.find_kimlik_by_identifier(kullanici_kodu)
+    if kayit is None:
+        return False
+    return kayit.sifre_degistirilmeli
 
 
 def _kilit_suresi_doldu_mu(

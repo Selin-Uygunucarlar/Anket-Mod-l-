@@ -14,6 +14,8 @@ FIRLATILIR; burada loglanmaz/yutulmaz. Ham DB mesajı, tablo adı veya stack
 trace üst katmana giden mesaja konmaz (orijinali `from` ile zincirlenir).
 """
 
+from datetime import date, datetime
+
 import pymysql
 
 from common.db import veritabani_baglantisi
@@ -37,6 +39,45 @@ _KULLANICI_LISTE_SORGUSU = """
     LEFT JOIN Kullanici y ON y.kullanici_kodu = k.ilgili_yonetici_kodu
     LEFT JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
     ORDER BY k.ad, k.soyad
+"""
+
+# Verilen kullanici_kodu (SAP no) kayıtlı mı — benzersizlik ön kontrolü için.
+_KULLANICI_KODU_VAR_SORGUSU = """
+    SELECT 1 FROM Kullanici WHERE kullanici_kodu = %s LIMIT 1
+"""
+
+# Verilen email kayıtlı mı — benzersizlik ön kontrolü için.
+_EMAIL_VAR_SORGUSU = """
+    SELECT 1 FROM Kullanici WHERE email = %s LIMIT 1
+"""
+
+# Verilen kod bir Kullanici'ye ait mi — yönetici ilişkisinin geçerliliği için.
+_YONETICI_VAR_SORGUSU = """
+    SELECT 1 FROM Kullanici WHERE kullanici_kodu = %s LIMIT 1
+"""
+
+# Yeni kullanıcının ana (Kullanici) satırı. aktif=TRUE; olusturma_tarihi Service'ten.
+_KULLANICI_EKLE_SORGUSU = """
+    INSERT INTO Kullanici (
+        kullanici_kodu, ad, soyad, email, kullanici_turu, aktif,
+        ise_giris_tarihi, olusturma_tarihi, ilgili_yonetici_kodu,
+        sirket, grup, bolum, birim, kadro_grubu, kadro_unvani,
+        gorev_unvani, arge_personeli, personel_sigorta_is_yeri, gorev_yeri
+    ) VALUES (
+        %s, %s, %s, %s, %s, TRUE,
+        %s, %s, %s,
+        %s, %s, %s, %s, %s, %s,
+        %s, %s, %s, %s
+    )
+"""
+
+# Yeni kullanıcının kimlik (KullaniciKimlik) satırı. Geçici şifre bayrağı TRUE,
+# hatali_giris_sayisi 0; sifre_guncelleme_tarihi = oluşturma anı.
+_KIMLIK_EKLE_SORGUSU = """
+    INSERT INTO KullaniciKimlik (
+        kullanici_kodu, sifre_hash, sifre_degistirilmeli,
+        sifre_guncelleme_tarihi, hatali_giris_sayisi
+    ) VALUES (%s, %s, %s, %s, 0)
 """
 
 
@@ -70,3 +111,126 @@ def list_kullanicilar() -> list[KullaniciOzet]:
         )
         for satir in satirlar
     ]
+
+
+def kullanici_kodu_var_mi(kullanici_kodu: str) -> bool:
+    """Verilen kullanici_kodu (SAP no) sistemde kayıtlı mı döndürür.
+
+    Yeni kullanıcı eklemeden önce benzersizlik ön kontrolü içindir; nihai
+    garanti PK'dir. Yetki/rol kontrolü burada değil, Service katmanındadır.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(_KULLANICI_KODU_VAR_SORGUSU, (kullanici_kodu,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Kullanıcı kodu kontrolü yapılamadı.") from hata
+
+    return satir is not None
+
+
+def email_var_mi(email: str) -> bool:
+    """Verilen email sistemde kayıtlı mı döndürür (benzersizlik ön kontrolü).
+
+    Nihai garanti UNIQUE kısıttır; bu yalnızca kullanıcıya erken/anlamlı geri
+    bildirim için ön kontroldür.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(_EMAIL_VAR_SORGUSU, (email,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("E-posta kontrolü yapılamadı.") from hata
+
+    return satir is not None
+
+
+def yonetici_var_mi(yonetici_kodu: str) -> bool:
+    """Verilen kodun bir Kullanici'ye ait olup olmadığını döndürür.
+
+    Yeni kullanıcının ilgili_yonetici_kodu'nun gerçek bir kullanıcıya işaret
+    ettiğini doğrulamak içindir (yetim FK oluşmasın). İlişki kuralı (kimin
+    kimin yöneticisi olabileceği) Service'in işidir.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(_YONETICI_VAR_SORGUSU, (yonetici_kodu,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Yönetici kontrolü yapılamadı.") from hata
+
+    return satir is not None
+
+
+def create_kullanici(
+    kullanici_kodu: str,
+    ad: str,
+    soyad: str,
+    email: str,
+    kullanici_turu: str,
+    ise_giris_tarihi: date | None,
+    ilgili_yonetici_kodu: str | None,
+    sirket: str | None,
+    grup: str | None,
+    bolum: str | None,
+    birim: str | None,
+    kadro_grubu: str | None,
+    kadro_unvani: str | None,
+    gorev_unvani: str | None,
+    arge_personeli: str | None,
+    personel_sigorta_is_yeri: str | None,
+    gorev_yeri: str | None,
+    sifre_hash: str,
+    sifre_degistirilmeli: bool,
+    olusturma_tarihi: datetime,
+) -> None:
+    """Yeni kullanıcıyı tek transaction içinde Kullanici + KullaniciKimlik olarak ekler.
+
+    İki INSERT aynı bağlantı/with bloğunda çalışır; herhangi biri patlarsa
+    context manager rollback yapar (yarım kayıt kalmaz). Kullanici satırında
+    aktif=TRUE; kimlik satırında sifre_degistirilmeli (geçici şifre bayrağı) ve
+    hatali_giris_sayisi=0, sifre_guncelleme_tarihi = olusturma_tarihi. Benzersizlik
+    (PK/UNIQUE) ve FK bütünlüğü nihai olarak DB'de zorlanır. sifre_hash asla
+    loglanmaz. Yetki/rol/şifre üretimi Service katmanının işidir.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    _KULLANICI_EKLE_SORGUSU,
+                    (
+                        kullanici_kodu,
+                        ad,
+                        soyad,
+                        email,
+                        kullanici_turu,
+                        ise_giris_tarihi,
+                        olusturma_tarihi,
+                        ilgili_yonetici_kodu,
+                        sirket,
+                        grup,
+                        bolum,
+                        birim,
+                        kadro_grubu,
+                        kadro_unvani,
+                        gorev_unvani,
+                        arge_personeli,
+                        personel_sigorta_is_yeri,
+                        gorev_yeri,
+                    ),
+                )
+                imlec.execute(
+                    _KIMLIK_EKLE_SORGUSU,
+                    (
+                        kullanici_kodu,
+                        sifre_hash,
+                        sifre_degistirilmeli,
+                        olusturma_tarihi,
+                    ),
+                )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Kullanıcı oluşturulamadı.") from hata

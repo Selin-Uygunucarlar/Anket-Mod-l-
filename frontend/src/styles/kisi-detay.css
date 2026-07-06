@@ -1,8 +1,10 @@
 /*
   Kişi detay panelinin (sağdan kayan drawer) stilleri. Admin paneli deseniyle
-  uyumludur: üst barın (72px) altından başlar, dar ve sabittir, açıkken arkasında
+  uyumludur: üst barın (72px) altından başlar, sabittir, açıkken arkasında
   beyaza yakın hafif buzlu bir perde belirir (sayfayı karartmaz) ve perdeye
-  tıklamak paneli kapatır. Renk değişkenleri global olarak login.css'te
+  tıklamak paneli kapatır. Başlık dikeydir: üstte kare bir kişi amblemi, altında
+  ortalanmış büyük harfli ad. Kapatma butonu panelin sol dış kenarına taşan
+  küçük mavi bir kutudur. Renk değişkenleri global olarak login.css'te
   tanımlıdır; burada yeniden kullanılır. Yalnızca sunum (görsel) sorumluluğundadır.
 */
 
@@ -29,24 +31,29 @@
   visibility: visible;
 }
 
-/* Sağdan kayan kişi detay paneli: sabit ve dar genişlik, üst barın hemen
-   altında başlar. Kapalıyken sağ kenarın dışına ötelenir; açılınca kayar. */
+/* Sağdan kayan kişi detay paneli: sabit genişlik, üst barın hemen altında
+   başlar. Kapalıyken sağ kenarın dışına ötelenir; açılınca kayar. Sol dış
+   kenara taşan kapatma kutusunun kırpılmaması için overflow görünür bırakılır. */
 .kisi-detay-panel {
   position: fixed;
   top: 72px;
   right: 0;
   height: calc(100vh - 72px);
-  width: 320px;
+  width: 420px;
   max-width: 85vw;
   background: var(--renk-beyaz);
   border-left: 1px solid var(--renk-kenarlik);
   box-shadow: -8px 0 24px rgba(31, 37, 48, 0.18);
-  transform: translateX(100%);
+  /* Sol dışa taşan kapatma kutusunun (left: -36px) da tamamen ekran dışında
+     kalması için taşma payı kadar (40px) fazladan ötelenir; böylece panel
+     kapalıyken kutu görünmez, açılınca ikisi birlikte kayar. */
+  transform: translateX(calc(100% + 40px));
   /* Transform katmanını önden promote et: ilk kare sıçramasını (jank)
      engelleyerek kaydırmayı akıcılaştırır. */
   will-change: transform;
   transition: transform 0.25s ease;
   z-index: 50;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -55,43 +62,64 @@
   transform: translateX(0);
 }
 
-/* Panel başlığı: kişinin büyük harfli adı + kapatma (sağ ok) butonu. */
+/* Panel başlığı: dikey akış — üstte kare kişi amblemi, altında ortalanmış
+   büyük harfli ad. */
 .kisi-detay-baslik {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 24px 20px;
   border-bottom: 1px solid var(--renk-kenarlik);
+}
+
+/* Kişi amblemi: yuvarlatılmış köşeli KARE avatar kabı. İleride kişi fotoğrafını
+   (<img>) barındırabilecek boyuttadır (96px); şimdilik içinde yer tutucu olarak
+   PersonIcon'u ortalar. #B3B7D9 zemin üzerinde ikon lacivert ve okunur kalır. */
+.kisi-detay-amblem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 128px;
+  height: 128px;
+  border-radius: 20px;
+  background: #B3B7D9;
+  color: var(--renk-lacivert);
+  flex-shrink: 0;
 }
 
 .kisi-detay-baslik h2 {
   margin: 0;
-  font-size: 16px;
+  text-align: center;
+  font-size: 22px;
   font-weight: 700;
   color: var(--renk-lacivert);
 }
 
-/* Kapatma butonu: SVG ok simgesini ortalar, hover/odakta açık zemin. */
+/* Kapatma kutusu: panelin sol dış kenarına taşan küçük mavi kutu. SagOkIcon'u
+   ortalar; panelin sağa kayıp kapanacağını görsel olarak ima eder. Panele göre
+   absolute konumlanır (panelin dışına, negatif left ile taşar). */
 .kisi-detay-kapat-buton {
+  position: absolute;
+  top: 24px;
+  left: -36px;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 36px;
-  height: 36px;
-  flex-shrink: 0;
+  height: 44px;
   border: none;
-  background: transparent;
-  color: var(--renk-metin-soluk);
-  border-radius: 8px;
+  background: var(--renk-mavi);
+  color: var(--renk-beyaz);
+  border-radius: 10px;
+  box-shadow: -4px 0 12px rgba(31, 37, 48, 0.18);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .kisi-detay-kapat-buton:hover,
 .kisi-detay-kapat-buton:focus-visible {
-  background: var(--renk-zemin-acik);
-  color: var(--renk-lacivert);
+  background: var(--renk-mavi-koyu);
   outline: none;
 }
 

@@ -4,8 +4,9 @@
   beyaza yakın hafif buzlu bir perde belirir (sayfayı karartmaz) ve perdeye
   tıklamak paneli kapatır. Başlık dikeydir: üstte kare bir kişi amblemi, altında
   ortalanmış büyük harfli ad. Kapatma butonu panelin sol dış kenarına taşan
-  küçük mavi bir kutudur. Renk değişkenleri global olarak login.css'te
-  tanımlıdır; burada yeniden kullanılır. Yalnızca sunum (görsel) sorumluluğundadır.
+  küçük marka mavisi bir kutudur (sayfadaki diğer ok kutularıyla aynı ton).
+  Renk değişkenleri global olarak tanımlıdır; burada yeniden kullanılır.
+  Yalnızca sunum (görsel) sorumluluğundadır.
 */
 
 /* Kişi detay perdesi (overlay): panel açıkken üst barın (72px) ALTINDAN
@@ -96,9 +97,9 @@
   color: var(--renk-lacivert);
 }
 
-/* Kapatma kutusu: panelin sol dış kenarına taşan küçük mavi kutu. SagOkIcon'u
-   ortalar; panelin sağa kayıp kapanacağını görsel olarak ima eder. Panele göre
-   absolute konumlanır (panelin dışına, negatif left ile taşar). */
+/* Kapatma kutusu: panelin sol dış kenarına taşan küçük marka mavisi kutu.
+   SagOkIcon'u ortalar; panelin sağa kayıp kapanacağını görsel olarak ima eder.
+   Panele göre absolute konumlanır (panelin dışına, negatif left ile taşar). */
 .kisi-detay-kapat-buton {
   position: absolute;
   top: 24px;
@@ -109,18 +110,21 @@
   width: 36px;
   height: 44px;
   border: none;
-  background: var(--renk-mavi);
-  color: var(--renk-beyaz);
+  background: var(--renk-marka-mavi);
+  color: #fff;
   border-radius: 10px;
   box-shadow: -4px 0 12px rgba(31, 37, 48, 0.18);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
-.kisi-detay-kapat-buton:hover,
+.kisi-detay-kapat-buton:hover {
+  filter: brightness(0.92);
+}
+
 .kisi-detay-kapat-buton:focus-visible {
-  background: var(--renk-mavi-koyu);
-  outline: none;
+  outline: 2px solid var(--renk-marka-mavi);
+  outline-offset: 2px;
 }
 
 /* Panel gövdesi: şimdilik yalnızca yer tutucu metni barındırır. */

@@ -1,0 +1,154 @@
+/*
+  Sol kullanıcı yan çubuğunun (rail) stilleri. Üst barın (72px) altından başlayan,
+  sol kenarda sabit ve kalıcı dar bir çubuktur; daraltılmış (~64px) ve genişletilmiş
+  (~220px) iki durumu vardır ve width geçişiyle yumuşak kayar. Beyaz zemin, sağ
+  kenarda ince kenarlık ve hafif gölge taşır (anasayfa.css'teki gölge/renk dili).
+  Renk değişkenleri global olarak login.css'te tanımlıdır; burada yeniden kullanılır.
+  Sağdaki admin paneli overlay(40)/panel(50) katmanlarının altında (z-index: 30)
+  durur; çubuk kalıcı olduğu için bu sorun değildir. Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Yan çubuk kabı: sol kenarda sabit, üst barın altında başlar. Varsayılan
+   daraltılmış genişlik 64px; .genis sınıfıyla 220px'e genişler. Sağ kenardan
+   dışarı taşan aç/kapa kutusunun kırpılmaması için overflow gizlenmez; etiket
+   gizleme sorumluluğu iç öğede (.yan-cubuk-oge overflow:hidden +
+   .yan-cubuk-oge-etiket display:none) kalır. Bu kap, dışarı taşan butonun
+   absolute konumlanma referansıdır (position:fixed olduğu için containing block). */
+.yan-cubuk {
+  position: fixed;
+  top: 72px;
+  left: 0;
+  height: calc(100vh - 72px);
+  width: 64px;
+  background: var(--renk-beyaz);
+  border-right: 1px solid var(--renk-kenarlik);
+  box-shadow: 4px 0 16px rgba(31, 37, 48, 0.08);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  /* Width geçişini önden katmana promote ederek kaydırmayı akıcılaştırır. */
+  will-change: width;
+  transition: width 0.25s ease;
+}
+
+.yan-cubuk.genis {
+  width: 220px;
+}
+
+/* Üst bölüm: liste ile arasında ince ayırıcı çizgi ve üstte küçük boşluk sağlar.
+   Aç/kapa butonu bu bölümün DOM çocuğudur ama absolute konumlandığı için akıştan
+   çıkar ve çubuğun sağ kenarından dışarı taşar; bu yüzden burada hizalama kuralı
+   gerekmez. */
+.yan-cubuk-ust {
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid var(--renk-kenarlik);
+}
+
+/* Aç/kapa butonu: çubuğun sağ kenarından dışarı taşan, kenarları yuvarlatılmış
+   küçük marka mavisi kutu (klasik "kenardan çıkan daralt/genişlet düğmesi").
+   .yan-cubuk'a göre absolute konumlanır; sağ kenardan negatif offset ile yarısı
+   çubuğun dışına, içerik alanına doğru taşar. Zemin kalıcı olarak marka
+   mavisidir (hover'a bağlı değil); chevron beyazdır. z-index ile alttaki liste
+   öğelerinin üstünde kalır. Hover'da çok hafif koyulaşır, focus-visible odak
+   halkası bırakır. */
+.yan-cubuk-ackapa {
+  position: absolute;
+  top: 14px;
+  right: -14px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--renk-marka-mavi);
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(31, 37, 48, 0.2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.15s ease;
+}
+
+.yan-cubuk-ackapa:hover {
+  filter: brightness(0.92);
+}
+
+.yan-cubuk-ackapa:focus-visible {
+  outline: 2px solid var(--renk-marka-mavi);
+  outline-offset: 2px;
+}
+
+/* Chevron sarmalayıcı: daraltılmışken sağa (varsayılan), genişletilmişken sola
+   dönük olacak şekilde yumuşak döner. */
+.yan-cubuk-chevron {
+  display: flex;
+  align-items: center;
+  transition: transform 0.25s ease;
+}
+
+.yan-cubuk-chevron.genis {
+  transform: rotate(180deg);
+}
+
+/* Menü öğeleri listesi. */
+.yan-cubuk-liste {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Öğe butonu: tam genişlik, ikon + etiket yan yana. Hover/odakta açık zemin.
+   Daraltılmışken etiket gizlenir; buton ikonu ortalar. */
+.yan-cubuk-oge {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  color: var(--renk-lacivert);
+  font-size: 14px;
+  text-align: left;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 0.15s ease;
+}
+
+.yan-cubuk-oge:hover,
+.yan-cubuk-oge:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}
+
+/* İkon kabı: sabit boyutlu, daralmaz; daraltılmışken ortalanabilmesi için
+   yatayda esnek büyür. */
+.yan-cubuk-oge-ikon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Daraltılmışken öğeyi ikon çevresinde ortala ve etiketi gizle. */
+.yan-cubuk:not(.genis) .yan-cubuk-oge {
+  justify-content: center;
+  gap: 0;
+}
+
+/* Etiket: genişletilmişken görünür; daraltılmışken taşmadan gizlenir. */
+.yan-cubuk-oge-etiket {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yan-cubuk:not(.genis) .yan-cubuk-oge-etiket {
+  display: none;
+}

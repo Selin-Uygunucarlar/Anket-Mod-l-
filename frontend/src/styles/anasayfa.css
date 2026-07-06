@@ -1,11 +1,13 @@
 /*
-  Anasayfa yerleşiminin stilleri: beyaz üst bar (en üstünde ince mavi #0072CE
+  Anasayfa yerleşiminin stilleri: beyaz üst bar (en üstünde ince marka mavisi
   aksan çizgi ve altında ayırıcı gölge), hamburger butonu, kişi
   göstergesi ile açılır kişi menüsü ve sağdan kayan admin paneli (drawer).
   Admin paneli üst barın altında konumlanır; açıkken arkasında beyaza yakın,
   hafif buzlu bir perde belirir (sayfayı karartmaz) ve bu perdeye tıklamak
   paneli kapatır. Renk değişkenleri global olarak login.css'te tanımlıdır;
-  burada yeniden kullanılır. Yalnızca sunum (görsel) sorumluluğundadır.
+  marka mavisi ise burada .anasayfa üzerinde tek kaynak olarak tanımlanır ve
+  alt bileşenlere (yan çubuk, admin paneli) miras kalır. Yalnızca sunum
+  (görsel) sorumluluğundadır.
 */
 
 /* Sayfa sarmalayıcı: üst bar + altında içerik alanı için tam yükseklik.
@@ -15,19 +17,20 @@
    değiştirilmez. */
 .anasayfa {
   --renk-vurgu: #0080ff;
+  --renk-marka-mavi: #0072CE;
   min-height: 100vh;
   background: #ffffff;
 }
 
 /* Üst bar: belirgin yükseklik, beyaz zemin, içeriği sağa yaslar. Yalnızca en
-   üst kenarında ince bir marka mavisi (#0072CE) aksan çizgi taşır; altındaki
-   gölge, beyaz içerik alanından net ayrışmasını sağlar. Marka mavisi global
-   --renk-lacivert'ten bağımsız sabit bir değerdir. Metin/ikonlar beyaz zemin
-   üzerinde okunur kalması için lacivertdir. */
+   üst kenarında ince bir marka mavisi aksan çizgi taşır; altındaki gölge,
+   beyaz içerik alanından net ayrışmasını sağlar. Marka mavisi --renk-marka-mavi
+   değişkeninden (tek kaynak) okunur. Metin/ikonlar beyaz zemin üzerinde okunur
+   kalması için lacivertdir. */
 .ust-bar {
   height: 72px;
   background: var(--renk-beyaz);
-  border-top: 3px solid #0072CE;
+  border-top: 3px solid var(--renk-marka-mavi);
   color: var(--renk-lacivert);
   display: flex;
   align-items: center;
@@ -149,9 +152,20 @@
   outline: none;
 }
 
-/* Üst barın altındaki içerik alanı: seçilen görünüme göre doldurulur. */
+/* Üst barın altındaki içerik alanı: seçilen görünüme göre doldurulur. Sol yan
+   çubuk (KullaniciYanCubugu) sabit konumlu olduğundan içeriği örtmemesi için sol
+   marj çubuğun daraltılmış genişliği (64px) kadar bırakılır ve margin-left geçişi
+   çubuğun width geçişiyle uyumlu olacak şekilde yumuşatılır. */
 .anasayfa-icerik {
   padding: 24px;
+  margin-left: 64px;
+  transition: margin-left 0.25s ease;
+}
+
+/* Yan çubuk genişletildiğinde içerik alanının sol marjı çubuğun genişletilmiş
+   genişliğine (220px) göre kayar. */
+.anasayfa-icerik.yan-cubuk-genis {
+  margin-left: 220px;
 }
 
 /* Not: Kullanıcı listesi / tablo / tıklanabilir isim / işlemler butonu
@@ -224,7 +238,10 @@
   font-weight: 700;
 }
 
-/* Kapatma butonu: SVG ok simgesini ortalar, hover'da açık zemin. */
+/* Kapatma butonu: SVG ok simgesini ortalar. Kalıcı marka mavisi kutu (beyaz
+   başlık zemininde kontrast oluşturur); ok beyazdır. Konum panel başlığında
+   sabittir; yalnızca renk yan çubuk aç/kapa kutusuyla bütünlük için maviye
+   çekilmiştir. Hover'da çok hafif koyulaşır, focus-visible odak halkası bırakır. */
 .admin-kapat-buton {
   display: flex;
   align-items: center;
@@ -232,18 +249,20 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: transparent;
-  color: var(--renk-metin-soluk);
+  background: var(--renk-marka-mavi);
+  color: #fff;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
-.admin-kapat-buton:hover,
+.admin-kapat-buton:hover {
+  filter: brightness(0.92);
+}
+
 .admin-kapat-buton:focus-visible {
-  background: var(--renk-zemin-acik);
-  color: var(--renk-lacivert);
-  outline: none;
+  outline: 2px solid var(--renk-marka-mavi);
+  outline-offset: 2px;
 }
 
 /* Panel içindeki yer tutucu seçenek listesi. */

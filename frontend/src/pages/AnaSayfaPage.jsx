@@ -1,15 +1,17 @@
-// Anasayfa. Üstte kalın bir üst bar (Topbar), en sağda hamburger ile açılan
-// sağdan kayan admin paneli (AdminPaneli) ve barın altında seçilen görünüme
-// göre değişen bir içerik alanı içerir. Korumalı bir rotadır (yalnızca oturumu
-// olan kullanıcı görebilir). Admin panelinin açık/kapalı durumu ve seçili
-// içerik görünümü burada saf UI state olarak tutulur; iş kuralı/hesaplama
-// içermez. Yönetim paneli girişi (hamburger + panel + admin görünümleri) yalnızca
-// kullanıcı türü 'admin' olduğunda gösterilir; bu bir gösterim kararıdır, gerçek
-// yetki kontrolü sunucudadır.
+// Anasayfa. Üstte kalın bir üst bar (Topbar), solda kalıcı kullanıcı yan çubuğu
+// (KullaniciYanCubugu), en sağda hamburger ile açılan sağdan kayan admin paneli
+// (AdminPaneli) ve barın altında seçilen görünüme göre değişen bir içerik alanı
+// içerir. Korumalı bir rotadır (yalnızca oturumu olan kullanıcı görebilir). Admin
+// panelinin açık/kapalı durumu, sol yan çubuğun genişletilmiş/daraltılmış durumu
+// ve seçili içerik görünümü burada saf UI state olarak tutulur; iş kuralı/hesaplama
+// içermez. Sol yan çubuk oturumu olan HER kullanıcıya gösterilir. Yönetim paneli
+// girişi (hamburger + panel + admin görünümleri) yalnızca kullanıcı türü 'admin'
+// olduğunda gösterilir; bu bir gösterim kararıdır, gerçek yetki kontrolü sunucudadır.
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
 import Topbar from '../components/Topbar.jsx'
 import AdminPaneli from '../components/AdminPaneli.jsx'
+import KullaniciYanCubugu from '../components/KullaniciYanCubugu.jsx'
 import KullaniciListesi from '../components/KullaniciListesi.jsx'
 import KullaniciEkleForm from '../components/KullaniciEkleForm.jsx'
 import AyarlarSayfasi from '../components/AyarlarSayfasi.jsx'
@@ -23,6 +25,10 @@ function AnaSayfaPage() {
   // Yönetim paneli girişini ve admin görünümlerini göster/gizle için kullanılır.
   const adminMi = oturumKullanici?.kullanici_turu === 'admin'
   const [adminPaneliAcik, setAdminPaneliAcik] = useState(false)
+  // Sol kullanıcı yan çubuğunun genişletilmiş/daraltılmış durumunu tutan saf UI
+  // state'i. Varsayılan daraltılmış (false); içerik alanının sol marjı bu duruma
+  // göre kaydığından durum burada tutulup çubuğa props ile geçirilir.
+  const [yanCubukGenis, setYanCubukGenis] = useState(false)
   // İçerik alanında hangi görünümün gösterileceğini tutan saf UI state'i.
   // null = henüz seçim yok (boş anasayfa).
   const [secilenGorunum, setSecilenGorunum] = useState(null)
@@ -33,6 +39,11 @@ function AnaSayfaPage() {
   // toggleAdminPaneli: hamburger tıklanınca paneli açar/kapatır.
   function toggleAdminPaneli() {
     setAdminPaneliAcik((oncekiDurum) => !oncekiDurum)
+  }
+
+  // toggleYanCubuk: yan çubuğun aç/kapa butonu tıklanınca çubuğu genişletir/daraltır.
+  function toggleYanCubuk() {
+    setYanCubukGenis((oncekiDurum) => !oncekiDurum)
   }
 
   // kapatAdminPaneli: kapatma butonu veya overlay ile paneli kapatır.
@@ -55,7 +66,11 @@ function AnaSayfaPage() {
         adminPaneliniKapat={kapatAdminPaneli}
       />
 
-      <main className="anasayfa-icerik">
+      <KullaniciYanCubugu genis={yanCubukGenis} durumDegistir={toggleYanCubuk} />
+
+      <main
+        className={`anasayfa-icerik${yanCubukGenis ? ' yan-cubuk-genis' : ''}`}
+      >
         {/* Admin görünümleri yalnızca admin'e; savunma derinliği olarak içerik
             de adminMi ile koşullanır, aksi halde boş anasayfa gösterilir. */}
         {adminMi && secilenGorunum === 'kullanici-listesi' && (

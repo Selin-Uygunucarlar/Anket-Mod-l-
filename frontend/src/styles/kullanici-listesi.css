@@ -34,7 +34,7 @@
 /* Görünüm başlığı: içerik alanının üstünde net bir başlık. */
 .kullanici-liste-baslik {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--renk-lacivert);
 }
@@ -66,7 +66,7 @@
   border-radius: 10px;
   background: var(--renk-beyaz);
   color: var(--renk-lacivert);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .kullanici-arama-kutusu::placeholder {
@@ -91,7 +91,7 @@
   border: none;
   background: #0072CE;
   color: var(--renk-beyaz);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   border-radius: 10px;
   cursor: pointer;
@@ -114,7 +114,7 @@
 .kullanici-liste-durum {
   margin: 0;
   color: var(--renk-metin-soluk);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 /* Hata durumu metni: dikkat çekici ama teknik detay içermeyen güvenli mesaj. */
@@ -134,7 +134,7 @@
 .kullanici-tablo {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--renk-lacivert);
 }
 

@@ -121,6 +121,31 @@ class OturumError(AppError):
         super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
 
 
+class YetkiYokError(AppError):
+    """Kimliği doğrulanmış ama işlem için yetkisiz kullanıcı hatası.
+
+    Neden: Admin-only uçlarda (ör. kullanıcı listesi) oturumu geçerli olsa bile
+    kullanici_turu 'admin' değilse erişim reddedilir. Yetki client'tan gelen
+    rol/id'ye değil, sunucu oturumundaki role göre belirlenir. Kullanıcı hatasıdır
+    (yeniden giriş değil, yetki eksikliği), bu yüzden severity WARNING. Mesaj
+    sabittir: hangi rolün gerektiği/teknik detay KONMAZ (bilgi sızdırılmaz).
+    """
+
+    kod = "YETKI_YOK"
+    severity = Severity.WARNING
+    # Yetkisiz erişimde döner; rol/kaynak detayı sızdırılmaz.
+    _VARSAYILAN_MESAJ = "Bu işlem için yetkiniz bulunmuyor."
+
+    def __init__(
+        self,
+        mesaj: str | None = None,
+        *,
+        kod: str | None = None,
+        severity: Severity | None = None,
+    ) -> None:
+        super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
+
+
 class HesapKilitliError(AppError):
     """Hesabın geçici kilit süresi dolmadan yapılan giriş denemesi.
 

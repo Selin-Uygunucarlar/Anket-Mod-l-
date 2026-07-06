@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from common.constants import OTURUM_SURESI_DAKIKA
-from controllers import auth_controller
+from controllers import auth_controller, kullanici_controller
 
 # Geliştirme (Vite) origin'leri; üretimde ortam bazlı genişletilir. "*" AÇILMAZ.
 _IZINLI_ORIGINLER = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -31,6 +31,7 @@ _KOD_HTTP_ESLEME = {
     "AUTH_ERROR": 401,
     "ACCOUNT_LOCKED": 423,
     "SESSION_INVALID": 401,
+    "YETKI_YOK": 403,
     "UNEXPECTED_ERROR": 500,
 }
 
@@ -127,6 +128,23 @@ def me(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     set edilir (max_age tazelenir). Geçersiz oturum SESSION_INVALID -> 401.
     """
     sonuc = auth_controller.me(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/kullanicilar")
+def list_kullanicilar(oturum: str | None = Cookie(default=None)) -> JSONResponse:
+    """Oturumdaki admin için tüm kullanıcıların güvenli listesini döndürür.
+
+    Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular ve yetkiyi
+    (yalnızca admin) uygular. Başarılı yanıtta kayan pencereyi tarayıcıyla senkron
+    tutmak için cookie aynı bayraklarla YENİDEN set edilir. Yetkisiz -> 403,
+    geçersiz oturum -> 401. Burada iş mantığı/loglama YOK; yalnızca protokol.
+    """
+    sonuc = kullanici_controller.list_kullanicilar(oturum)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

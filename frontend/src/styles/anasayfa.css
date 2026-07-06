@@ -125,9 +125,76 @@
   outline: none;
 }
 
-/* Üst barın altındaki içerik alanı: ileride doldurulacak boş alan. */
+/* Üst barın altındaki içerik alanı: seçilen görünüme göre doldurulur. */
 .anasayfa-icerik {
   padding: 24px;
+}
+
+/* Kullanıcı listesi görünümü sarmalayıcısı. */
+.kullanici-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Görünüm başlığı: içerik alanının üstünde net bir başlık. */
+.kullanici-liste-baslik {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Durum metinleri (yükleniyor / boş): soluk, okunur bilgilendirme. */
+.kullanici-liste-durum {
+  margin: 0;
+  color: var(--renk-metin-soluk);
+  font-size: 14px;
+}
+
+/* Hata durumu metni: dikkat çekici ama teknik detay içermeyen güvenli mesaj. */
+.kullanici-liste-hata {
+  color: #b42318;
+}
+
+/* Tablo sarmalayıcı: dar ekranlarda taşmada yatay kaydırma sağlar. */
+.kullanici-tablo-sarmalayici {
+  overflow-x: auto;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+/* Kullanıcı tablosu: sade, okunur; satırlar ince ayraçlarla ayrılır. */
+.kullanici-tablo {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  color: var(--renk-lacivert);
+}
+
+.kullanici-tablo th,
+.kullanici-tablo td {
+  padding: 12px 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Başlık satırı: hafif zemin ve alt kenarlıkla gövdeden ayrışır. */
+.kullanici-tablo thead th {
+  background: var(--renk-zemin-acik);
+  font-weight: 600;
+  border-bottom: 1px solid var(--renk-kenarlik);
+}
+
+/* Gövde satırları arasında ince ayraç; son satırda ayraç kalkar. */
+.kullanici-tablo tbody tr + tr td {
+  border-top: 1px solid var(--renk-kenarlik);
+}
+
+/* Satır üzerine gelince hafif vurgu (okumayı kolaylaştırır). */
+.kullanici-tablo tbody tr:hover td {
+  background: var(--renk-zemin-acik);
 }
 
 /* Admin perdesi (overlay): panel açıkken üst barın (72px) ALTINDAN başlayarak
@@ -242,4 +309,65 @@
 .admin-secenek:focus-visible {
   background: var(--renk-zemin-acik);
   outline: none;
+}
+
+/* Grup başlığı: başlık metni solda, chevron ok sağda kalacak şekilde iter. */
+.admin-grup-baslik {
+  justify-content: space-between;
+}
+
+/* Grup okunun sarmalayıcısı: açık/kapalı durumda yumuşak dönüş sağlar. */
+.admin-grup-ok {
+  display: flex;
+  align-items: center;
+  color: var(--renk-metin-soluk);
+  transition: transform 0.2s ease;
+}
+
+/* Grup açıkken ok yukarı döner (aşağı ok -> yukarı ok görünümü). */
+.admin-grup-ok.acik {
+  transform: rotate(180deg);
+}
+
+/* Alt seçenek listesi: varsayılan kapalı (yükseklik 0). Açılınca yumuşak
+   şekilde belirir. .admin-secenek-listesi girintisiyle uyumlu iç boşluk. */
+.admin-alt-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease,
+    margin-top 0.25s ease;
+}
+
+.admin-alt-listesi.acik {
+  max-height: 200px;
+  opacity: 1;
+  margin-top: 4px;
+}
+
+/* Alt seçenek: gruba ait olduğu belli olacak şekilde hafif girintili ve
+   biraz daha küçük/soluk; hover/odak davranışı .admin-secenek ile aynıdır. */
+.admin-alt-secenek {
+  padding-left: 26px;
+  font-size: 13px;
+  color: var(--renk-metin-soluk);
+}
+
+/* İkinci seviye grup başlığı (bir alt listenin içindeki grup): alt seçeneklerle
+   aynı girinti ve soluk görünüm, sağdaki chevron space-between ile korunur. */
+.admin-alt-listesi .admin-grup-baslik {
+  padding-left: 26px;
+  font-size: 13px;
+  color: var(--renk-metin-soluk);
+}
+
+/* İç içe alt liste: hiyerarşinin görülmesi için bir seviye daha girinti. */
+.admin-alt-listesi .admin-alt-listesi {
+  padding-left: 24px;
 }

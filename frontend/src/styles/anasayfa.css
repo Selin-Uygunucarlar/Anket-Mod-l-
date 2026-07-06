@@ -1,5 +1,6 @@
 /*
-  Anasayfa yerleşiminin stilleri: kalın üst bar, hamburger butonu, kişi
+  Anasayfa yerleşiminin stilleri: beyaz üst bar (en üstünde ince mavi #0072CE
+  aksan çizgi ve altında ayırıcı gölge), hamburger butonu, kişi
   göstergesi ile açılır kişi menüsü ve sağdan kayan admin paneli (drawer).
   Admin paneli üst barın altında konumlanır; açıkken arkasında beyaza yakın,
   hafif buzlu bir perde belirir (sayfayı karartmaz) ve bu perdeye tıklamak
@@ -8,24 +9,32 @@
 */
 
 /* Sayfa sarmalayıcı: üst bar + altında içerik alanı için tam yükseklik.
-   Zemin, temiz ve canlı bir his için beyaza yakın çok açık serin bir tondur
-   (global --renk-zemin-acik'ten bilinçli olarak daha beyaz tutulmuştur). */
+   Zemin komple beyazdır; üst bar da beyazdır ve alttaki içerikten ince mavi
+   üst çizgi ile gölge sayesinde ayrışır. Yerel --renk-vurgu (tıklanabilir
+   isimler ve ince vurgular) burada tanımlanır; global palet (login.css)
+   değiştirilmez. */
 .anasayfa {
+  --renk-vurgu: #0080ff;
   min-height: 100vh;
-  background: #f8fafc;
+  background: #ffffff;
 }
 
-/* Kalın üst bar: belirgin yükseklik, lacivert zemin, içeriği sağa yaslar. */
+/* Üst bar: belirgin yükseklik, beyaz zemin, içeriği sağa yaslar. Yalnızca en
+   üst kenarında ince bir marka mavisi (#0072CE) aksan çizgi taşır; altındaki
+   gölge, beyaz içerik alanından net ayrışmasını sağlar. Marka mavisi global
+   --renk-lacivert'ten bağımsız sabit bir değerdir. Metin/ikonlar beyaz zemin
+   üzerinde okunur kalması için lacivertdir. */
 .ust-bar {
   height: 72px;
-  background: var(--renk-lacivert);
-  color: var(--renk-beyaz);
+  background: var(--renk-beyaz);
+  border-top: 3px solid #0072CE;
+  color: var(--renk-lacivert);
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 0 24px;
-  box-shadow: 0 2px 8px rgba(31, 37, 48, 0.18);
+  box-shadow: 0 4px 12px rgba(31, 37, 48, 0.12);
 }
 
 /* Üst barın sağ bölümü: kişi menüsü ve hamburger yan yana. */
@@ -44,7 +53,7 @@
   height: 44px;
   border: none;
   background: transparent;
-  color: var(--renk-beyaz);
+  color: var(--renk-lacivert);
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -52,7 +61,7 @@
 
 .hamburger-buton:hover,
 .hamburger-buton:focus-visible {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--renk-zemin-acik);
   outline: none;
 }
 
@@ -69,7 +78,7 @@
   padding: 8px 12px;
   border: none;
   background: transparent;
-  color: var(--renk-beyaz);
+  color: var(--renk-lacivert);
   font-size: 14px;
   font-weight: 600;
   border-radius: 10px;
@@ -79,7 +88,7 @@
 
 .kisi-gosterge:hover,
 .kisi-gosterge:focus-visible {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--renk-zemin-acik);
   outline: none;
 }
 
@@ -130,72 +139,8 @@
   padding: 24px;
 }
 
-/* Kullanıcı listesi görünümü sarmalayıcısı. */
-.kullanici-liste {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* Görünüm başlığı: içerik alanının üstünde net bir başlık. */
-.kullanici-liste-baslik {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--renk-lacivert);
-}
-
-/* Durum metinleri (yükleniyor / boş): soluk, okunur bilgilendirme. */
-.kullanici-liste-durum {
-  margin: 0;
-  color: var(--renk-metin-soluk);
-  font-size: 14px;
-}
-
-/* Hata durumu metni: dikkat çekici ama teknik detay içermeyen güvenli mesaj. */
-.kullanici-liste-hata {
-  color: #b42318;
-}
-
-/* Tablo sarmalayıcı: dar ekranlarda taşmada yatay kaydırma sağlar. */
-.kullanici-tablo-sarmalayici {
-  overflow-x: auto;
-  border: 1px solid var(--renk-kenarlik);
-  border-radius: 12px;
-  background: var(--renk-beyaz);
-}
-
-/* Kullanıcı tablosu: sade, okunur; satırlar ince ayraçlarla ayrılır. */
-.kullanici-tablo {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  color: var(--renk-lacivert);
-}
-
-.kullanici-tablo th,
-.kullanici-tablo td {
-  padding: 12px 16px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-/* Başlık satırı: hafif zemin ve alt kenarlıkla gövdeden ayrışır. */
-.kullanici-tablo thead th {
-  background: var(--renk-zemin-acik);
-  font-weight: 600;
-  border-bottom: 1px solid var(--renk-kenarlik);
-}
-
-/* Gövde satırları arasında ince ayraç; son satırda ayraç kalkar. */
-.kullanici-tablo tbody tr + tr td {
-  border-top: 1px solid var(--renk-kenarlik);
-}
-
-/* Satır üzerine gelince hafif vurgu (okumayı kolaylaştırır). */
-.kullanici-tablo tbody tr:hover td {
-  background: var(--renk-zemin-acik);
-}
+/* Not: Kullanıcı listesi / tablo / tıklanabilir isim / işlemler butonu
+   stilleri kendi bileşeninin dosyasındadır (styles/kullanici-listesi.css). */
 
 /* Admin perdesi (overlay): panel açıkken üst barın (72px) ALTINDAN başlayarak
    sayfayı örter. Koyu değil; beyaza yakın, hafif buzlu (frosted) bir perdedir,
@@ -211,6 +156,9 @@
   -webkit-backdrop-filter: blur(2px);
   opacity: 0;
   visibility: hidden;
+  /* Opacity geçişini önden katmana promote et: buzlu perdenin her karede
+     yeniden hesaplanmasından doğan takılmayı azaltır. */
+  will-change: opacity;
   transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
@@ -233,6 +181,9 @@
   border-left: 1px solid var(--renk-kenarlik);
   box-shadow: -8px 0 24px rgba(31, 37, 48, 0.18);
   transform: translateX(100%);
+  /* Transform katmanını önden promote et: ilk kare sıçramasını (jank)
+     engelleyerek kaydırmayı akıcılaştırır. */
+  will-change: transform;
   transition: transform 0.25s ease;
   z-index: 50;
   display: flex;

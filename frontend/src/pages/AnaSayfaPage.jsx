@@ -8,6 +8,7 @@ import { useState } from 'react'
 import Topbar from '../components/Topbar.jsx'
 import AdminPaneli from '../components/AdminPaneli.jsx'
 import KullaniciListesi from '../components/KullaniciListesi.jsx'
+import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
 import '../styles/anasayfa.css'
 
 // AnaSayfaPage: üst bar + içerik alanı + admin panelini birleştirir.
@@ -16,6 +17,9 @@ function AnaSayfaPage() {
   // İçerik alanında hangi görünümün gösterileceğini tutan saf UI state'i.
   // null = henüz seçim yok (boş anasayfa).
   const [secilenGorunum, setSecilenGorunum] = useState(null)
+  // Kişi detay panelinde gösterilecek kişiyi tutan saf UI state'i.
+  // null = panel kapalı; { ad, soyad } = ilgili kişinin detayı açık.
+  const [secilenKisi, setSecilenKisi] = useState(null)
 
   // toggleAdminPaneli: hamburger tıklanınca paneli açar/kapatır.
   function toggleAdminPaneli() {
@@ -43,7 +47,7 @@ function AnaSayfaPage() {
 
       <main className="anasayfa-icerik">
         {secilenGorunum === 'kullanici-listesi' ? (
-          <KullaniciListesi />
+          <KullaniciListesi onKisiSec={setSecilenKisi} />
         ) : (
           <div className="anasayfa-bos">{/* İçerik ileride eklenecek */}</div>
         )}
@@ -53,6 +57,12 @@ function AnaSayfaPage() {
         acik={adminPaneliAcik}
         panelKapat={kapatAdminPaneli}
         onSecenekSec={secGorunum}
+      />
+
+      <KisiDetayPaneli
+        acik={Boolean(secilenKisi)}
+        kisi={secilenKisi}
+        panelKapat={() => setSecilenKisi(null)}
       />
     </div>
   )

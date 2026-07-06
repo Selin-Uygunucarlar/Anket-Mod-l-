@@ -3,10 +3,17 @@
 // veriyi kullaniciApi üzerinden ister ve tabloda gösterir; iş kuralı, yetki
 // kontrolü veya hesaplama İÇERMEZ (yetki sunucuda uygulanır). Yükleniyor, hata,
 // boş ve dolu durumları ayrı ayrı ele alınır; kullanıcıya yalnızca güvenli
-// mesaj gösterilir.
+// mesaj gösterilir. Başlık yanındaki arama kutusu, ekranda zaten çekili olan
+// veriyi client-side süzer (ad soyad, durum, e-posta, sicil, eklenme tarihi);
+// backend'e ek istek atmaz. Çalışan ve yönetici adları tıklanınca üst bileşene
+// iletilir (onKisiSec) ve sağdan kayan kişi detay panelinde gösterilir. Başlık
+// satırındaki "Kullanıcı Ekle" butonu şimdilik işlevsiz görsel yer tutucudur.
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listKullanicilar } from '../api/kullaniciApi.js'
+import { buyukHarfeCevir } from '../common/metinBicimlendir.js'
+import '../styles/kullanici-listesi.css'
 
 // tarihiBicimlendir: ISO 8601 tarih metnini Türkçe okunur biçime çevirir.
 // null/boş/geçersiz değerde tire ('-') döner. Saf sunum biçimlendirmesidir;
@@ -28,17 +35,90 @@ function tarihiBicimlendir(isoMetin) {
   })
 }
 
-// yoneticiAdiGoster: yönetici ad/soyadını birleştirir; ikisi de yoksa tire döner.
-function yoneticiAdiGoster(yoneticiAd, yoneticiSoyad) {
-  if (!yoneticiAd && !yoneticiSoyad) {
-    return '-'
+// ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Kullanıcı Ekle"
+// butonunda kullanılır; şimdilik yalnızca görsel yer tutucudur.
+function ArtiIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+// BuyutecIcon: büyüteç (arama) simgesini çizer. Başlık yanındaki arama
+// kutusunun içinde görsel ipucu olarak kullanılır.
+function BuyutecIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <line x1="16.5" y1="16.5" x2="21" y2="21" />
+    </svg>
+  )
+}
+
+// kullaniciAramayaUyuyorMu: bir kullanıcı satırının, girilen arama metnine
+// uyup uymadığını döner. Ekranda görünen alanlardan (ad soyad, durum metni,
+// e-posta, sicil no, biçimlenmiş eklenme tarihi) tek bir metin oluşturup
+// Türkçe locale ile büyük/küçük harf duyarsız alt-dize kontrolü yapar. Boş
+// aramada tüm satırlar uyar. Saf sunum süzme mantığıdır; iş kuralı taşımaz.
+function kullaniciAramayaUyuyorMu(kullanici, aramaMetni) {
+  const aranan = aramaMetni.trim().toLocaleLowerCase('tr')
+  if (aranan === '') {
+    return true
   }
-  return `${yoneticiAd ?? ''} ${yoneticiSoyad ?? ''}`.trim()
+  const aranabilirAlanlar = [
+    `${kullanici.ad} ${kullanici.soyad}`,
+    kullanici.aktif ? 'Aktif' : 'Pasif',
+    kullanici.email,
+    kullanici.kullanici_kodu,
+    tarihiBicimlendir(kullanici.olusturma_tarihi),
+  ]
+  const aranabilirMetin = aranabilirAlanlar.join(' ').toLocaleLowerCase('tr')
+  return aranabilirMetin.includes(aranan)
+}
+
+// UcNoktaIcon: dikey üç nokta (⋮) simgesini çizer. İşlemler sütunundaki menü
+// butonunda kullanılır; şimdilik yalnızca görsel yer tutucudur.
+function UcNoktaIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
+    </svg>
+  )
 }
 
 // KullaniciListesi: kullanıcıları React Query ile çeker ve durumuna göre
-// yükleniyor / hata / boş / tablo gösterir.
-function KullaniciListesi() {
+// yükleniyor / hata / boş / tablo gösterir. props: onKisiSec(kisi) -> bir
+// çalışan veya yönetici adına tıklanınca { ad, soyad } ile çağrılır.
+function KullaniciListesi({ onKisiSec }) {
+  const [aramaMetni, setAramaMetni] = useState('')
   const {
     data: kullanicilar,
     isPending,
@@ -69,9 +149,39 @@ function KullaniciListesi() {
     )
   }
 
+  // Ekranda çekili veri, arama metnine göre süzülür; boş aramada tümü gelir.
+  const filtreliKullanicilar = kullanicilar.filter((kullanici) =>
+    kullaniciAramayaUyuyorMu(kullanici, aramaMetni),
+  )
+
   return (
     <section className="kullanici-liste">
-      <h2 className="kullanici-liste-baslik">Kullanıcı Listesi</h2>
+      <div className="kullanici-liste-baslik-satiri">
+        <div className="kullanici-liste-baslik-grup">
+          <h2 className="kullanici-liste-baslik">Kullanıcı Listesi</h2>
+          <div className="kullanici-arama-sarmalayici">
+            <span className="kullanici-arama-ikon">
+              <BuyutecIcon />
+            </span>
+            <input
+              type="search"
+              className="kullanici-arama-kutusu"
+              value={aramaMetni}
+              onChange={(olay) => setAramaMetni(olay.target.value)}
+              placeholder="Ara: ad soyad, durum, e-posta, sicil, tarih"
+              aria-label="Kullanıcı listesinde ara"
+            />
+          </div>
+        </div>
+        {/* Şimdilik işlevsiz görsel yer tutucu: onClick bağlı değil. */}
+        <button type="button" className="kullanici-ekle-buton">
+          <ArtiIcon />
+          <span>Kullanıcı Ekle</span>
+        </button>
+      </div>
+      {filtreliKullanicilar.length === 0 ? (
+        <p className="kullanici-liste-durum">Eşleşen kullanıcı bulunamadı.</p>
+      ) : (
       <div className="kullanici-tablo-sarmalayici">
         <table className="kullanici-tablo">
           <thead>
@@ -83,28 +193,74 @@ function KullaniciListesi() {
               <th>Yönetici</th>
               <th>Sisteme Eklenme</th>
               <th>Son Giriş</th>
+              <th>İşlemler</th>
             </tr>
           </thead>
           <tbody>
-            {kullanicilar.map((kullanici) => (
-              <tr key={kullanici.kullanici_kodu}>
-                <td>{`${kullanici.ad} ${kullanici.soyad}`}</td>
-                <td>{kullanici.kullanici_kodu}</td>
-                <td>{kullanici.aktif ? 'Aktif' : 'Pasif'}</td>
-                <td>{kullanici.email}</td>
-                <td>
-                  {yoneticiAdiGoster(
-                    kullanici.yonetici_ad,
-                    kullanici.yonetici_soyad,
-                  )}
-                </td>
-                <td>{tarihiBicimlendir(kullanici.olusturma_tarihi)}</td>
-                <td>{tarihiBicimlendir(kullanici.son_giris_tarihi)}</td>
-              </tr>
-            ))}
+            {filtreliKullanicilar.map((kullanici) => {
+              // Yönetici adı ikisi de yoksa tıklanamaz düz tire olarak kalır.
+              const yoneticiVar =
+                Boolean(kullanici.yonetici_ad) ||
+                Boolean(kullanici.yonetici_soyad)
+              return (
+                <tr key={kullanici.kullanici_kodu}>
+                  <td>
+                    <button
+                      type="button"
+                      className="kisi-ad-buton"
+                      onClick={() =>
+                        onKisiSec({
+                          ad: kullanici.ad,
+                          soyad: kullanici.soyad,
+                        })
+                      }
+                    >
+                      {`${buyukHarfeCevir(kullanici.ad)} ${buyukHarfeCevir(
+                        kullanici.soyad,
+                      )}`}
+                    </button>
+                  </td>
+                  <td>{kullanici.kullanici_kodu}</td>
+                  <td>{kullanici.aktif ? 'Aktif' : 'Pasif'}</td>
+                  <td>{kullanici.email}</td>
+                  <td>
+                    {yoneticiVar ? (
+                      <button
+                        type="button"
+                        className="kisi-ad-buton"
+                        onClick={() =>
+                          onKisiSec({
+                            ad: kullanici.yonetici_ad,
+                            soyad: kullanici.yonetici_soyad,
+                          })
+                        }
+                      >
+                        {`${buyukHarfeCevir(
+                          kullanici.yonetici_ad,
+                        )} ${buyukHarfeCevir(kullanici.yonetici_soyad)}`.trim()}
+                      </button>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td>{tarihiBicimlendir(kullanici.olusturma_tarihi)}</td>
+                  <td>{tarihiBicimlendir(kullanici.son_giris_tarihi)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="kullanici-islem-buton"
+                      aria-label="İşlemler menüsü"
+                    >
+                      <UcNoktaIcon />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
+      )}
     </section>
   )
 }

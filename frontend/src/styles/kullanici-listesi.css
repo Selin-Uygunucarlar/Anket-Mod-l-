@@ -1,0 +1,215 @@
+/*
+  Kullanıcı listesi görünümünün stilleri: liste sarmalayıcı, durum metinleri
+  (yükleniyor / boş / hata), kullanıcı tablosu, tıklanabilir isim butonları ve
+  İşlemler sütunundaki üç nokta butonu. Anasayfa içinde render edildiği için
+  yerel --renk-vurgu (anasayfa.css'te .anasayfa üzerinde tanımlı) ile global
+  palet (login.css) buradan miras alınır. Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Kullanıcı listesi görünümü sarmalayıcısı. */
+.kullanici-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Başlık satırı: solda [başlık + arama kutusu] grubu, sağda "Kullanıcı Ekle"
+   butonu. Dar ekranda öğeler alt satıra sarabilir. */
+.kullanici-liste-baslik-satiri {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Sol alt-grup: başlık ile arama kutusunu yan yana tutar. */
+.kullanici-liste-baslik-grup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Görünüm başlığı: içerik alanının üstünde net bir başlık. */
+.kullanici-liste-baslik {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Arama kutusu sarmalayıcı: büyüteç ikonunu input içinde solda konumlar. */
+.kullanici-arama-sarmalayici {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Büyüteç ikonu: input'un sol iç kenarında, tıklamayı engellemez. */
+.kullanici-arama-ikon {
+  position: absolute;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--renk-metin-soluk);
+  pointer-events: none;
+}
+
+/* Arama kutusu: yuvarlak köşeli, kenarlıklı; ikon için solda ekstra boşluk.
+   Odakta vurgu rengiyle görünür bir dış çerçeve kazanır. */
+.kullanici-arama-kutusu {
+  width: 420px;
+  max-width: 100%;
+  padding: 9px 12px 9px 32px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+}
+
+.kullanici-arama-kutusu::placeholder {
+  color: var(--renk-metin-soluk);
+}
+
+.kullanici-arama-kutusu:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+  border-color: var(--renk-vurgu);
+}
+
+/* "Kullanıcı Ekle" butonu: yuvarlak köşeli, mavi zemin + beyaz metin; ikon ve
+   metin yan yana. Şimdilik işlevsiz görsel yer tutucudur. Hover/odakta hafif
+   koyulaşır; klavye odağında görünür dış çerçeve korunur. Mavi (#0072CE) marka
+   rengi sabittir; hover için biraz koyu tonu kullanılır. */
+.kullanici-ekle-buton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  background: #0072CE;
+  color: var(--renk-beyaz);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.kullanici-ekle-buton:hover,
+.kullanici-ekle-buton:focus-visible {
+  background: #005ba6;
+  outline: none;
+}
+
+.kullanici-ekle-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+/* Durum metinleri (yükleniyor / boş): soluk, okunur bilgilendirme. */
+.kullanici-liste-durum {
+  margin: 0;
+  color: var(--renk-metin-soluk);
+  font-size: 14px;
+}
+
+/* Hata durumu metni: dikkat çekici ama teknik detay içermeyen güvenli mesaj. */
+.kullanici-liste-hata {
+  color: #b42318;
+}
+
+/* Tablo sarmalayıcı: dar ekranlarda taşmada yatay kaydırma sağlar. */
+.kullanici-tablo-sarmalayici {
+  overflow-x: auto;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+/* Kullanıcı tablosu: sade, okunur; satırlar ince ayraçlarla ayrılır. */
+.kullanici-tablo {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  color: var(--renk-lacivert);
+}
+
+.kullanici-tablo th,
+.kullanici-tablo td {
+  padding: 12px 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Başlık satırı: hafif zemin ve alt kenarlıkla gövdeden ayrışır. */
+.kullanici-tablo thead th {
+  background: var(--renk-zemin-acik);
+  font-weight: 600;
+  border-bottom: 1px solid var(--renk-kenarlik);
+}
+
+/* Gövde satırları arasında ince ayraç; son satırda ayraç kalkar. */
+.kullanici-tablo tbody tr + tr td {
+  border-top: 1px solid var(--renk-kenarlik);
+}
+
+/* Satır üzerine gelince hafif vurgu (okumayı kolaylaştırır). */
+.kullanici-tablo tbody tr:hover td {
+  background: var(--renk-zemin-acik);
+}
+
+/* Tıklanabilir isim (çalışan / yönetici): buton görünümü sıfırlanır, vurgu
+   renginde metin olarak durur; tıklanabilir olduğu belli olur. Hover/odakta
+   altı çizilir; klavye odağında görünür bir dış çerçeve korunur. */
+.kisi-ad-buton {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--renk-vurgu);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.kisi-ad-buton:hover {
+  text-decoration: underline;
+}
+
+.kisi-ad-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+/* İşlemler sütunundaki üç nokta butonu: sade ikon butonu; şimdilik işlevsiz
+   görsel yer tutucu. Hover/odakta hafif zemin ve koyulaşan ikon. */
+.kullanici-islem-buton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--renk-metin-soluk);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.kullanici-islem-buton:hover,
+.kullanici-islem-buton:focus-visible {
+  background: var(--renk-zemin-acik);
+  color: var(--renk-lacivert);
+  outline: none;
+}
+
+.kullanici-islem-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}

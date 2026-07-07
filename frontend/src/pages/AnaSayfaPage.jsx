@@ -13,6 +13,8 @@ import Topbar from '../components/Topbar.jsx'
 import AdminPaneli from '../components/AdminPaneli.jsx'
 import KullaniciYanCubugu from '../components/KullaniciYanCubugu.jsx'
 import KullaniciListesi from '../components/KullaniciListesi.jsx'
+import AnketListesi from '../components/AnketListesi.jsx'
+import AnketEkleForm from '../components/AnketEkleForm.jsx'
 import KullaniciEkleForm from '../components/KullaniciEkleForm.jsx'
 import AyarlarSayfasi from '../components/AyarlarSayfasi.jsx'
 import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
@@ -107,6 +109,12 @@ function AnaSayfaPage() {
             duzenlenecekKullanici={duzenlenecekKullanici}
             onGeriDon={kullaniciListesineDon}
           />
+        )}
+        {adminMi && secilenGorunum === 'anket-listesi' && (
+          <AnketListesi onAnketEkle={() => secGorunum('anket-ekle')} />
+        )}
+        {adminMi && secilenGorunum === 'anket-ekle' && (
+          <AnketEkleForm onGeriDon={() => secGorunum('anket-listesi')} />
         )}
         {adminMi && secilenGorunum === 'ayarlar' && <AyarlarSayfasi />}
         {(!adminMi || secilenGorunum === null) && (

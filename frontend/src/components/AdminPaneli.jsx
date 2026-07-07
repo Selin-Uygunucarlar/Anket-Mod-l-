@@ -30,7 +30,13 @@ const YONETIM_SECENEKLERI = [
       },
     ],
   },
-  { baslik: 'Anketler', altSecenekler: ['Anket Listesi', 'Anket Soruları'] },
+  {
+    baslik: 'Anketler',
+    altSecenekler: [
+      { baslik: 'Anket Listesi', gorunum: 'anket-listesi' },
+      'Anket Soruları',
+    ],
+  },
   {
     baslik: 'Eğitim Yönetimi',
     altSecenekler: [

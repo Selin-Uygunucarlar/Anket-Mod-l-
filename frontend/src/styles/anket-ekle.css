@@ -1,0 +1,103 @@
+/*
+  Anket oluşturma/güncelleme formunun MEVCUT kullanıcı ekleme stillerine (kullanici-ekle.css)
+  ek olarak gereken minimum stilleri: başlıklı bölüm kartı (.anket-kart), kart alt
+  başlığı ("Anket Bilgileri") ve radyo (Durum / Anket Tipi) grupları. Sayfa
+  çerçevesi, etiket/kutu/buton görünümü kullanici-ekle.css'ten miras alınır; burada
+  yalnızca kişi formunda bulunmayan öğeler tanımlanır. Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Bölüm kartı: A4 sayfasının içinde bir form bölümünü çerçeveleyen hafif kutu.
+   A4 sayfasıyla çift gölge oluşmaması için gölge YOKTUR; yalnızca ince kenarlık.
+   Birden çok kart .kullanici-ekle'nin 16px'lik gap'iyle alt alta aralanır. */
+.anket-kart {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+/* Kart alt başlığı: bölümü tanıtan, sayfa başlığından küçük ara başlık. */
+.anket-alt-baslik {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Radyo grubu: satır etiketinin sağında seçenekleri esnek biçimde dizer;
+   dar ekranda alt satıra sarar. Durum grubu (2 seçenek) bu haliyle kullanır.
+   form-satir'ın dikey ortalamasıyla uyumludur. */
+.anket-radyo-grup {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+
+/* Anket Tipi grubu: seçenekler soldan sağa satır satır ve 2 sütuna hizalansın
+   diye 2 sütunlu grid'e geçer (sütun genişliği içeriğe göre). Böylece "Etkinlik
+   Değerlendirme" ile "Etkinlik Davranış" aynı (2.) sütunda dizilir. Boşluklar
+   Durum grubuyla aynı tutulur. Dar ekranda tek sütuna düşer (aşağıdaki media). */
+.anket-radyo-grup--tip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: 10px 20px;
+}
+
+/* Tek radyo seçeneği: daire (input) + metin yatay, tıklanabilir etiket. */
+.anket-radyo-secenek {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: var(--renk-lacivert);
+  cursor: pointer;
+}
+
+/* Radyo dairesini marka mavisiyle uyumlu ve rahat tıklanır boyutta tutar. */
+.anket-radyo-secenek input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--renk-mavi);
+  cursor: pointer;
+}
+
+/* Dar ekran: Anket Tipi grubu tek sütuna düşsün ki seçenekler alt alta okunur
+   kalsın (kullanici-ekle.css'teki 640px form-satir dikeye alma kuralıyla uyumlu). */
+@media (max-width: 640px) {
+  .anket-radyo-grup--tip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sorular kartı araç çubuğu: "Excel ile yükle" bağlantısını kartın üstünde sola
+   yaslar; kartın kendi 14px'lik gap'iyle boş durum satırından ayrılır. */
+.anket-sorular-arac-cubugu {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Boş durum satırı: soru yokken gösterilen açıklama; metin ile bağlantı görünümlü
+   butonu tek satırda, ortak dikey hizada tutar. */
+.anket-bos-durum {
+  margin: 0;
+  font-size: 16px;
+  color: var(--renk-lacivert);
+}
+
+/* Bağlantı görünümlü buton: kenarlık/zemin taşımaz, metin akışının içinde bir
+   link gibi görünür (marka mavisi, altı çizili). İşlevi UI'de değil ileride
+   eklenecektir; burada yalnızca görünümü tanımlar. */
+.baglanti-buton {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--renk-mavi);
+  text-decoration: underline;
+  cursor: pointer;
+}

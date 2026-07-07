@@ -122,6 +122,17 @@
   color: #b42318;
 }
 
+/* Boş-durum tablo hücresi: veri yokken tablo çerçevesi (kolon başlıklarıyla)
+   görünürken gövdedeki tek satırlık "kayıt bulunamadı" mesajını tüm kolonlar
+   boyunca ortalar ve nefes alacak dikey boşluk verir. font-size, tablo
+   içeriğiyle (.kullanici-tablo td/th = 16px) eşitlemek içindir; böylece bu satır
+   kişi listesindeki içerik satırlarıyla aynı boyutta durur. */
+.liste-bos-hucre {
+  text-align: center;
+  padding: 24px 16px;
+  font-size: 16px;
+}
+
 /* Tablo sarmalayıcı: dar ekranlarda taşmada yatay kaydırma sağlar. */
 .kullanici-tablo-sarmalayici {
   overflow-x: auto;

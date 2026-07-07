@@ -36,6 +36,10 @@ function AnaSayfaPage() {
   // null = panel kapalı; { kullanici_kodu, ad, soyad } = ilgili kişinin detayı
   // açık. kullanici_kodu, panelin detayı backend'den çekmesi için taşınır.
   const [secilenKisi, setSecilenKisi] = useState(null)
+  // Düzenleme görünümünde düzenlenecek kullanıcının liste özetini tutan saf UI
+  // state'i. null iken düzenleme görünümü açık değildir; form mevcut alanları
+  // sicil koduyla backend'den kendisi çeker.
+  const [duzenlenecekKullanici, setDuzenlenecekKullanici] = useState(null)
 
   // toggleAdminPaneli: hamburger tıklanınca paneli açar/kapatır.
   function toggleAdminPaneli() {
@@ -59,6 +63,20 @@ function AnaSayfaPage() {
     setAdminPaneliAcik(false)
   }
 
+  // kullaniciDuzenlemeyiAc: listeden bir kullanıcının "Düzenle" öğesi seçilince
+  // çağrılır; düzenlenecek kullanıcıyı belirler ve düzenleme görünümünü açar.
+  function kullaniciDuzenlemeyiAc(kullanici) {
+    setDuzenlenecekKullanici(kullanici)
+    setSecilenGorunum('kullanici-duzenle')
+  }
+
+  // kullaniciListesineDon: ekleme/düzenleme ekranından listeye döner ve varsa
+  // düzenleme hedefini temizler (bir sonraki açılış temiz başlasın).
+  function kullaniciListesineDon() {
+    setDuzenlenecekKullanici(null)
+    secGorunum('kullanici-listesi')
+  }
+
   return (
     <div className="anasayfa">
       <Topbar
@@ -78,11 +96,16 @@ function AnaSayfaPage() {
           <KullaniciListesi
             onKisiSec={setSecilenKisi}
             onKullaniciEkle={() => secGorunum('kullanici-ekle')}
+            onKullaniciDuzenle={kullaniciDuzenlemeyiAc}
           />
         )}
         {adminMi && secilenGorunum === 'kullanici-ekle' && (
+          <KullaniciEkleForm onGeriDon={kullaniciListesineDon} />
+        )}
+        {adminMi && secilenGorunum === 'kullanici-duzenle' && duzenlenecekKullanici && (
           <KullaniciEkleForm
-            onGeriDon={() => secGorunum('kullanici-listesi')}
+            duzenlenecekKullanici={duzenlenecekKullanici}
+            onGeriDon={kullaniciListesineDon}
           />
         )}
         {adminMi && secilenGorunum === 'ayarlar' && <AyarlarSayfasi />}

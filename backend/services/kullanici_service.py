@@ -14,7 +14,12 @@ import re
 import secrets
 from datetime import datetime
 
-from common.errors import NotFoundError, ValidationError, YetkiYokError
+from common.errors import (
+    BusinessRuleError,
+    NotFoundError,
+    ValidationError,
+    YetkiYokError,
+)
 from common.guvenlik import hash_sifre
 from models.kullanici_detay import KullaniciDetay
 from models.kullanici_ozet import KullaniciOzet
@@ -101,23 +106,17 @@ def create_kullanici(talep_eden: OturumSahibi, veri: dict) -> str:
     email = _zorunlu_alan(veri.get("email"), "E-posta")
     kullanici_turu = _zorunlu_alan(veri.get("kullanici_turu"), "Kullanıcı türü")
 
-    if kullanici_turu not in _GECERLI_TURLER:
-        raise ValidationError("Kullanıcı türü 'admin' veya 'user' olmalı.")
-    if not _EMAIL_DESENI.match(email):
-        raise ValidationError("Geçerli bir e-posta adresi giriniz.")
+    # Ortak iş kuralları (create + güncelle ile DRY): tür enum, e-posta biçimi ve
+    # (verilmişse) yönetici ilişkisinin gerçekliği. Doğrulanmış yönetici kodu döner.
+    ilgili_yonetici_kodu = _dogrula_kullanici_is_kurallari(
+        kullanici_turu, email, veri.get("ilgili_yonetici_kodu")
+    )
 
-    # Benzersizlik ön kontrolü (nihai garanti DB PK/UNIQUE; admin ucu, enumerasyon önemsiz).
+    # Benzersizlik ön kontrolü (yalnızca create; nihai garanti DB PK/UNIQUE).
     if kullanici_repository.kullanici_kodu_var_mi(kullanici_kodu):
         raise ValidationError("Bu kullanıcı kodu zaten kayıtlı.")
     if kullanici_repository.email_var_mi(email):
         raise ValidationError("Bu e-posta zaten kayıtlı.")
-
-    # Yönetici ilişkisi: verilmişse gerçek bir kullanıcıya işaret etmeli (yetim FK yok).
-    ilgili_yonetici_kodu = _bos_ise_none(veri.get("ilgili_yonetici_kodu"))
-    if ilgili_yonetici_kodu is not None and not kullanici_repository.yonetici_var_mi(
-        ilgili_yonetici_kodu
-    ):
-        raise ValidationError("Belirtilen yönetici bulunamadı.")
 
     opsiyonel = {ad_: _bos_ise_none(veri.get(ad_)) for ad_ in _OPSIYONEL_STR_ALANLAR}
 
@@ -152,6 +151,122 @@ def create_kullanici(talep_eden: OturumSahibi, veri: dict) -> str:
 
     # Düz geçici şifre yalnızca çağırana (admin'e bir kez göstermek üzere) döner.
     return duz_gecici_sifre
+
+
+def guncelle_kullanici(
+    talep_eden: OturumSahibi, kullanici_kodu: str, veri: dict
+) -> None:
+    """Var olan bir kullanıcının bilgilerini (gerekirse sicilini) günceller.
+
+    Yalnızca admin çağırabilir (talep_eden'e göre; client'tan gelen role güvenilmez).
+    kullanici_kodu path'ten gelen MEVCUT sicildir; veri["kullanici_kodu"] ise İSTENEN
+    (aynı ya da yeni) sicildir. İş kuralları create ile ortaktır (tür enum, e-posta
+    biçimi, yönetici ilişkisi). Sicil değişimi yalnızca yeni sicil benzersizse VE
+    kullanıcının bağlı kaydı yoksa yapılır; aksi halde reddedilir. Hata burada
+    loglanmaz, YUKARI FIRLAR.
+
+    veri sözlüğü (Controller'ın normalize ettiği): kullanici_kodu (istenen sicil), ad,
+    soyad, email, kullanici_turu; ise_giris_tarihi (date | None); ilgili_yonetici_kodu
+    ve diğer opsiyonel str alanlar (boş -> None).
+    """
+    if talep_eden.kullanici_turu != _ADMIN_TURU:
+        raise YetkiYokError()
+
+    eski_kod = _zorunlu_alan(kullanici_kodu, "Kullanıcı kodu")
+
+    # Hedef kullanıcı gerçekten var mı? (aktiflik okuma varlık kontrolü olarak yeterli;
+    # None -> kayıt yok). Kör güncelleme yapılmaz; olmayan sicile UPDATE etkisizdir.
+    if kullanici_repository.get_kullanici_aktif(eski_kod) is None:
+        raise NotFoundError("Kullanıcı bulunamadı.")
+
+    # Zorunlu temel alanlar (create ile aynı guard) — Service kendi sınırında doğrular.
+    _zorunlu_alan(veri.get("ad"), "Ad")
+    _zorunlu_alan(veri.get("soyad"), "Soyad")
+    email = _zorunlu_alan(veri.get("email"), "E-posta")
+    kullanici_turu = _zorunlu_alan(veri.get("kullanici_turu"), "Kullanıcı türü")
+
+    # Ortak iş kuralları (create ile DRY): tür enum, e-posta biçimi, yönetici ilişkisi.
+    _dogrula_kullanici_is_kurallari(
+        kullanici_turu, email, veri.get("ilgili_yonetici_kodu")
+    )
+
+    # E-posta çakışması: aynı e-posta BAŞKA bir kullanıcıya aitse reddet. Kişinin kendi
+    # e-postası hariç tutulduğundan (eski_kod) e-posta değişmese de güvenle çalışır;
+    # böylece DB UNIQUE'e düşüp genel 500 yerine net bir iş kuralı hatası döner.
+    if kullanici_repository.email_baskasinda_var_mi(email, eski_kod):
+        raise BusinessRuleError("Bu e-posta başka bir kullanıcıya ait.")
+
+    yeni_kod = _zorunlu_alan(veri.get("kullanici_kodu"), "Kullanıcı kodu")
+    sicil_degisecek = yeni_kod != eski_kod
+
+    # Sicil değişimi ön kontrolleri: HERHANGİ bir yazma yapılmadan önce doğrulanır,
+    # böylece reddedilen sicil değişiminde alanlar boşuna güncellenmiş olmaz.
+    if sicil_degisecek:
+        if kullanici_repository.kullanici_kodu_var_mi(yeni_kod):
+            raise ValidationError("Bu kullanıcı kodu zaten kayıtlı.")
+        if kullanici_repository.kullanici_bagimliligi_var_mi(eski_kod):
+            raise BusinessRuleError(
+                "Bu kullanıcının bağlı kayıtları olduğu için sicili değiştirilemez."
+            )
+
+    # SIRA + KISMİ BAŞARI: alan güncellemesi ile sicil değişimi iki AYRI transaction'dır
+    # (tek transaction repo fonksiyonu istenmez). Önce alanlar ESKİ kodla yazılır, SONRA
+    # sicil değişir. Neden bu sıra: ikinci adım (PK değişimi) patlarsa kayıt HÂLÂ orijinal
+    # sicille adreslenebilir kalır ve işlem güvenle yeniden denenebilir. Ters sırada (önce
+    # PK) ikinci adım patlarsa kayıt yeni sicile taşınmış olur ve orijinal path 404 verir.
+    kullanici_repository.guncelle_kullanici(eski_kod, veri)
+    if sicil_degisecek:
+        kullanici_repository.guncelle_kullanici_kodu(eski_kod, yeni_kod)
+
+
+def degistir_kullanici_aktiflik(talep_eden: OturumSahibi, kullanici_kodu: str) -> bool:
+    """Kullanıcının aktiflik durumunu tersine çevirir; yeni durumu (bool) döner.
+
+    Yalnızca admin çağırabilir; yetki client'tan gelen role değil, doğrulanmış
+    oturum sahibine göre belirlenir (admin değil -> YetkiYokError, Repository
+    ÇAĞRILMADAN). kullanici_kodu boş/whitespace -> ValidationError; kayıt yok
+    (Repository None döner) -> NotFoundError. Kendini pasife alma engellenir
+    (bir admin kendi hesabını erişilemez kılamaz). Hata burada loglanmaz,
+    YUKARI FIRLAR (loglama yalnızca sınır katmanında bir kez).
+    """
+    if talep_eden.kullanici_turu != _ADMIN_TURU:
+        raise YetkiYokError()
+
+    kod = _zorunlu_alan(kullanici_kodu, "Kullanıcı kodu")
+    mevcut = kullanici_repository.get_kullanici_aktif(kod)
+    if mevcut is None:
+        raise NotFoundError("Kullanıcı bulunamadı.")
+
+    yeni_aktif = not mevcut
+    # Kendini pasife alma engeli: admin, kendi hesabını erişilemez hale getiremez.
+    if kod == talep_eden.kullanici_kodu and yeni_aktif is False:
+        raise ValidationError("Kendi hesabınızı pasife alamazsınız.")
+
+    kullanici_repository.set_kullanici_aktif(kod, yeni_aktif)
+    return yeni_aktif
+
+
+def _dogrula_kullanici_is_kurallari(
+    kullanici_turu: str, email: str, ham_yonetici_kodu
+) -> str | None:
+    """Create + güncelle için ORTAK iş kuralı doğrulaması (DRY).
+
+    Kurallar: kullanici_turu geçerli kümede olmalı (admin/user); e-posta biçimi
+    geçerli olmalı; verilmişse ilgili_yonetici_kodu gerçek bir kullanıcıya işaret
+    etmeli (yetim FK yok). Doğrulanmış (boş -> None) ilgili_yonetici_kodu döner.
+    Benzersizlik/varlık ön kontrolleri çağırana özgüdür; buraya konmaz.
+    """
+    if kullanici_turu not in _GECERLI_TURLER:
+        raise ValidationError("Kullanıcı türü 'admin' veya 'user' olmalı.")
+    if not _EMAIL_DESENI.match(email):
+        raise ValidationError("Geçerli bir e-posta adresi giriniz.")
+
+    ilgili_yonetici_kodu = _bos_ise_none(ham_yonetici_kodu)
+    if ilgili_yonetici_kodu is not None and not kullanici_repository.yonetici_var_mi(
+        ilgili_yonetici_kodu
+    ):
+        raise ValidationError("Belirtilen yönetici bulunamadı.")
+    return ilgili_yonetici_kodu
 
 
 def _zorunlu_alan(deger, alan_adi: str) -> str:

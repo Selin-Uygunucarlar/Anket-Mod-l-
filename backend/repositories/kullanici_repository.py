@@ -1,10 +1,11 @@
 """Kullanıcı yönetimi (admin kullanıcı listesi) akışının veri erişim katmanı.
 
-Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda yazılır.
+Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
-yazılır; string birleştirme YASAK (SQL injection'a kapalı). Bu dosya, login
-sorumluluğundan (kullanici_kimlik_repository) ayrıdır: burada yalnızca kullanıcı
-yönetimi okumaları yapılır.
+çalıştırılır; string birleştirme YASAK (SQL injection'a kapalı). Ham SQL metinleri
+kullanici_sorgulari.py'ye ayrılmıştır (SRP + dosya boyutu); bu dosya bağlantı/
+transaction yönetimi, sonuç dönüşümü ve hata sarmalama sorumluluğunu taşır. Bu
+dosya login sorumluluğundan (kullanici_kimlik_repository) ayrıdır.
 
 Güvenlik: Yalnızca listede gösterilmesi güvenli alanlar seçilir; sifre_hash ve
 diğer hassas kimlik alanları sorguya HİÇ girmez.
@@ -22,98 +23,7 @@ from common.db import veritabani_baglantisi
 from common.errors import DataAccessError
 from models.kullanici_detay import KullaniciDetay
 from models.kullanici_ozet import KullaniciOzet
-
-# Tüm kullanıcıları listeler. ilgili_yonetici_kodu için Kullanici öz-LEFT JOIN
-# (yönetici olmayabilir), son_giris_tarihi için KullaniciKimlik LEFT JOIN (kimlik
-# satırı olmayabilir). Sıralama ad, soyad üzerinden (tablo collation Türkçe).
-_KULLANICI_LISTE_SORGUSU = """
-    SELECT k.kullanici_kodu,
-           k.ad,
-           k.soyad,
-           k.aktif,
-           k.email,
-           k.ilgili_yonetici_kodu,
-           y.ad     AS yonetici_ad,
-           y.soyad  AS yonetici_soyad,
-           k.olusturma_tarihi,
-           kk.son_giris_tarihi
-    FROM Kullanici k
-    LEFT JOIN Kullanici y ON y.kullanici_kodu = k.ilgili_yonetici_kodu
-    LEFT JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
-    ORDER BY k.ad, k.soyad
-"""
-
-# Tek kullanıcının tam (güvenli) detayı — kişi detay paneli için. Yönetici adı için
-# Kullanici öz-LEFT JOIN (yönetici olmayabilir), son_giris_tarihi için KullaniciKimlik
-# LEFT JOIN (kimlik satırı olmayabilir). sifre_hash/hatali_giris_sayisi HİÇ seçilmez.
-_KULLANICI_DETAY_SORGUSU = """
-    SELECT k.kullanici_kodu,
-           k.ad,
-           k.soyad,
-           k.email,
-           k.kullanici_turu,
-           k.aktif,
-           k.ise_giris_tarihi,
-           k.ilgili_yonetici_kodu,
-           y.ad     AS yonetici_ad,
-           y.soyad  AS yonetici_soyad,
-           k.sirket,
-           k.grup,
-           k.bolum,
-           k.birim,
-           k.kadro_grubu,
-           k.kadro_unvani,
-           k.gorev_unvani,
-           k.arge_personeli,
-           k.personel_sigorta_is_yeri,
-           k.gorev_yeri,
-           k.olusturma_tarihi,
-           kk.son_giris_tarihi
-    FROM Kullanici k
-    LEFT JOIN Kullanici y ON y.kullanici_kodu = k.ilgili_yonetici_kodu
-    LEFT JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
-    WHERE k.kullanici_kodu = %s
-    LIMIT 1
-"""
-
-# Verilen kullanici_kodu (SAP no) kayıtlı mı — benzersizlik ön kontrolü için.
-_KULLANICI_KODU_VAR_SORGUSU = """
-    SELECT 1 FROM Kullanici WHERE kullanici_kodu = %s LIMIT 1
-"""
-
-# Verilen email kayıtlı mı — benzersizlik ön kontrolü için.
-_EMAIL_VAR_SORGUSU = """
-    SELECT 1 FROM Kullanici WHERE email = %s LIMIT 1
-"""
-
-# Verilen kod bir Kullanici'ye ait mi — yönetici ilişkisinin geçerliliği için.
-_YONETICI_VAR_SORGUSU = """
-    SELECT 1 FROM Kullanici WHERE kullanici_kodu = %s LIMIT 1
-"""
-
-# Yeni kullanıcının ana (Kullanici) satırı. aktif=TRUE; olusturma_tarihi Service'ten.
-_KULLANICI_EKLE_SORGUSU = """
-    INSERT INTO Kullanici (
-        kullanici_kodu, ad, soyad, email, kullanici_turu, aktif,
-        ise_giris_tarihi, olusturma_tarihi, ilgili_yonetici_kodu,
-        sirket, grup, bolum, birim, kadro_grubu, kadro_unvani,
-        gorev_unvani, arge_personeli, personel_sigorta_is_yeri, gorev_yeri
-    ) VALUES (
-        %s, %s, %s, %s, %s, TRUE,
-        %s, %s, %s,
-        %s, %s, %s, %s, %s, %s,
-        %s, %s, %s, %s
-    )
-"""
-
-# Yeni kullanıcının kimlik (KullaniciKimlik) satırı. Geçici şifre bayrağı TRUE,
-# hatali_giris_sayisi 0; sifre_guncelleme_tarihi = oluşturma anı.
-_KIMLIK_EKLE_SORGUSU = """
-    INSERT INTO KullaniciKimlik (
-        kullanici_kodu, sifre_hash, sifre_degistirilmeli,
-        sifre_guncelleme_tarihi, hatali_giris_sayisi
-    ) VALUES (%s, %s, %s, %s, 0)
-"""
+from repositories import kullanici_sorgulari as sorgular
 
 
 def list_kullanicilar() -> list[KullaniciOzet]:
@@ -126,7 +36,7 @@ def list_kullanicilar() -> list[KullaniciOzet]:
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(_KULLANICI_LISTE_SORGUSU)
+                imlec.execute(sorgular.KULLANICI_LISTE_SORGUSU)
                 satirlar = imlec.fetchall()
     except pymysql.MySQLError as hata:
         raise DataAccessError("Kullanıcı listesi okunamadı.") from hata
@@ -160,7 +70,7 @@ def get_kullanici_detay(kullanici_kodu: str) -> KullaniciDetay | None:
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(_KULLANICI_DETAY_SORGUSU, (kullanici_kodu,))
+                imlec.execute(sorgular.KULLANICI_DETAY_SORGUSU, (kullanici_kodu,))
                 satir = imlec.fetchone()
     except pymysql.MySQLError as hata:
         raise DataAccessError("Kullanıcı detayı okunamadı.") from hata
@@ -204,7 +114,7 @@ def kullanici_kodu_var_mi(kullanici_kodu: str) -> bool:
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(_KULLANICI_KODU_VAR_SORGUSU, (kullanici_kodu,))
+                imlec.execute(sorgular.KULLANICI_KODU_VAR_SORGUSU, (kullanici_kodu,))
                 satir = imlec.fetchone()
     except pymysql.MySQLError as hata:
         raise DataAccessError("Kullanıcı kodu kontrolü yapılamadı.") from hata
@@ -221,7 +131,28 @@ def email_var_mi(email: str) -> bool:
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(_EMAIL_VAR_SORGUSU, (email,))
+                imlec.execute(sorgular.EMAIL_VAR_SORGUSU, (email,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("E-posta kontrolü yapılamadı.") from hata
+
+    return satir is not None
+
+
+def email_baskasinda_var_mi(email: str, haric_kullanici_kodu: str) -> bool:
+    """Verilen email, haric_kullanici_kodu DIŞINDA bir kullanıcıya ait mi döndürür.
+
+    Güncelleme senaryosunun benzersizlik ön kontrolüdür: kullanıcı kendi
+    e-postasını değiştirmeden kaydederse çakışma SAYILMAZ (kendi satırı hariç
+    tutulur). Nihai garanti UNIQUE kısıttır; yetki/rol kontrolü Service'tedir.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    sorgular.EMAIL_BASKASINDA_VAR_SORGUSU,
+                    (email, haric_kullanici_kodu),
+                )
                 satir = imlec.fetchone()
     except pymysql.MySQLError as hata:
         raise DataAccessError("E-posta kontrolü yapılamadı.") from hata
@@ -239,7 +170,7 @@ def yonetici_var_mi(yonetici_kodu: str) -> bool:
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(_YONETICI_VAR_SORGUSU, (yonetici_kodu,))
+                imlec.execute(sorgular.YONETICI_VAR_SORGUSU, (yonetici_kodu,))
                 satir = imlec.fetchone()
     except pymysql.MySQLError as hata:
         raise DataAccessError("Yönetici kontrolü yapılamadı.") from hata
@@ -282,7 +213,7 @@ def create_kullanici(
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
                 imlec.execute(
-                    _KULLANICI_EKLE_SORGUSU,
+                    sorgular.KULLANICI_EKLE_SORGUSU,
                     (
                         kullanici_kodu,
                         ad,
@@ -305,7 +236,7 @@ def create_kullanici(
                     ),
                 )
                 imlec.execute(
-                    _KIMLIK_EKLE_SORGUSU,
+                    sorgular.KIMLIK_EKLE_SORGUSU,
                     (
                         kullanici_kodu,
                         sifre_hash,
@@ -316,3 +247,114 @@ def create_kullanici(
     except pymysql.MySQLError as hata:
         # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
         raise DataAccessError("Kullanıcı oluşturulamadı.") from hata
+
+
+def guncelle_kullanici(kullanici_kodu: str, veri: dict) -> None:
+    """Bir kullanıcının sicil DIŞINDAKİ düzenlenebilir alanlarını tek UPDATE ile yazar.
+
+    Güncellenen alanlar create_kullanici ile aynı kümedir (ad, soyad, email,
+    kullanici_turu, ise_giris_tarihi, ilgili_yonetici_kodu ve 10 profil alanı);
+    `veri` sözlüğü bu anahtarları taşır (bkz. kullanici_sorgulari.
+    KULLANICI_GUNCELLE_ALANLARI). sifre_guncelleme_tarihi, hatali_giris_sayisi,
+    aktif, olusturma_tarihi ve PK'ye DOKUNULMAZ. Değerler yalnızca parametreyle
+    (%s) geçer; kolon listesi sabittir (dinamik SQL yok). Doğrulama (kullanici_turu,
+    yönetici ilişkisi, benzersiz email) Service'in işidir; DB (UNIQUE/FK/CHECK)
+    son güvenlik ağıdır. Kayıt yoksa UPDATE etkisizdir; varlık kontrolü Service'te.
+    """
+    parametreler = tuple(
+        veri.get(alan) for alan in sorgular.KULLANICI_GUNCELLE_ALANLARI
+    ) + (kullanici_kodu,)
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.KULLANICI_GUNCELLE_SORGUSU, parametreler)
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Kullanıcı güncellenemedi.") from hata
+
+
+def kullanici_bagimliligi_var_mi(kullanici_kodu: str) -> bool:
+    """Bu sicile bağlı BAŞKA kayıt (yetim bırakılacak veri) var mı döndürür.
+
+    Sicil değiştirme/silme öncesi güvenlik kontrolüdür: başka bir Kullanici'nin
+    yöneticisi mi, AnketAtama/EgitimAtama/YetkinlikAtama'da mı, YetkinlikDegerlendirme'de
+    değerlendirilen ya da değerlendiren olarak mı geçiyor — tek sorguda OR'lu EXISTS
+    ile (ilk eşleşmede durur) bakılır. KullaniciKimlik (aynı kişinin 1:1 kimlik satırı)
+    BİLEREK dahil değildir; bağımlılık sayılmaz.
+
+    ÖNEMLİ: Şemaya kullanici_kodu'ya FK veren HER YENİ TABLO eklendiğinde bu fonksiyonun
+    kullandığı sorguya (kullanici_sorgulari.KULLANICI_BAGIMLILIK_SORGUSU) o tablo için
+    de bir kontrol EKLENMELİDİR; aksi halde sicil değişimi o tablodaki kayıtları
+    sessizce kırar (kontrol onları görmeden geçer).
+    """
+    parametreler = (kullanici_kodu,) * 6
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.KULLANICI_BAGIMLILIK_SORGUSU, parametreler)
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Kullanıcı bağımlılık kontrolü yapılamadı.") from hata
+
+    return satir is not None
+
+
+def guncelle_kullanici_kodu(eski_kod: str, yeni_kod: str) -> None:
+    """Kullanıcının sicilini (PK) tek transaction içinde değiştirir.
+
+    Şemada Kullanici.kullanici_kodu'ya FK veren TÜM tablolar ON UPDATE CASCADE ile
+    tanımlıdır (KullaniciKimlik, AnketAtama, EgitimAtama, YetkinlikAtama,
+    YetkinlikDegerlendirme.kullanici_kodu ve degerlendiren_yonetici_kodu ile
+    Kullanici.ilgili_yonetici_kodu öz-ilişkisi). Bu yüzden EN TEMİZ ve EN AZ RİSKLİ
+    yol tek UPDATE'tir: DB tüm çocuk satırları (KullaniciKimlik dahil) AYNI işlem
+    içinde otomatik günceller — ayrıca elle KullaniciKimlik güncellemek gereksiz
+    olur, hatta yanlış olur (satır zaten cascade ile yeni koda taşınmıştır).
+    Benzersizlik/varlık kontrolü Service'te; yeni_kod zaten kayıtlıysa PK ihlali
+    DataAccessError olarak yukarı çıkar (ham DB mesajı/tablo adı sızmaz).
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    sorgular.KULLANICI_KODU_GUNCELLE_SORGUSU, (yeni_kod, eski_kod)
+                )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Kullanıcı kodu güncellenemedi.") from hata
+
+
+def get_kullanici_aktif(kullanici_kodu: str) -> bool | None:
+    """Verilen kullanici_kodu'nun güncel aktiflik durumunu döner; kayıt yoksa None.
+
+    Service, durum değiştir (aktif <-> pasif) akışında önce mevcut değeri okur;
+    None ise NotFoundError üretir, aksi halde tersini yazar. Yetki/iş kuralı
+    burada DEĞİL, Service katmanındadır.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.KULLANICI_AKTIF_OKU_SORGUSU, (kullanici_kodu,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Kullanıcı durumu okunamadı.") from hata
+
+    if satir is None:
+        return None
+
+    # TINYINT gelebileceğinden Python bool'a çevrilir.
+    return bool(satir["aktif"])
+
+
+def set_kullanici_aktif(kullanici_kodu: str, aktif: bool) -> None:
+    """Kullanıcının aktiflik durumunu verilen değere ayarlar (aktif <-> pasif).
+
+    Yeni değeri (mevcut durumun tersi) Service belirler; burada yalnızca yazılır.
+    Yetki/sahiplik ve toggle kararı burada DEĞİL, Service katmanındadır.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.KULLANICI_AKTIF_YAZ_SORGUSU, (aktif, kullanici_kodu))
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Kullanıcı durumu güncellenemedi.") from hata

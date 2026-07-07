@@ -1,112 +1,61 @@
-// Kullanıcı ekleme formu bileşeni. Admin panelinden "Kullanıcı Ekle" seçilince
-// anasayfa içerik alanında render edilir. Yalnızca sunum sorumluluğundadır:
-// girdi toplar, dropdown seçeneklerini secenekApi'den ister ve kaydı createKullanici
+// Kullanıcı ekleme/düzenleme ekranının mantık kapsayıcısı. Admin panelinden
+// "Kullanıcı Ekle" seçilince (ekleme modu) veya kullanıcı listesindeki işlem
+// menüsünden "Düzenle" seçilince (düzenleme modu) anasayfa içerik alanında
+// render edilir. Yalnızca sunum sorumluluğundadır: girdi toplar, dropdown
+// seçeneklerini secenekApi'den ister, düzenleme modunda mevcut kaydı
+// getKullaniciDetay ile doldurur ve kaydı createKullanici/guncelleKullanici
 // üzerinden backend'e iletir; iş kuralı, yetki veya hesaplama İÇERMEZ (yetki ve
 // asıl doğrulama sunucuda). Zorunlu alanların boş olup olmadığı yalnızca UX için
-// (Kaydet butonunu pasifleştirmek) kontrol edilir. Başarıda üretilen geçici şifre
-// bir kez gösterilir; localStorage'a/loga YAZILMAZ. Hata durumunda yalnızca
-// backend'in güvenli mesajı gösterilir (teknik detay sızmaz). Kod/ad/soyad
-// alanlarında yazarken uygulanan girdi süzme yalnızca erken UX geri bildirimidir,
-// güvenlik/doğrulama sınırı değildir (asıl doğrulama sunucuda). Süzme sessiz
-// kalmasın diye, bir alandan geçersiz karakter ayıklandığında o alana özel kısa
-// bir uyarı belirir ve birkaç saniyede kendiliğinden kaybolur (yalnızca bilgilendirme).
+// (Kaydet/Güncelle butonunu pasifleştirmek) kontrol edilir. Ekleme başarısında
+// üretilen geçici şifre bir kez gösterilir; düzenlemede şifre üretilmez, başarıda
+// listeye dönülür ve liste tazelenir. Hata durumunda yalnızca backend'in güvenli
+// mesajı gösterilir (teknik detay sızmaz). Ortak form gövdesi KullaniciFormGovde,
+// paylaşılan alan tanımları common/kullaniciFormAlanlari'ndan gelir (DRY).
 
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listSecenekler } from '../api/secenekApi.js'
-import { createKullanici } from '../api/kullaniciApi.js'
 import {
-  SECENEK_KATEGORILERI,
-  gruplaSeceneklerKategoriyeGore,
-} from '../common/secenekKategorileri.js'
-import { sadeceRakam, rakamlariAt } from '../common/girdiTemizle.js'
+  createKullanici,
+  guncelleKullanici,
+  getKullaniciDetay,
+} from '../api/kullaniciApi.js'
+import { gruplaSeceneklerKategoriyeGore } from '../common/secenekKategorileri.js'
+import {
+  BOS_FORM,
+  UYARI_SURESI_MS,
+  temizleAlanDegeri,
+  zorunluAlanlarDolu,
+} from '../common/kullaniciFormAlanlari.js'
 import GeciciSifreKutusu from './GeciciSifreKutusu.jsx'
+import KullaniciFormGovde from './KullaniciFormGovde.jsx'
 import '../styles/kullanici-ekle.css'
 
-// Zorunlu metin alanları (gösterim sırasıyla). Zorunluluk yalnızca UX içindir;
-// asıl doğrulama sunucudadır. Opsiyonel alan özellikleri (temizle, inputMode,
-// maxLength) yazarken erken UX geri bildirimi sağlar, doğrulama değildir.
-const ZORUNLU_METIN_ALANLARI = [
-  {
-    kimlik: 'kullanici_kodu',
-    etiket: 'Kullanıcı Kodu',
-    temizle: 'sadeceRakam',
-    inputMode: 'numeric',
-    pattern: '[0-9]*',
-    maxLength: 20,
-  },
-  { kimlik: 'ad', etiket: 'Ad', temizle: 'harf', maxLength: 100 },
-  { kimlik: 'soyad', etiket: 'Soyad', temizle: 'harf', maxLength: 100 },
-  { kimlik: 'email', etiket: 'E-posta', tip: 'email' },
-]
-
-// temizleAlanDegeri: alanın "temizle" bayrağına göre ham girdiyi anında süzer
-// (kod alanında rakam-dışı ayıklama, ad/soyad'da rakam ayıklama). Bayrak yoksa
-// değeri olduğu gibi döner. Yalnızca yazarken UX kolaylığıdır, doğrulama değildir.
-function temizleAlanDegeri(temizle, hamDeger) {
-  if (temizle === 'sadeceRakam') {
-    return sadeceRakam(hamDeger)
+// detaydanFormHazirla: backend detay nesnesini form alan değerlerine eşler.
+// null/undefined alanlar boş string'e çevrilir; tarih alanı date input'un
+// beklediği YYYY-MM-DD biçimine kırpılır. Saf gösterim dönüşümüdür.
+function detaydanFormHazirla(detay) {
+  const form = { ...BOS_FORM }
+  for (const kimlik of Object.keys(BOS_FORM)) {
+    form[kimlik] = detay[kimlik] ?? ''
   }
-  if (temizle === 'harf') {
-    return rakamlariAt(hamDeger)
-  }
-  return hamDeger
+  // ise_giris_tarihi ISO tarih/zaman gelebilir; date input icin ilk 10 karakter.
+  form.ise_giris_tarihi = detay.ise_giris_tarihi
+    ? String(detay.ise_giris_tarihi).slice(0, 10)
+    : ''
+  return form
 }
 
-// Bir alandan geçersiz karakter ayıklandığında beliren anlık uyarının ekranda
-// kalma süresi (ms). Son geçersiz girişten sonra bu süre geçince uyarı kaybolur.
-const UYARI_SURESI_MS = 2800
+// KullaniciEkleForm: ekleme veya düzenleme formunu yönetir (girdi toplama +
+// gönderim). props: onGeriDon() -> "Geri Dön" ve başarı sonrası listeye dönüş;
+// duzenlenecekKullanici -> verilirse düzenleme modu ({ kullanici_kodu, ... });
+// verilmezse ekleme modu (davranış aynen korunur).
+function KullaniciEkleForm({ onGeriDon, duzenlenecekKullanici }) {
+  const duzenlemeModu = Boolean(duzenlenecekKullanici)
+  // Düzenlemede path için kullanılacak ORİJİNAL sicil; form.kullanici_kodu ise
+  // kullanıcının girdiği (belki değişmiş) istenen yeni sicildir.
+  const mevcutSicil = duzenlenecekKullanici?.kullanici_kodu
 
-// ayiklamaUyarisi: alanın süzme tipine göre, geçersiz karakter ayıklandığında
-// gösterilecek kısa kullanıcı mesajını döner. Rakam-only kod alanları ile
-// ad/soyad alanları farklı, alana uygun metin alır.
-function ayiklamaUyarisi(alan) {
-  if (alan.temizle === 'sadeceRakam') {
-    return 'Sadece rakam girilebilir.'
-  }
-  if (alan.temizle === 'harf') {
-    return `${alan.etiket} alanına rakam girilemez.`
-  }
-  return ''
-}
-
-// Formun tüm alanları için boş başlangıç durumu. Tüm dropdown ve opsiyonel
-// alanlar boş string ile başlar (backend boş opsiyonelleri normalize eder).
-const BOS_FORM = {
-  kullanici_kodu: '',
-  ad: '',
-  soyad: '',
-  email: '',
-  kullanici_turu: '',
-  ise_giris_tarihi: '',
-  ilgili_yonetici_kodu: '',
-  sirket: '',
-  grup: '',
-  bolum: '',
-  birim: '',
-  kadro_grubu: '',
-  kadro_unvani: '',
-  gorev_unvani: '',
-  arge_personeli: '',
-  personel_sigorta_is_yeri: '',
-  gorev_yeri: '',
-}
-
-// zorunluAlanlarDolu: Kaydet butonunu etkinleştirmek için zorunlu alanların
-// (boşluk kırpılmış) dolu olup olmadığını döner. Sadece UX kontrolüdür.
-function zorunluAlanlarDolu(form) {
-  return (
-    form.kullanici_kodu.trim() !== '' &&
-    form.ad.trim() !== '' &&
-    form.soyad.trim() !== '' &&
-    form.email.trim() !== '' &&
-    form.kullanici_turu !== ''
-  )
-}
-
-// KullaniciEkleForm: kullanıcı ekleme formunu yönetir (girdi toplama + gönderim).
-// props: onGeriDon() -> "Geri Dön" ve başarı sonrası listeye dönüş için çağrılır.
-function KullaniciEkleForm({ onGeriDon }) {
   const [form, setForm] = useState(BOS_FORM)
   // Alan kimliği -> o an gösterilen anlık uyarı mesajı. Yalnızca uyarısı olan
   // alanlar bu haritada bulunur; her alan bağımsızdır.
@@ -127,20 +76,47 @@ function KullaniciEkleForm({ onGeriDon }) {
 
   // Dropdown seçeneklerini çeker; kategoriye göre gruplanır. Liste boş/yüklenmiyor
   // olabilir — bu durumda dropdown'lar yalnızca placeholder gösterir (normaldir).
-  const {
-    data: secenekler,
-    isError: secenekHatasi,
-  } = useQuery({
+  const { data: secenekler, isError: secenekHatasi } = useQuery({
     queryKey: ['secenekler'],
     queryFn: listSecenekler,
   })
   const gruplandirilmis = gruplaSeceneklerKategoriyeGore(secenekler)
 
-  const ekleMutation = useMutation({
-    mutationFn: createKullanici,
+  // Düzenleme modunda kullanıcının mevcut tüm alanlarını çeker (liste özeti
+  // dropdown/tür/tarih alanlarını içermez). Yalnızca düzenleme modunda aktiftir.
+  const {
+    data: detay,
+    isPending: detayYukleniyor,
+    isError: detayHatasi,
+    error: detayHataObjesi,
+  } = useQuery({
+    queryKey: ['kullanici-detay', mevcutSicil],
+    queryFn: () => getKullaniciDetay(mevcutSicil),
+    enabled: duzenlemeModu,
+  })
+
+  // Detay geldiğinde formu bir kez mevcut değerlerle doldurur (düzenleme modu).
+  useEffect(() => {
+    if (detay) {
+      setForm(detaydanFormHazirla(detay))
+    }
+  }, [detay])
+
+  // Kaydet/Güncelle isteği. mutationFn moda göre dallanır: düzenlemede path'e
+  // orijinal sicil, gövdeye güncel form gider; eklemede create çağrılır. Başarıda
+  // liste (ve düzenlemede ilgili detaylar) tazelenir; teknik detay sızmaz.
+  const kaydetMutation = useMutation({
+    mutationFn: (guncelForm) =>
+      duzenlemeModu
+        ? guncelleKullanici(mevcutSicil, guncelForm)
+        : createKullanici(guncelForm),
     onSuccess: () => {
-      // Liste görünümü tazelensin diye kullanıcı sorgusu geçersiz kılınır.
       queryClient.invalidateQueries({ queryKey: ['kullanicilar'] })
+      if (duzenlemeModu) {
+        // Eski ve (sicil değiştiyse) yeni koda ait tüm detay sorgularını tazele.
+        queryClient.invalidateQueries({ queryKey: ['kullanici-detay'] })
+        onGeriDon()
+      }
     },
   })
 
@@ -180,174 +156,86 @@ function KullaniciEkleForm({ onGeriDon }) {
   }
 
   // handleSubmit: formu gönderir. Zorunlu alanlar dolmadan buton pasif olduğundan
-  // burada ek doğrulama yapılmaz; kayıt isteği API stub'ına iletilir.
+  // burada ek doğrulama yapılmaz; kayıt isteği moda göre API'ye iletilir.
   function handleSubmit(olay) {
     olay.preventDefault()
     if (!zorunluAlanlarDolu(form)) {
       return
     }
-    ekleMutation.mutate(form)
+    kaydetMutation.mutate(form)
   }
 
-  // Başarılı kayıt: geçici şifre kutusunu göster (form yerine). Şifre bir kez
-  // gösterilir; kullanıcı listeye döndüğünde form sıfırlanmış olur.
-  if (ekleMutation.isSuccess) {
+  // Ekleme başarısı: geçici şifre kutusunu göster (form yerine). Şifre bir kez
+  // gösterilir. Düzenlemede bu dal çalışmaz; başarıda onSuccess içinde listeye
+  // dönülür (şifre üretilmez).
+  if (!duzenlemeModu && kaydetMutation.isSuccess) {
     return (
       <section className="kullanici-ekle">
         <GeciciSifreKutusu
-          kullaniciKodu={ekleMutation.data.kullanici_kodu}
-          geciciSifre={ekleMutation.data.gecici_sifre}
+          kullaniciKodu={kaydetMutation.data.kullanici_kodu}
+          geciciSifre={kaydetMutation.data.gecici_sifre}
           onGeriDon={onGeriDon}
         />
       </section>
     )
   }
 
-  const kaydetPasif = !zorunluAlanlarDolu(form) || ekleMutation.isPending
-
-  return (
-    <section className="kullanici-ekle">
-      <h2 className="kullanici-ekle-baslik">Kullanıcı Ekle</h2>
-
-      <form className="kullanici-ekle-form" onSubmit={handleSubmit} noValidate>
-        <div className="kullanici-ekle-izgara">
-          {ZORUNLU_METIN_ALANLARI.map((alan) => (
-            <label key={alan.kimlik} className="form-satir">
-              <span className="form-etiket">
-                {alan.etiket} <span className="zorunlu-yildiz">*</span>
-              </span>
-              <span className="form-alan">
-                <input
-                  className="form-kutu"
-                  type={alan.tip ?? 'text'}
-                  value={form[alan.kimlik]}
-                  inputMode={alan.inputMode}
-                  pattern={alan.pattern}
-                  maxLength={alan.maxLength}
-                  onChange={(olay) =>
-                    suzVeGuncelle(
-                      alan.kimlik,
-                      alan.temizle,
-                      olay.target.value,
-                      ayiklamaUyarisi(alan)
-                    )
-                  }
-                />
-                {alanUyarilari[alan.kimlik] && (
-                  <span className="alan-uyari" role="status">
-                    {alanUyarilari[alan.kimlik]}
-                  </span>
-                )}
-              </span>
-            </label>
-          ))}
-
-          <label className="form-satir">
-            <span className="form-etiket">
-              Kullanıcı Türü <span className="zorunlu-yildiz">*</span>
-            </span>
-            <select
-              className="form-kutu"
-              value={form.kullanici_turu}
-              onChange={(olay) => alanGuncelle('kullanici_turu', olay.target.value)}
-            >
-              <option value="">Seçiniz</option>
-              <option value="user">user</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-
-          <label className="form-satir">
-            <span className="form-etiket">İşe Giriş Tarihi</span>
-            <input
-              className="form-kutu"
-              type="date"
-              value={form.ise_giris_tarihi}
-              onChange={(olay) =>
-                alanGuncelle('ise_giris_tarihi', olay.target.value)
-              }
-            />
-          </label>
-
-          <label className="form-satir">
-            <span className="form-etiket">İlgili Yönetici Kodu</span>
-            <span className="form-alan">
-              <input
-                className="form-kutu"
-                type="text"
-                value={form.ilgili_yonetici_kodu}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={20}
-                onChange={(olay) =>
-                  suzVeGuncelle(
-                    'ilgili_yonetici_kodu',
-                    'sadeceRakam',
-                    olay.target.value,
-                    'Sadece rakam girilebilir.'
-                  )
-                }
-              />
-              {alanUyarilari.ilgili_yonetici_kodu && (
-                <span className="alan-uyari" role="status">
-                  {alanUyarilari.ilgili_yonetici_kodu}
-                </span>
-              )}
-            </span>
-          </label>
-
-          {SECENEK_KATEGORILERI.map((kategori) => (
-            <label key={kategori.kimlik} className="form-satir">
-              <span className="form-etiket">{kategori.etiket}</span>
-              <select
-                className="form-kutu"
-                value={form[kategori.kimlik]}
-                onChange={(olay) =>
-                  alanGuncelle(kategori.kimlik, olay.target.value)
-                }
-              >
-                <option value="">Seçiniz</option>
-                {(gruplandirilmis[kategori.kimlik] ?? []).map((deger) => (
-                  <option key={deger} value={deger}>
-                    {deger}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
+  // Düzenleme modunda detay yüklenirken / hatada uygun durum gösterilir.
+  if (duzenlemeModu && detayYukleniyor) {
+    return (
+      <section className="kullanici-ekle">
+        <p className="kullanici-liste-durum">Yükleniyor...</p>
+      </section>
+    )
+  }
+  if (duzenlemeModu && detayHatasi) {
+    // detayHataObjesi.message backend'in güvenli mesajıdır; teknik detay sızmaz.
+    return (
+      <section className="kullanici-ekle">
+        <div className="kullanici-ekle-hata" role="alert">
+          {detayHataObjesi?.message ||
+            'Kullanıcı detayı yüklenemedi. Lütfen tekrar deneyin.'}
         </div>
-
-        {secenekHatasi && (
-          <p className="kullanici-ekle-uyari">
-            Dropdown seçenekleri yüklenemedi; seçenekleri boş bırakabilir veya
-            sayfayı yenileyebilirsiniz.
-          </p>
-        )}
-
-        {ekleMutation.isError && (
-          <div className="kullanici-ekle-hata" role="alert">
-            {ekleMutation.error?.message ||
-              'Kullanıcı eklenemedi. Lütfen tekrar deneyin.'}
-          </div>
-        )}
-
         <div className="kullanici-ekle-butonlar">
-          {/* Kaydet pasifken disabled buton hover almadığından tooltip'i saran
-              span üzerinden gösteririz; buton aktifken data-uyari verilmez. */}
-          <span
-            className="kaydet-sarmalayici"
-            data-uyari={kaydetPasif ? 'Lütfen zorunlu alanları doldurun' : undefined}
-          >
-            <button type="submit" className="birincil-buton" disabled={kaydetPasif}>
-              {ekleMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
-            </button>
-          </span>
           <button type="button" className="ikincil-buton" onClick={onGeriDon}>
             Geri Dön
           </button>
         </div>
-      </form>
-    </section>
+      </section>
+    )
+  }
+
+  const kaydetPasif = !zorunluAlanlarDolu(form) || kaydetMutation.isPending
+  const baslik = duzenlemeModu ? 'Kullanıcı Düzenle' : 'Kullanıcı Ekle'
+  const butonMetni = duzenlemeModu
+    ? kaydetMutation.isPending
+      ? 'Güncelleniyor...'
+      : 'Güncelle'
+    : kaydetMutation.isPending
+    ? 'Kaydediliyor...'
+    : 'Kaydet'
+  const hataMesaji = kaydetMutation.isError
+    ? kaydetMutation.error?.message ||
+      (duzenlemeModu
+        ? 'Kullanıcı güncellenemedi. Lütfen tekrar deneyin.'
+        : 'Kullanıcı eklenemedi. Lütfen tekrar deneyin.')
+    : ''
+
+  return (
+    <KullaniciFormGovde
+      baslik={baslik}
+      form={form}
+      alanUyarilari={alanUyarilari}
+      suzVeGuncelle={suzVeGuncelle}
+      alanGuncelle={alanGuncelle}
+      gruplandirilmis={gruplandirilmis}
+      secenekHatasi={secenekHatasi}
+      hataMesaji={hataMesaji}
+      kaydetPasif={kaydetPasif}
+      butonMetni={butonMetni}
+      onSubmit={handleSubmit}
+      onGeriDon={onGeriDon}
+    />
   )
 }
 

@@ -186,8 +186,49 @@
   outline-offset: 2px;
 }
 
-/* İşlemler sütunundaki üç nokta butonu: sade ikon butonu; şimdilik işlevsiz
-   görsel yer tutucu. Hover/odakta hafif zemin ve koyulaşan ikon. */
+/* İşlem menüsü sarmalayıcı: dropdown'ı üç nokta butonuna göre konumlar. */
+.kullanici-islem-sarmalayici {
+  position: relative;
+  display: inline-flex;
+}
+
+/* İşlem menüsü dropdown'ı: butonun altında sağa hizalı küçük kart. Üstteki
+   satırların önünde kalması için tablo içeriğinden yüksek z-index alır. */
+.kullanici-islem-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 140px;
+  background: var(--renk-beyaz);
+  border: 1px solid var(--renk-vurgu);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 114, 206, 0.15);
+  padding: 4px;
+}
+
+/* Dropdown öğesi: tam genişlik, sola hizalı tıklanabilir satır. */
+.kullanici-islem-oge {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: var(--renk-lacivert);
+  font-size: 15px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.kullanici-islem-oge:hover,
+.kullanici-islem-oge:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}
+
+/* İşlemler sütunundaki üç nokta butonu: sade ikon butonu; tıklanınca satırın
+   işlem menüsünü açar. Hover/odakta hafif zemin ve koyulaşan ikon. */
 .kullanici-islem-buton {
   display: inline-flex;
   align-items: center;

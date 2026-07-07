@@ -8,15 +8,22 @@
 // backend'e ek istek atmaz. Çalışan ve yönetici adları tıklanınca üst bileşene
 // iletilir (onKisiSec) ve sağdan kayan kişi detay panelinde gösterilir. Başlık
 // satırındaki "Kullanıcı Ekle" butonu, üst bileşene (onKullaniciEkle) haber
-// vererek içerik alanında kullanıcı ekleme formunu açar.
+// vererek içerik alanında kullanıcı ekleme formunu açar. "İşlemler" sütunundaki
+// üç nokta menüsünden bir kullanıcı düzenlenebilir ("Düzenle" -> üst bileşene
+// onKullaniciDuzenle ile haber verilir, düzenleme ekranı açılır) veya durumu
+// (aktif <-> pasif) değiştirilebilir: önce ekran ortasında bir onay kutusu çıkar,
+// onaylanınca sunucuya istek atılır (toggle ve yetki sunucuda) ve liste tazelenir.
+// UI iş kuralı/yetki İÇERMEZ.
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { listKullanicilar } from '../api/kullaniciApi.js'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listKullanicilar, degistirAktiflik } from '../api/kullaniciApi.js'
 import {
   buyukHarfeCevir,
   tarihSaatBicimlendir,
 } from '../common/metinBicimlendir.js'
+import SatirIslemMenu from './SatirIslemMenu.jsx'
+import OnayKutusu from './OnayKutusu.jsx'
 import '../styles/kullanici-listesi.css'
 
 // ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Kullanıcı Ekle"
@@ -80,32 +87,24 @@ function kullaniciAramayaUyuyorMu(kullanici, aramaMetni) {
   return aranabilirMetin.includes(aranan)
 }
 
-// UcNoktaIcon: dikey üç nokta (⋮) simgesini çizer. İşlemler sütunundaki menü
-// butonunda kullanılır; şimdilik yalnızca görsel yer tutucudur.
-function UcNoktaIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="5" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="12" cy="19" r="1.6" />
-    </svg>
-  )
-}
-
 // KullaniciListesi: kullanıcıları React Query ile çeker ve durumuna göre
 // yükleniyor / hata / boş / tablo gösterir. props: onKisiSec(kisi) -> bir
 // çalışan veya yönetici adına tıklanınca { kullanici_kodu, ad, soyad } ile
 // çağrılır (kullanici_kodu detay panelinin backend'den çekimi için);
 // onKullaniciEkle() -> "Kullanıcı Ekle" butonuna tıklanınca çağrılır (üst
-// bileşen kullanıcı ekleme görünümünü açar).
-function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
+// bileşen kullanıcı ekleme görünümünü açar); onKullaniciDuzenle(kullanici) ->
+// bir satırın "Düzenle" öğesi seçilince o kullanıcının özetiyle çağrılır (üst
+// bileşen kullanıcı düzenleme görünümünü açar).
+function KullaniciListesi({ onKisiSec, onKullaniciEkle, onKullaniciDuzenle }) {
   const [aramaMetni, setAramaMetni] = useState('')
+  // Menüsü açık olan satırın kullanici_kodu (aynı anda tek satır açık kalır).
+  const [acikMenuKodu, setAcikMenuKodu] = useState(null)
+  // Onay kutusunun hedefi olan kullanıcı (null iken onay kutusu kapalı).
+  const [hedefKullanici, setHedefKullanici] = useState(null)
+  // Durum değiştirme isteği başarısız olursa gösterilecek güvenli, kısa mesaj.
+  const [islemHatasi, setIslemHatasi] = useState('')
+
+  const queryClient = useQueryClient()
   const {
     data: kullanicilar,
     isPending,
@@ -115,6 +114,51 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
     queryKey: ['kullanicilar'],
     queryFn: listKullanicilar,
   })
+
+  // Durum değiştirme isteği: başarıda listeyi tazeler ve onay kutusunu kapatır;
+  // hatada onay kutusunu kapatır ve backend'in güvenli mesajını ekrana yansıtır
+  // (teknik detay sızmaz). Toggle ve yetki kararı sunucuda verilir.
+  const aktiflikMutation = useMutation({
+    mutationFn: degistirAktiflik,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kullanicilar'] })
+      setHedefKullanici(null)
+    },
+    onError: (hata) => {
+      setHedefKullanici(null)
+      setIslemHatasi(hata.message)
+    },
+  })
+
+  // menuAcikligiDegistir: tıklanan satırın menüsünü açar/kapatır; başka bir satır
+  // açıksa onu kapatıp bunu açar (aynı anda tek menü).
+  function menuAcikligiDegistir(kullaniciKodu) {
+    setAcikMenuKodu((oncekiKod) =>
+      oncekiKod === kullaniciKodu ? null : kullaniciKodu,
+    )
+  }
+
+  // durumDegistirmeyeBasla: satır menüsündeki aktiflik öğesi seçilince menüyü
+  // kapatır, varsa önceki hatayı temizler ve seçilen kullanıcı için onay kutusunu
+  // açar.
+  function durumDegistirmeyeBasla(kullanici) {
+    setAcikMenuKodu(null)
+    setIslemHatasi('')
+    setHedefKullanici(kullanici)
+  }
+
+  // duzenlemeyeBasla: satır menüsündeki "Düzenle" öğesi seçilince menüyü kapatır
+  // ve seçilen kullanıcının özetini üst bileşene iletir (düzenleme ekranı açılır).
+  function duzenlemeyeBasla(kullanici) {
+    setAcikMenuKodu(null)
+    onKullaniciDuzenle(kullanici)
+  }
+
+  // durumDegisiminiOnayla: onay kutusundaki onay butonuna basılınca hedef
+  // kullanıcının durumunu değiştirme isteğini tetikler.
+  function durumDegisiminiOnayla() {
+    aktiflikMutation.mutate(hedefKullanici.kullanici_kodu)
+  }
 
   if (isPending) {
     return <p className="kullanici-liste-durum">Yükleniyor...</p>
@@ -169,6 +213,14 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
           <span>Kullanıcı Ekle</span>
         </button>
       </div>
+      {islemHatasi && (
+        <p
+          className="kullanici-liste-durum kullanici-liste-hata"
+          role="alert"
+        >
+          {islemHatasi}
+        </p>
+      )}
       {filtreliKullanicilar.length === 0 ? (
         <p className="kullanici-liste-durum">Eşleşen kullanıcı bulunamadı.</p>
       ) : (
@@ -238,13 +290,16 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
                   <td>{tarihSaatBicimlendir(kullanici.olusturma_tarihi)}</td>
                   <td>{tarihSaatBicimlendir(kullanici.son_giris_tarihi)}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="kullanici-islem-buton"
-                      aria-label="İşlemler menüsü"
-                    >
-                      <UcNoktaIcon />
-                    </button>
+                    <SatirIslemMenu
+                      acik={acikMenuKodu === kullanici.kullanici_kodu}
+                      aktif={kullanici.aktif}
+                      onAc={() =>
+                        menuAcikligiDegistir(kullanici.kullanici_kodu)
+                      }
+                      onKapat={() => setAcikMenuKodu(null)}
+                      onDuzenle={() => duzenlemeyeBasla(kullanici)}
+                      onSecim={() => durumDegistirmeyeBasla(kullanici)}
+                    />
                   </td>
                 </tr>
               )
@@ -252,6 +307,20 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
           </tbody>
         </table>
       </div>
+      )}
+      {hedefKullanici && (
+        <OnayKutusu
+          baslik="Kullanıcı durumunu değiştir"
+          mesaj={`${buyukHarfeCevir(hedefKullanici.ad)} ${buyukHarfeCevir(
+            hedefKullanici.soyad,
+          )} adlı kullanıcı ${
+            hedefKullanici.aktif ? 'pasife' : 'aktife'
+          } alınacak. Emin misiniz?`}
+          onaylaMetni={hedefKullanici.aktif ? 'Pasif yap' : 'Aktif yap'}
+          onOnayla={durumDegisiminiOnayla}
+          onVazgec={() => setHedefKullanici(null)}
+          islemAktif={aktiflikMutation.isPending}
+        />
       )}
     </section>
   )

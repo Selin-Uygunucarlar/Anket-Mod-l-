@@ -34,6 +34,7 @@ _KOD_HTTP_ESLEME = {
     "YETKI_YOK": 403,
     "NOT_FOUND": 404,
     "SECENEK_ZATEN_VAR": 409,
+    "BUSINESS_RULE_ERROR": 409,
     "UNEXPECTED_ERROR": 500,
 }
 
@@ -77,7 +78,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_IZINLI_ORIGINLER,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["content-type"],
 )
 
@@ -113,10 +114,12 @@ class SifreBelirleIstegi(BaseModel):
 
 
 class KullaniciEkleIstegi(BaseModel):
-    """Kullanıcı ekleme istek gövdesi (form alanları).
+    """Kullanıcı ekleme/güncelleme istek gövdesi (form alanları).
 
-    Zorunlu alanlar str; opsiyoneller varsayılan None. Boş->None normalizasyonu ve
-    tarih parse'ı Controller'da, iş kuralı doğrulaması Service'te yapılır.
+    Aynı alan kümesi hem POST (ekle) hem PUT (güncelle) için kullanılır (DRY). Zorunlu
+    alanlar str; opsiyoneller varsayılan None. Boş->None normalizasyonu ve tarih parse'ı
+    Controller'da, iş kuralı doğrulaması Service'te yapılır. Güncellemede `kullanici_kodu`
+    İSTENEN (aynı ya da yeni) sicildir; kaydın mevcut sicili path'ten gelir.
     """
 
     kullanici_kodu: str
@@ -232,6 +235,51 @@ def create_kullanici(
     (aynı path, farklı method). Yanıt gövdesi Controller'ın güvenli sözlüğüdür.
     """
     sonuc = kullanici_controller.create_kullanici(oturum, istek.model_dump())
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.put("/api/kullanicilar/{kullanici_kodu}")
+def guncelle_kullanici(
+    kullanici_kodu: str,
+    istek: KullaniciEkleIstegi,
+    oturum: str | None = Cookie(default=None),
+) -> JSONResponse:
+    """Oturumdaki admin için var olan bir kullanıcıyı günceller (yalnızca protokol).
+
+    kullanici_kodu path segment'i kaydın MEVCUT sicilidir; istek gövdesindeki
+    `kullanici_kodu` ise İSTENEN (aynı ya da yeni) sicildir. Oturum/yetki/doğrulama ve
+    sicil değişimi kararı Controller/Service'te. Sicil bağlı kayıtlar nedeniyle
+    değiştirilemezse BUSINESS_RULE_ERROR -> 409. GET/PUT aynı path'te method ile ayrışır.
+    Başarılı yanıtta kayan pencere için cookie yenilenir. Yanıt Controller'ın güvenli
+    sözlüğüdür.
+    """
+    sonuc = kullanici_controller.guncelle_kullanici(
+        oturum, kullanici_kodu, istek.model_dump()
+    )
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/kullanicilar/{kullanici_kodu}/aktiflik")
+def degistir_kullanici_aktiflik(
+    kullanici_kodu: str, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için bir kullanıcının aktiflik durumunu değiştirir (yalnızca protokol).
+
+    kullanici_kodu path segment'inden alınır; jeton `oturum` cookie'sinden okunur.
+    Oturum/yetki/iş kuralı (yalnızca admin, kayıt yok, kendini pasife alma engeli)
+    Controller/Service'te. Path'e `/aktiflik` segmenti eklendiğinden GET
+    /api/kullanicilar/{kullanici_kodu} (detay) ile çakışmaz. Başarılı yanıtta kayan
+    pencere için cookie aynı bayraklarla YENİDEN set edilir.
+    """
+    sonuc = kullanici_controller.degistir_aktiflik(oturum, kullanici_kodu)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

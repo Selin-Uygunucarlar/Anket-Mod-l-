@@ -122,6 +122,61 @@ def create_kullanici(ham_jeton: str, govde: dict) -> dict:
         return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
 
 
+def degistir_aktiflik(ham_jeton: str, kullanici_kodu: str) -> dict:
+    """Oturumu doğrulanmış admin için bir kullanıcının aktiflik durumunu tersine çevirir.
+
+    Cookie'den gelen ham jetonu oturum_service ile doğrular (geçersiz/boş oturum ->
+    OturumError). Yetki (yalnızca admin), kayıt bulunamadı ve kendini pasife alma
+    engeli kararları kullanici_service'e bırakılır (admin değil -> YetkiYokError,
+    kayıt yok -> NotFoundError, kendini pasife alma -> ValidationError). Hata BİR KEZ
+    loglanır ve güvenli yanıt döner; teknik detay sızmaz.
+
+    Başarılı: {"basari": True, "kullanici_kodu": <kod>, "aktif": <yeni durum bool>}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "kullanici_aktiflik_degistir"}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        yeni_aktif = kullanici_service.degistir_kullanici_aktiflik(sahip, kullanici_kodu)
+        return {"basari": True, "kullanici_kodu": kullanici_kodu, "aktif": yeni_aktif}
+    except AppError as hata:
+        # Tanımlı kod/severity ile bir kez loglanır; kullanıcıya güvenli mesaj.
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        # Beklenmeyen hata: CRITICAL loglanır, kullanıcıya genel güvenli mesaj.
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def guncelle_kullanici(ham_jeton: str, kullanici_kodu: str, govde: dict) -> dict:
+    """Oturumu doğrulanmış admin için var olan bir kullanıcıyı günceller.
+
+    kullanici_kodu path'ten gelen MEVCUT sicildir; gövdedeki `kullanici_kodu` alanı
+    İSTENEN (aynı ya da yeni) sicildir. Controller sorumluluğu request dönüşümüdür:
+    _normalize_kullanici_govdesi ile aynı tip/biçim doğrulaması yapılır (sicil rakam-
+    only, ad/soyad rakamsız, uzunluk, tarih parse). İş kuralları/yetki/sicil değişimi
+    kararı kullanici_service'te. Hata BİR KEZ loglanır; teknik detay sızmaz.
+
+    Başarılı: {"basari": True, "kullanici_kodu": <güncel/yeni sicil>}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "kullanici_guncelle"}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        veri = _normalize_kullanici_govdesi(govde)
+        kullanici_service.guncelle_kullanici(sahip, kullanici_kodu, veri)
+        return {"basari": True, "kullanici_kodu": veri["kullanici_kodu"]}
+    except AppError as hata:
+        # Tanımlı kod/severity ile bir kez loglanır; kullanıcıya güvenli mesaj.
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        # Beklenmeyen hata: CRITICAL loglanır, kullanıcıya genel güvenli mesaj.
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
 def _normalize_kullanici_govdesi(govde: dict) -> dict:
     """HTTP gövdesini doğrulayıp Service'in beklediği normalize veri dict'ine çevirir.
 

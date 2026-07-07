@@ -117,6 +117,20 @@ class ValidationError(AppError):
     severity = Severity.WARNING
 
 
+class BusinessRuleError(AppError):
+    """Girdi biçimi geçerli olsa da bir iş kuralının ihlal edildiği durum.
+
+    Örn. bir kullanıcının sicili (PK), ona bağlı kayıtlar (yönetici olduğu kişiler,
+    atamalar, değerlendirmeler) bulunduğu için değiştirilemez. Bu bir kaynak/durum
+    çakışmasıdır (girdi hatası değil), bu yüzden ValidationError'dan ayrışır ve
+    sınırda 409 Conflict'e eşlenir. Kullanıcı/veri kaynaklı olduğundan (kritik değil)
+    severity WARNING'tir. Mesaj kullanıcıya gösterilebilir; ham teknik detay içermez.
+    """
+
+    kod = "BUSINESS_RULE_ERROR"
+    severity = Severity.WARNING
+
+
 class AuthError(AppError):
     """Kimlik doğrulama başarısızlığı için genel/güvenli hata tipi.
 

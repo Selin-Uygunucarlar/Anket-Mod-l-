@@ -1,0 +1,101 @@
+/*
+  Ekran ortasındaki onay modalının (OnayKutusu) stilleri: tüm sayfayı örten
+  yarı saydam koyu perde, ortalanmış beyaz kutu, başlık/mesaj ve iki buton
+  (Vazgeç ikincil + onay birincil, marka mavisi). Renk değişkenleri global
+  paletten (login.css) miras alınır. Yalnızca sunum (görsel) sorumluluğundadır.
+*/
+
+/* Perde: tüm ekranı örter, içeriği dikey/yatay ortalar. Koyu yarı saydam
+   zemin, modalı öne çıkarır ve arkadaki içerikle karışmasını engeller. */
+.onay-perde {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(31, 37, 48, 0.45);
+}
+
+/* Onay kutusu: sade beyaz kart; okunur genişlik, yumuşak köşe ve gölge. */
+.onay-kutu {
+  width: 100%;
+  max-width: 420px;
+  background: var(--renk-beyaz);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(31, 37, 48, 0.25);
+}
+
+/* Başlık: net, marka lacivertinde. */
+.onay-kutu-baslik {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Mesaj: açıklayıcı, okunur gövde metni. */
+.onay-kutu-mesaj {
+  margin: 0 0 20px 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--renk-lacivert);
+}
+
+/* Buton satırı: sağa hizalı, Vazgeç solda / onay sağda. */
+.onay-kutu-butonlar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Ortak buton tabanı (iki buton için). */
+.onay-vazgec-buton,
+.onay-onayla-buton {
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.onay-vazgec-buton:disabled,
+.onay-onayla-buton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Vazgeç: ikincil (kenarlıklı, beyaz zemin). */
+.onay-vazgec-buton {
+  border: 1px solid var(--renk-kenarlik);
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+}
+
+.onay-vazgec-buton:hover:not(:disabled),
+.onay-vazgec-buton:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}
+
+/* Onay: birincil (marka mavisi zemin, beyaz metin). */
+.onay-onayla-buton {
+  border: none;
+  background: var(--renk-mavi);
+  color: var(--renk-beyaz);
+}
+
+.onay-onayla-buton:hover:not(:disabled),
+.onay-onayla-buton:focus-visible {
+  background: var(--renk-mavi-koyu);
+  outline: none;
+}
+
+.onay-vazgec-buton:focus-visible,
+.onay-onayla-buton:focus-visible {
+  outline: 2px solid var(--renk-mavi);
+  outline-offset: 2px;
+}

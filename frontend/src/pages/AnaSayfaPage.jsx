@@ -33,7 +33,8 @@ function AnaSayfaPage() {
   // null = henüz seçim yok (boş anasayfa).
   const [secilenGorunum, setSecilenGorunum] = useState(null)
   // Kişi detay panelinde gösterilecek kişiyi tutan saf UI state'i.
-  // null = panel kapalı; { ad, soyad } = ilgili kişinin detayı açık.
+  // null = panel kapalı; { kullanici_kodu, ad, soyad } = ilgili kişinin detayı
+  // açık. kullanici_kodu, panelin detayı backend'den çekmesi için taşınır.
   const [secilenKisi, setSecilenKisi] = useState(null)
 
   // toggleAdminPaneli: hamburger tıklanınca paneli açar/kapatır.

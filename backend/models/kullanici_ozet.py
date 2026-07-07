@@ -23,6 +23,7 @@ class KullaniciOzet:
     soyad: str
     aktif: bool                        # hesap etkin mi (rol/tür değil, kullanım durumu)
     email: str
+    ilgili_yonetici_kodu: str | None   # yöneticinin kullanici_kodu'su; listede adına tıklayınca detayını açmak için (yönetici yoksa None)
     yonetici_ad: str | None            # ilgili yöneticinin adı; yönetici yoksa None
     yonetici_soyad: str | None         # ilgili yöneticinin soyadı; yönetici yoksa None
     olusturma_tarihi: datetime | None  # sisteme eklenme anı; geriye dönük bilinmiyorsa None

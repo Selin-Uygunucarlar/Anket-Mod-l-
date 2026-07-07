@@ -20,6 +20,7 @@ import pymysql
 
 from common.db import veritabani_baglantisi
 from common.errors import DataAccessError
+from models.kullanici_detay import KullaniciDetay
 from models.kullanici_ozet import KullaniciOzet
 
 # Tüm kullanıcıları listeler. ilgili_yonetici_kodu için Kullanici öz-LEFT JOIN
@@ -31,6 +32,7 @@ _KULLANICI_LISTE_SORGUSU = """
            k.soyad,
            k.aktif,
            k.email,
+           k.ilgili_yonetici_kodu,
            y.ad     AS yonetici_ad,
            y.soyad  AS yonetici_soyad,
            k.olusturma_tarihi,
@@ -39,6 +41,39 @@ _KULLANICI_LISTE_SORGUSU = """
     LEFT JOIN Kullanici y ON y.kullanici_kodu = k.ilgili_yonetici_kodu
     LEFT JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
     ORDER BY k.ad, k.soyad
+"""
+
+# Tek kullanıcının tam (güvenli) detayı — kişi detay paneli için. Yönetici adı için
+# Kullanici öz-LEFT JOIN (yönetici olmayabilir), son_giris_tarihi için KullaniciKimlik
+# LEFT JOIN (kimlik satırı olmayabilir). sifre_hash/hatali_giris_sayisi HİÇ seçilmez.
+_KULLANICI_DETAY_SORGUSU = """
+    SELECT k.kullanici_kodu,
+           k.ad,
+           k.soyad,
+           k.email,
+           k.kullanici_turu,
+           k.aktif,
+           k.ise_giris_tarihi,
+           k.ilgili_yonetici_kodu,
+           y.ad     AS yonetici_ad,
+           y.soyad  AS yonetici_soyad,
+           k.sirket,
+           k.grup,
+           k.bolum,
+           k.birim,
+           k.kadro_grubu,
+           k.kadro_unvani,
+           k.gorev_unvani,
+           k.arge_personeli,
+           k.personel_sigorta_is_yeri,
+           k.gorev_yeri,
+           k.olusturma_tarihi,
+           kk.son_giris_tarihi
+    FROM Kullanici k
+    LEFT JOIN Kullanici y ON y.kullanici_kodu = k.ilgili_yonetici_kodu
+    LEFT JOIN KullaniciKimlik kk ON kk.kullanici_kodu = k.kullanici_kodu
+    WHERE k.kullanici_kodu = %s
+    LIMIT 1
 """
 
 # Verilen kullanici_kodu (SAP no) kayıtlı mı — benzersizlik ön kontrolü için.
@@ -104,6 +139,7 @@ def list_kullanicilar() -> list[KullaniciOzet]:
             # TINYINT gelebileceğinden Python bool'a çevrilir.
             aktif=bool(satir["aktif"]),
             email=satir["email"],
+            ilgili_yonetici_kodu=satir["ilgili_yonetici_kodu"],
             yonetici_ad=satir["yonetici_ad"],
             yonetici_soyad=satir["yonetici_soyad"],
             olusturma_tarihi=satir["olusturma_tarihi"],
@@ -111,6 +147,52 @@ def list_kullanicilar() -> list[KullaniciOzet]:
         )
         for satir in satirlar
     ]
+
+
+def get_kullanici_detay(kullanici_kodu: str) -> KullaniciDetay | None:
+    """Verilen kullanici_kodu'nun tam güvenli detayını döner; kayıt yoksa None.
+
+    Kişi detay paneli için tek kullanıcıyı okur. Yönetici adı öz-LEFT JOIN ile
+    (yönetici yoksa None), son giriş KullaniciKimlik LEFT JOIN ile (kimlik satırı
+    yoksa None) çözülür. sifre_hash/hatali_giris_sayisi sorguya girmez. Yetki/rol
+    ve sahiplik kontrolü burada DEĞİL, Service/Controller katmanındadır.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(_KULLANICI_DETAY_SORGUSU, (kullanici_kodu,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        raise DataAccessError("Kullanıcı detayı okunamadı.") from hata
+
+    if satir is None:
+        return None
+
+    return KullaniciDetay(
+        kullanici_kodu=satir["kullanici_kodu"],
+        ad=satir["ad"],
+        soyad=satir["soyad"],
+        email=satir["email"],
+        kullanici_turu=satir["kullanici_turu"],
+        # TINYINT gelebileceğinden Python bool'a çevrilir.
+        aktif=bool(satir["aktif"]),
+        ise_giris_tarihi=satir["ise_giris_tarihi"],
+        ilgili_yonetici_kodu=satir["ilgili_yonetici_kodu"],
+        yonetici_ad=satir["yonetici_ad"],
+        yonetici_soyad=satir["yonetici_soyad"],
+        sirket=satir["sirket"],
+        grup=satir["grup"],
+        bolum=satir["bolum"],
+        birim=satir["birim"],
+        kadro_grubu=satir["kadro_grubu"],
+        kadro_unvani=satir["kadro_unvani"],
+        gorev_unvani=satir["gorev_unvani"],
+        arge_personeli=satir["arge_personeli"],
+        personel_sigorta_is_yeri=satir["personel_sigorta_is_yeri"],
+        gorev_yeri=satir["gorev_yeri"],
+        olusturma_tarihi=satir["olusturma_tarihi"],
+        son_giris_tarihi=satir["son_giris_tarihi"],
+    )
 
 
 def kullanici_kodu_var_mi(kullanici_kodu: str) -> bool:

@@ -44,6 +44,42 @@ export async function listKullanicilar() {
   throw new Error(govde?.mesaj || GENEL_HATA_MESAJI)
 }
 
+// Kullanıcı detayı yüklenirken gösterilecek jenerik, güvenli hata mesajı.
+const DETAY_HATA_MESAJI = 'Kullanıcı detayı yüklenemedi. Lütfen tekrar deneyin.'
+
+// getKullaniciDetay: verilen sicil koduna ait kullanıcının tüm detayını çeker.
+// Başarılıysa detay nesnesini (govde.kullanici) döndürür; başarısızsa backend'in
+// güvenli mesajını (404 kayıt yok, 403 yetki, 401 oturum) taşıyan bir Error
+// fırlatır. Ağ/parse hatasında da teknik detay sızdırmadan güvenli Error yükselir.
+export async function getKullaniciDetay(kullaniciKodu) {
+  let yanit
+  try {
+    yanit = await fetch(
+      `${API_BASE}/api/kullanicilar/${encodeURIComponent(kullaniciKodu)}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      },
+    )
+  } catch {
+    throw new Error('Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deneyin.')
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(DETAY_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return govde.kullanici
+  }
+
+  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  throw new Error(govde?.mesaj || DETAY_HATA_MESAJI)
+}
+
 // Kullanıcı eklemede gösterilecek jenerik, güvenli hata mesajı (teknik detay yok).
 const EKLE_HATA_MESAJI = 'Kullanıcı eklenemedi. Lütfen tekrar deneyin.'
 

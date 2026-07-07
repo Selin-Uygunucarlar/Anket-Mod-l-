@@ -14,8 +14,9 @@ import re
 import secrets
 from datetime import datetime
 
-from common.errors import ValidationError, YetkiYokError
+from common.errors import NotFoundError, ValidationError, YetkiYokError
 from common.guvenlik import hash_sifre
+from models.kullanici_detay import KullaniciDetay
 from models.kullanici_ozet import KullaniciOzet
 from models.oturum import OturumSahibi
 from repositories import kullanici_repository
@@ -57,6 +58,24 @@ def list_kullanicilar(talep_eden: OturumSahibi) -> list[KullaniciOzet]:
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
     return kullanici_repository.list_kullanicilar()
+
+
+def get_kullanici_detay(talep_eden: OturumSahibi, kullanici_kodu: str) -> KullaniciDetay:
+    """Tek bir kullanıcının güvenli detayını döner; yalnızca admin çağırabilir.
+
+    Yetki, talep edenin (doğrulanmış oturum sahibi) kullanici_turu'ne göre belirlenir;
+    admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. kullanici_kodu
+    boş/whitespace ise ValidationError; kayıt yoksa (Repository None döner) NotFoundError.
+    Hata burada loglanmaz, YUKARI FIRLAR (loglama yalnızca sınır katmanında bir kez).
+    """
+    if talep_eden.kullanici_turu != _ADMIN_TURU:
+        raise YetkiYokError()
+
+    kod = _zorunlu_alan(kullanici_kodu, "Kullanıcı kodu")
+    detay = kullanici_repository.get_kullanici_detay(kod)
+    if detay is None:
+        raise NotFoundError("Kullanıcı bulunamadı.")
+    return detay
 
 
 def create_kullanici(talep_eden: OturumSahibi, veri: dict) -> str:

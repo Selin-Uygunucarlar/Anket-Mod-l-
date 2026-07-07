@@ -13,28 +13,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listKullanicilar } from '../api/kullaniciApi.js'
-import { buyukHarfeCevir } from '../common/metinBicimlendir.js'
+import {
+  buyukHarfeCevir,
+  tarihSaatBicimlendir,
+} from '../common/metinBicimlendir.js'
 import '../styles/kullanici-listesi.css'
-
-// tarihiBicimlendir: ISO 8601 tarih metnini Türkçe okunur biçime çevirir.
-// null/boş/geçersiz değerde tire ('-') döner. Saf sunum biçimlendirmesidir;
-// iş kuralı taşımaz.
-function tarihiBicimlendir(isoMetin) {
-  if (!isoMetin) {
-    return '-'
-  }
-  const tarih = new Date(isoMetin)
-  if (Number.isNaN(tarih.getTime())) {
-    return '-'
-  }
-  return tarih.toLocaleString('tr-TR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 // ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Kullanıcı Ekle"
 // butonunda kullanılır.
@@ -91,7 +74,7 @@ function kullaniciAramayaUyuyorMu(kullanici, aramaMetni) {
     kullanici.aktif ? 'Aktif' : 'Pasif',
     kullanici.email,
     kullanici.kullanici_kodu,
-    tarihiBicimlendir(kullanici.olusturma_tarihi),
+    tarihSaatBicimlendir(kullanici.olusturma_tarihi),
   ]
   const aranabilirMetin = aranabilirAlanlar.join(' ').toLocaleLowerCase('tr')
   return aranabilirMetin.includes(aranan)
@@ -117,7 +100,8 @@ function UcNoktaIcon() {
 
 // KullaniciListesi: kullanıcıları React Query ile çeker ve durumuna göre
 // yükleniyor / hata / boş / tablo gösterir. props: onKisiSec(kisi) -> bir
-// çalışan veya yönetici adına tıklanınca { ad, soyad } ile çağrılır;
+// çalışan veya yönetici adına tıklanınca { kullanici_kodu, ad, soyad } ile
+// çağrılır (kullanici_kodu detay panelinin backend'den çekimi için);
 // onKullaniciEkle() -> "Kullanıcı Ekle" butonuna tıklanınca çağrılır (üst
 // bileşen kullanıcı ekleme görünümünü açar).
 function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
@@ -216,6 +200,7 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
                       className="kisi-ad-buton"
                       onClick={() =>
                         onKisiSec({
+                          kullanici_kodu: kullanici.kullanici_kodu,
                           ad: kullanici.ad,
                           soyad: kullanici.soyad,
                         })
@@ -236,6 +221,7 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
                         className="kisi-ad-buton"
                         onClick={() =>
                           onKisiSec({
+                            kullanici_kodu: kullanici.ilgili_yonetici_kodu,
                             ad: kullanici.yonetici_ad,
                             soyad: kullanici.yonetici_soyad,
                           })
@@ -249,8 +235,8 @@ function KullaniciListesi({ onKisiSec, onKullaniciEkle }) {
                       '-'
                     )}
                   </td>
-                  <td>{tarihiBicimlendir(kullanici.olusturma_tarihi)}</td>
-                  <td>{tarihiBicimlendir(kullanici.son_giris_tarihi)}</td>
+                  <td>{tarihSaatBicimlendir(kullanici.olusturma_tarihi)}</td>
+                  <td>{tarihSaatBicimlendir(kullanici.son_giris_tarihi)}</td>
                   <td>
                     <button
                       type="button"

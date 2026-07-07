@@ -84,6 +84,28 @@ class SecenekZatenVarError(AppError):
         super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
 
 
+class NotFoundError(AppError):
+    """İstenen kaydın/kaynağın bulunamaması hatası.
+
+    Örn. admin bir kişinin detayını isterken o kullanici_kodu'na ait kayıt yoktur.
+    Kullanıcı/veri kaynaklı bir durumdur (kritik değil), bu yüzden severity WARNING.
+    Mesajı kullanıcıya gösterilebilir; ham teknik detay/tablo adı içermez.
+    """
+
+    kod = "NOT_FOUND"
+    severity = Severity.WARNING
+    _VARSAYILAN_MESAJ = "Kayıt bulunamadı."
+
+    def __init__(
+        self,
+        mesaj: str | None = None,
+        *,
+        kod: str | None = None,
+        severity: Severity | None = None,
+    ) -> None:
+        super().__init__(mesaj or self._VARSAYILAN_MESAJ, kod=kod, severity=severity)
+
+
 class ValidationError(AppError):
     """Geçersiz/eksik girdi hatası (Controller validation veya Service iş kuralı).
 

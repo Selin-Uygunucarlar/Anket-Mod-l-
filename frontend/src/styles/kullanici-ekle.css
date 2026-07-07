@@ -66,6 +66,45 @@
   color: var(--renk-hata);
 }
 
+/* Girdi + anlık uyarı sarmalayıcısı: satırda kutunun kapladığı alanı doldurur
+   ve içinde input'u, altında ise ayıklama uyarısını dikey dizer. Yalnızca süzülen
+   metin alanlarında (kod / ad / soyad / yönetici kodu) kullanılır. */
+.form-alan {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Sarmalayıcı dikey (column) bir flex kap olduğundan, içindeki kutunun row
+   bağlamı için tanımlı flex:1 (flex-basis:0) değeri burada dikey eksene düşüp
+   yüksekliği eziyordu. Kutuyu sarmalayıcı içinde tam genişlik + kendi 52px
+   yüksekliğinde tutarak alanı eski hizasına döndürürüz. */
+.form-alan .form-kutu {
+  flex: none;
+  width: 100%;
+}
+
+/* Anlık girdi uyarısı: bir alana geçersiz karakter yazılıp ayıklandığında input'un
+   altında beliren kısa, dikkat çekici ama abartısız bilgilendirme. Birkaç saniyede
+   kendiliğinden kaybolur; ekran okuyucu için role="status" ile duyurulur. */
+.alan-uyari {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--renk-hata);
+  animation: alan-uyari-belir 0.15s ease-out;
+}
+
+@keyframes alan-uyari-belir {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Metin kutusu ve dropdown ortak görünümü: aynı yükseklik ve satırda kalan
    alanı doldurur, böylece tüm alanlar görsel olarak eşit durur. */
 .form-kutu {

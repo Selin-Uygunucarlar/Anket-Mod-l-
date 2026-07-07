@@ -5,9 +5,13 @@
 // asıl doğrulama sunucuda). Zorunlu alanların boş olup olmadığı yalnızca UX için
 // (Kaydet butonunu pasifleştirmek) kontrol edilir. Başarıda üretilen geçici şifre
 // bir kez gösterilir; localStorage'a/loga YAZILMAZ. Hata durumunda yalnızca
-// backend'in güvenli mesajı gösterilir (teknik detay sızmaz).
+// backend'in güvenli mesajı gösterilir (teknik detay sızmaz). Kod/ad/soyad
+// alanlarında yazarken uygulanan girdi süzme yalnızca erken UX geri bildirimidir,
+// güvenlik/doğrulama sınırı değildir (asıl doğrulama sunucuda). Süzme sessiz
+// kalmasın diye, bir alandan geçersiz karakter ayıklandığında o alana özel kısa
+// bir uyarı belirir ve birkaç saniyede kendiliğinden kaybolur (yalnızca bilgilendirme).
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listSecenekler } from '../api/secenekApi.js'
 import { createKullanici } from '../api/kullaniciApi.js'
@@ -15,16 +19,56 @@ import {
   SECENEK_KATEGORILERI,
   gruplaSeceneklerKategoriyeGore,
 } from '../common/secenekKategorileri.js'
+import { sadeceRakam, rakamlariAt } from '../common/girdiTemizle.js'
+import GeciciSifreKutusu from './GeciciSifreKutusu.jsx'
 import '../styles/kullanici-ekle.css'
 
 // Zorunlu metin alanları (gösterim sırasıyla). Zorunluluk yalnızca UX içindir;
-// asıl doğrulama sunucudadır.
+// asıl doğrulama sunucudadır. Opsiyonel alan özellikleri (temizle, inputMode,
+// maxLength) yazarken erken UX geri bildirimi sağlar, doğrulama değildir.
 const ZORUNLU_METIN_ALANLARI = [
-  { kimlik: 'kullanici_kodu', etiket: 'Kullanıcı Kodu' },
-  { kimlik: 'ad', etiket: 'Ad' },
-  { kimlik: 'soyad', etiket: 'Soyad' },
+  {
+    kimlik: 'kullanici_kodu',
+    etiket: 'Kullanıcı Kodu',
+    temizle: 'sadeceRakam',
+    inputMode: 'numeric',
+    pattern: '[0-9]*',
+    maxLength: 20,
+  },
+  { kimlik: 'ad', etiket: 'Ad', temizle: 'harf', maxLength: 100 },
+  { kimlik: 'soyad', etiket: 'Soyad', temizle: 'harf', maxLength: 100 },
   { kimlik: 'email', etiket: 'E-posta', tip: 'email' },
 ]
+
+// temizleAlanDegeri: alanın "temizle" bayrağına göre ham girdiyi anında süzer
+// (kod alanında rakam-dışı ayıklama, ad/soyad'da rakam ayıklama). Bayrak yoksa
+// değeri olduğu gibi döner. Yalnızca yazarken UX kolaylığıdır, doğrulama değildir.
+function temizleAlanDegeri(temizle, hamDeger) {
+  if (temizle === 'sadeceRakam') {
+    return sadeceRakam(hamDeger)
+  }
+  if (temizle === 'harf') {
+    return rakamlariAt(hamDeger)
+  }
+  return hamDeger
+}
+
+// Bir alandan geçersiz karakter ayıklandığında beliren anlık uyarının ekranda
+// kalma süresi (ms). Son geçersiz girişten sonra bu süre geçince uyarı kaybolur.
+const UYARI_SURESI_MS = 2800
+
+// ayiklamaUyarisi: alanın süzme tipine göre, geçersiz karakter ayıklandığında
+// gösterilecek kısa kullanıcı mesajını döner. Rakam-only kod alanları ile
+// ad/soyad alanları farklı, alana uygun metin alır.
+function ayiklamaUyarisi(alan) {
+  if (alan.temizle === 'sadeceRakam') {
+    return 'Sadece rakam girilebilir.'
+  }
+  if (alan.temizle === 'harf') {
+    return `${alan.etiket} alanına rakam girilemez.`
+  }
+  return ''
+}
 
 // Formun tüm alanları için boş başlangıç durumu. Tüm dropdown ve opsiyonel
 // alanlar boş string ile başlar (backend boş opsiyonelleri normalize eder).
@@ -60,57 +104,26 @@ function zorunluAlanlarDolu(form) {
   )
 }
 
-// GeciciSifreKutusu: başarılı kayıt sonrası üretilen geçici şifreyi bir kez,
-// kopyalanabilir düz metin olarak gösterir. Şifre yalnızca bu yanıttan gelir;
-// hiçbir yere kalıcı yazılmaz. props: kullaniciKodu, geciciSifre, onGeriDon.
-function GeciciSifreKutusu({ kullaniciKodu, geciciSifre, onGeriDon }) {
-  const [kopyalandi, setKopyalandi] = useState(false)
-
-  // kopyala: geçici şifreyi panoya kopyalar (destekleniyorsa). Sadece UX
-  // kolaylığıdır; başarısız olursa kullanıcı metni elle seçebilir.
-  async function kopyala() {
-    try {
-      await navigator.clipboard.writeText(geciciSifre)
-      setKopyalandi(true)
-    } catch {
-      // Pano API'si yoksa/engelliyse sessiz kal; metin zaten seçilebilir.
-      setKopyalandi(false)
-    }
-  }
-
-  return (
-    <div className="kullanici-ekle-sonuc" role="status">
-      <h3 className="kullanici-ekle-sonuc-baslik">Kullanıcı oluşturuldu</h3>
-      <p className="kullanici-ekle-sonuc-metin">
-        <strong>{kullaniciKodu}</strong> kodlu kullanıcı için geçici şifre
-        üretildi. Bu şifreyi kullanıcıya iletin; kullanıcı ilk girişte kendi
-        şifresini belirleyecek.
-      </p>
-      <div className="gecici-sifre-satiri">
-        <input
-          className="gecici-sifre-kutu"
-          type="text"
-          value={geciciSifre}
-          readOnly
-          onFocus={(olay) => olay.target.select()}
-          aria-label="Geçici şifre"
-        />
-        <button type="button" className="ikincil-buton" onClick={kopyala}>
-          {kopyalandi ? 'Kopyalandı' : 'Kopyala'}
-        </button>
-      </div>
-      <button type="button" className="birincil-buton" onClick={onGeriDon}>
-        Kullanıcı Listesine Dön
-      </button>
-    </div>
-  )
-}
-
 // KullaniciEkleForm: kullanıcı ekleme formunu yönetir (girdi toplama + gönderim).
 // props: onGeriDon() -> "Geri Dön" ve başarı sonrası listeye dönüş için çağrılır.
 function KullaniciEkleForm({ onGeriDon }) {
   const [form, setForm] = useState(BOS_FORM)
+  // Alan kimliği -> o an gösterilen anlık uyarı mesajı. Yalnızca uyarısı olan
+  // alanlar bu haritada bulunur; her alan bağımsızdır.
+  const [alanUyarilari, setAlanUyarilari] = useState({})
+  // Alan başına aktif zamanlayıcı kimliğini tutar (state değil; render tetiklemez).
+  // Unmount'ta ve yenilemede temizlenir, böylece unmount sonrası setState olmaz.
+  const zamanlayicilarRef = useRef({})
   const queryClient = useQueryClient()
+
+  // Bileşen unmount olurken bekleyen tüm uyarı zamanlayıcılarını temizler
+  // (memory leak / unmount sonrası setState uyarısını önler).
+  useEffect(() => {
+    const zamanlayicilar = zamanlayicilarRef.current
+    return () => {
+      Object.values(zamanlayicilar).forEach(clearTimeout)
+    }
+  }, [])
 
   // Dropdown seçeneklerini çeker; kategoriye göre gruplanır. Liste boş/yüklenmiyor
   // olabilir — bu durumda dropdown'lar yalnızca placeholder gösterir (normaldir).
@@ -134,6 +147,36 @@ function KullaniciEkleForm({ onGeriDon }) {
   // alanGuncelle: tek bir form alanının değerini günceller.
   function alanGuncelle(kimlik, deger) {
     setForm((oncekiler) => ({ ...oncekiler, [kimlik]: deger }))
+  }
+
+  // uyariTetikle: bir alanda geçersiz karakter ayıklandığında o alana özel kısa
+  // uyarıyı gösterir. Art arda geçersiz girişte önceki zamanlayıcıyı yeniler
+  // (uyarı görünür kalır) ve son girişten UYARI_SURESI_MS sonra uyarıyı kaldırır.
+  function uyariTetikle(kimlik, mesaj) {
+    setAlanUyarilari((oncekiler) => ({ ...oncekiler, [kimlik]: mesaj }))
+    const zamanlayicilar = zamanlayicilarRef.current
+    if (zamanlayicilar[kimlik]) {
+      clearTimeout(zamanlayicilar[kimlik])
+    }
+    zamanlayicilar[kimlik] = setTimeout(() => {
+      setAlanUyarilari((oncekiler) => {
+        const guncel = { ...oncekiler }
+        delete guncel[kimlik]
+        return guncel
+      })
+      delete zamanlayicilar[kimlik]
+    }, UYARI_SURESI_MS)
+  }
+
+  // suzVeGuncelle: alanın ham girdisini temizleAlanDegeri ile süzer ve alanı
+  // günceller; süzme sırasında en az bir karakter ayıklandıysa (temiz < ham)
+  // alana uygun anlık uyarıyı tetikler. Süzme + uyarı için tek giriş noktasıdır.
+  function suzVeGuncelle(kimlik, temizle, hamDeger, uyariMesaji) {
+    const temiz = temizleAlanDegeri(temizle, hamDeger)
+    alanGuncelle(kimlik, temiz)
+    if (temiz.length < hamDeger.length) {
+      uyariTetikle(kimlik, uyariMesaji)
+    }
   }
 
   // handleSubmit: formu gönderir. Zorunlu alanlar dolmadan buton pasif olduğundan
@@ -173,12 +216,29 @@ function KullaniciEkleForm({ onGeriDon }) {
               <span className="form-etiket">
                 {alan.etiket} <span className="zorunlu-yildiz">*</span>
               </span>
-              <input
-                className="form-kutu"
-                type={alan.tip ?? 'text'}
-                value={form[alan.kimlik]}
-                onChange={(olay) => alanGuncelle(alan.kimlik, olay.target.value)}
-              />
+              <span className="form-alan">
+                <input
+                  className="form-kutu"
+                  type={alan.tip ?? 'text'}
+                  value={form[alan.kimlik]}
+                  inputMode={alan.inputMode}
+                  pattern={alan.pattern}
+                  maxLength={alan.maxLength}
+                  onChange={(olay) =>
+                    suzVeGuncelle(
+                      alan.kimlik,
+                      alan.temizle,
+                      olay.target.value,
+                      ayiklamaUyarisi(alan)
+                    )
+                  }
+                />
+                {alanUyarilari[alan.kimlik] && (
+                  <span className="alan-uyari" role="status">
+                    {alanUyarilari[alan.kimlik]}
+                  </span>
+                )}
+              </span>
             </label>
           ))}
 
@@ -211,14 +271,29 @@ function KullaniciEkleForm({ onGeriDon }) {
 
           <label className="form-satir">
             <span className="form-etiket">İlgili Yönetici Kodu</span>
-            <input
-              className="form-kutu"
-              type="text"
-              value={form.ilgili_yonetici_kodu}
-              onChange={(olay) =>
-                alanGuncelle('ilgili_yonetici_kodu', olay.target.value)
-              }
-            />
+            <span className="form-alan">
+              <input
+                className="form-kutu"
+                type="text"
+                value={form.ilgili_yonetici_kodu}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={20}
+                onChange={(olay) =>
+                  suzVeGuncelle(
+                    'ilgili_yonetici_kodu',
+                    'sadeceRakam',
+                    olay.target.value,
+                    'Sadece rakam girilebilir.'
+                  )
+                }
+              />
+              {alanUyarilari.ilgili_yonetici_kodu && (
+                <span className="alan-uyari" role="status">
+                  {alanUyarilari.ilgili_yonetici_kodu}
+                </span>
+              )}
+            </span>
           </label>
 
           {SECENEK_KATEGORILERI.map((kategori) => (

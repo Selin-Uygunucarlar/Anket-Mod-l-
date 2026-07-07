@@ -32,6 +32,7 @@ _KOD_HTTP_ESLEME = {
     "ACCOUNT_LOCKED": 423,
     "SESSION_INVALID": 401,
     "YETKI_YOK": 403,
+    "NOT_FOUND": 404,
     "SECENEK_ZATEN_VAR": 409,
     "UNEXPECTED_ERROR": 500,
 }
@@ -192,6 +193,27 @@ def list_kullanicilar(oturum: str | None = Cookie(default=None)) -> JSONResponse
     geçersiz oturum -> 401. Burada iş mantığı/loglama YOK; yalnızca protokol.
     """
     sonuc = kullanici_controller.list_kullanicilar(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/kullanicilar/{kullanici_kodu}")
+def get_kullanici_detay(
+    kullanici_kodu: str, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için tek bir kullanıcının güvenli detayını döndürür.
+
+    kullanici_kodu path segment'inden alınır; jeton `oturum` cookie'sinden okunur.
+    Controller oturumu doğrular ve yetkiyi (yalnızca admin) uygular. Başarılı yanıtta
+    kayan pencereyi tarayıcıyla senkron tutmak için cookie aynı bayraklarla YENİDEN
+    set edilir. Kayıt yok -> 404, yetkisiz -> 403, geçersiz oturum -> 401. Sabit
+    `GET /api/kullanicilar` (liste) ile çakışmaz: FastAPI statik path'i önce eşler.
+    Burada iş mantığı/loglama YOK; yalnızca protokol.
+    """
+    sonuc = kullanici_controller.get_kullanici_detay(oturum, kullanici_kodu)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

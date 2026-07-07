@@ -14,12 +14,20 @@ from datetime import datetime
 
 from common.errors import AppError, ValidationError
 from common.logger import logla_sinir_hatasi
+from controllers.kullanici_dogrulama import (
+    EMAIL_MAX_UZUNLUK,
+    dogrula_ad_soyad,
+    dogrula_opsiyonel_metin,
+    dogrula_sicil_kodu,
+    dogrula_zorunlu_metin,
+)
+from models.kullanici_detay import KullaniciDetay
 from models.kullanici_ozet import KullaniciOzet
 from services import kullanici_service, oturum_service
 
-# Kullanıcı ekleme gövdesindeki opsiyonel string alanlar (boş string -> None).
-_OPSIYONEL_STR_ALANLAR = (
-    "ilgili_yonetici_kodu",
+# Kullanıcı ekleme gövdesindeki opsiyonel dropdown (tanımlı seçenek) alanları.
+# Her biri doluysa str olmalı ve <=100 karakter; boş string -> None.
+_OPSIYONEL_DROPDOWN_ALANLAR = (
     "sirket",
     "grup",
     "bolum",
@@ -48,6 +56,32 @@ def list_kullanicilar(ham_jeton: str) -> dict:
         sahip = oturum_service.oturum_dogrula(ham_jeton)
         ozetler = kullanici_service.list_kullanicilar(sahip)
         return _basari_yaniti(ozetler)
+    except AppError as hata:
+        # Tanımlı kod/severity ile bir kez loglanır; kullanıcıya güvenli mesaj.
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        # Beklenmeyen hata: CRITICAL loglanır, kullanıcıya genel güvenli mesaj.
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def get_kullanici_detay(ham_jeton: str, kullanici_kodu: str) -> dict:
+    """Oturumu doğrulanmış admin için tek bir kullanıcının güvenli detayını döndürür.
+
+    Cookie'den gelen ham jetonu oturum_service ile doğrular (geçersiz/boş oturum ->
+    OturumError). Yetki (yalnızca admin) kararı ve kayıt bulunamadı durumu
+    kullanici_service'e bırakılır (admin değil -> YetkiYokError, kayıt yok ->
+    NotFoundError). Hata BİR KEZ loglanır ve güvenli yanıt döner; teknik detay sızmaz.
+
+    Başarılı: {"basari": True, "kullanici": {...}} (tarih alanları ISO string veya null).
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "kullanici_detay"}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        detay = kullanici_service.get_kullanici_detay(sahip, kullanici_kodu)
+        return {"basari": True, "kullanici": _detay_to_dict(detay)}
     except AppError as hata:
         # Tanımlı kod/severity ile bir kez loglanır; kullanıcıya güvenli mesaj.
         logla_sinir_hatasi(hata, baglam=baglam)
@@ -89,22 +123,31 @@ def create_kullanici(ham_jeton: str, govde: dict) -> dict:
 
 
 def _normalize_kullanici_govdesi(govde: dict) -> dict:
-    """HTTP gövdesini Service'in beklediği normalize veri dict'ine çevirir.
+    """HTTP gövdesini doğrulayıp Service'in beklediği normalize veri dict'ine çevirir.
 
-    Zorunlu alanlar aynen taşınır (içerik doğrulaması Service'in işi); opsiyonel
-    string'ler boşsa None yapılır; ise_giris_tarihi string'i date'e parse edilir.
+    Girdi doğrulaması Controller'ın işidir: her alanın TİPİ ve BİÇİMİ sınırda
+    doğrulanır (sicil kodu yalnızca rakam, ad/soyad rakamsız, uzunluk sınırları);
+    uygun değilse ValidationError fırlar. E-posta biçim regex'i ve admin/user enum'u
+    Service iş kuralında kalır (DRY). Opsiyonel string'ler boşsa None yapılır;
+    ise_giris_tarihi string'i date'e parse edilir.
     """
     veri = {
-        "kullanici_kodu": govde.get("kullanici_kodu"),
-        "ad": govde.get("ad"),
-        "soyad": govde.get("soyad"),
-        "email": govde.get("email"),
-        "kullanici_turu": govde.get("kullanici_turu"),
+        "kullanici_kodu": dogrula_sicil_kodu(
+            govde.get("kullanici_kodu"), "Sicil kodu", zorunlu=True
+        ),
+        "ad": dogrula_ad_soyad(govde.get("ad"), "Ad"),
+        "soyad": dogrula_ad_soyad(govde.get("soyad"), "Soyad"),
+        "email": dogrula_zorunlu_metin(govde.get("email"), "E-posta", EMAIL_MAX_UZUNLUK),
+        "kullanici_turu": dogrula_zorunlu_metin(
+            govde.get("kullanici_turu"), "Kullanıcı türü"
+        ),
         "ise_giris_tarihi": _parse_tarih(govde.get("ise_giris_tarihi")),
+        "ilgili_yonetici_kodu": dogrula_sicil_kodu(
+            govde.get("ilgili_yonetici_kodu"), "Yönetici sicil kodu", zorunlu=False
+        ),
     }
-    for alan in _OPSIYONEL_STR_ALANLAR:
-        deger = govde.get(alan)
-        veri[alan] = deger.strip() if isinstance(deger, str) and deger.strip() else None
+    for alan in _OPSIYONEL_DROPDOWN_ALANLAR:
+        veri[alan] = dogrula_opsiyonel_metin(govde.get(alan), alan)
     return veri
 
 
@@ -134,10 +177,44 @@ def _ozet_to_dict(ozet: KullaniciOzet) -> dict:
         "soyad": ozet.soyad,
         "aktif": ozet.aktif,
         "email": ozet.email,
+        "ilgili_yonetici_kodu": ozet.ilgili_yonetici_kodu,
         "yonetici_ad": ozet.yonetici_ad,
         "yonetici_soyad": ozet.yonetici_soyad,
         "olusturma_tarihi": _iso_veya_none(ozet.olusturma_tarihi),
         "son_giris_tarihi": _iso_veya_none(ozet.son_giris_tarihi),
+    }
+
+
+def _detay_to_dict(detay: KullaniciDetay) -> dict:
+    """Tek bir KullaniciDetay'i JSON-güvenli sözlüğe çevirir (date/datetime -> ISO string).
+
+    DTO'nun tüm güvenli alanları taşınır; ise_giris_tarihi/olusturma_tarihi/
+    son_giris_tarihi ISO 8601 string'e (ya da None) çevrilir. DTO'da hassas alan
+    (sifre_hash, hatali_giris_sayisi) zaten yoktur; gösterim/locale frontend'in işidir.
+    """
+    return {
+        "kullanici_kodu": detay.kullanici_kodu,
+        "ad": detay.ad,
+        "soyad": detay.soyad,
+        "email": detay.email,
+        "kullanici_turu": detay.kullanici_turu,
+        "aktif": detay.aktif,
+        "ise_giris_tarihi": _iso_veya_none(detay.ise_giris_tarihi),
+        "ilgili_yonetici_kodu": detay.ilgili_yonetici_kodu,
+        "yonetici_ad": detay.yonetici_ad,
+        "yonetici_soyad": detay.yonetici_soyad,
+        "sirket": detay.sirket,
+        "grup": detay.grup,
+        "bolum": detay.bolum,
+        "birim": detay.birim,
+        "kadro_grubu": detay.kadro_grubu,
+        "kadro_unvani": detay.kadro_unvani,
+        "gorev_unvani": detay.gorev_unvani,
+        "arge_personeli": detay.arge_personeli,
+        "personel_sigorta_is_yeri": detay.personel_sigorta_is_yeri,
+        "gorev_yeri": detay.gorev_yeri,
+        "olusturma_tarihi": _iso_veya_none(detay.olusturma_tarihi),
+        "son_giris_tarihi": _iso_veya_none(detay.son_giris_tarihi),
     }
 
 

@@ -66,6 +66,54 @@
   cursor: pointer;
 }
 
+/* Checkbox seçeneği ("Kullanıcılar" ve "Mesaj Ayarları" kartları): radyo grubuyla
+   aynı yerleşimi paylaşır; yalnızca kutucuk marka mavisiyle uyumlu ve rahat
+   tıklanır olsun. */
+.anket-radyo-secenek input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--renk-mavi);
+  cursor: pointer;
+}
+
+/* Dikey seçenek grubu ("Kullanıcılar" ve "Mesaj Ayarları" kartları): seçenekleri
+   yan yana değil alt alta dizer. Yalnızca bu modifier'lı grubu etkiler; radyo/tarih
+   gruplarının yatay yerleşimine dokunmaz. */
+.anket-secenek-grup--dikey {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* Hatırlatma satırı (Mesaj Ayarları 2. seçenek): checkbox metnini, satır içi sayı
+   girdisini, sıklık dropdown'ını ve yardımcı metni tek satırda akıtır; dar ekranda
+   düzgün alt satıra sarar. Öğeler dikeyde ortalanır. */
+.anket-hatirlatma-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Satır içi "kaç gün önce" sayı girdisi: .form-kutu görünümünü miras alır; burada
+   yalnızca dar bir genişlik verilir (aksi halde form-kutu tam genişlik olurdu). */
+.anket-hatirlatma-gun {
+  width: 64px;
+}
+
+/* Satır içi sıklık dropdown'ı (1/2): içeriğe göre dar genişlikte tutulur. */
+.anket-hatirlatma-siklik {
+  width: auto;
+  min-width: 56px;
+}
+
+/* Satır içi yardımcı metin parçaları ("gün önce," / açıklama): girdilerle aynı
+   dikey hizada, seçenek metinleriyle tutarlı boyut ve renk. */
+.anket-hatirlatma-metin {
+  font-size: 16px;
+  color: var(--renk-lacivert);
+}
+
 /* Dar ekran: Anket Tipi grubu tek sütuna düşsün ki seçenekler alt alta okunur
    kalsın (kullanici-ekle.css'teki 640px form-satir dikeye alma kuralıyla uyumlu). */
 @media (max-width: 640px) {
@@ -100,4 +148,24 @@
   color: var(--renk-mavi);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Tarih seçici: "Tarih seç" işaretlendiğinde o seçeneğin YANINDA (aynı satırda,
+   sağında) görünen takvim girdisi. Radyo grubu bir flex satırı olduğundan takvim,
+   "Tarih seç" etiketinin kardeşi olarak yan yana dizilir. Diğer kutularla tutarlı
+   görünmesi için .form-kutu'yu miras alır; burada yalnızca dar bir genişlik ve
+   etiketle dikeyde ortak hiza (align-self) verilir. */
+.anket-tarih-secici {
+  align-self: center;
+  width: auto;
+  max-width: 200px;
+}
+
+/* Tarih ayırıcı: Tarihler kartında Başlangıç ve Bitiş bölümlerini görsel olarak
+   ayıran ince yatay çizgi. Mevcut kenarlık rengini kullanır; kartın kendi
+   gap'inden bağımsız hafif dikey nefes verir. Takvim koşullu açıldığında da
+   yerinde kalır (radyo grubuyla takvim arası akışı bozmaz). */
+.anket-tarih-ayirici {
+  border-top: 1px solid var(--renk-kenarlik);
+  margin: 4px 0;
 }

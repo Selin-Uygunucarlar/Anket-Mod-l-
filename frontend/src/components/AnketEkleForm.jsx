@@ -3,65 +3,130 @@
 // backend/API/servis/repository yoktur; girdiler saf UI state'inde toplanır ve
 // Kaydet butonu gerçek bir kayıt YAPMAZ (yanıltıcı "başarı" gösterilmez).
 // Yalnızca sunum sorumluluğundadır: alanları gösterir ve girdi toplar; iş kuralı,
-// yetki veya hesaplama İÇERMEZ. Zorunlu alanların (Adı, Anket Tipi) boş olup
-// olmadığı yalnızca UX için (Kaydet butonunu pasifleştirmek) kontrol edilir; asıl
-// doğrulama ileride sunucuda yapılacaktır. Kişi formundaki gibi tek modda
+// yetki veya hesaplama İÇERMEZ. Zorunlu alanların (Adı, Anket Tipi, Başlangıç ve
+// Bitiş Tarihi) boş olup olmadığı yalnızca UX için (Kaydet butonunu pasifleştirmek)
+// kontrol edilir; asıl doğrulama ileride sunucuda yapılacaktır. Tarihler kartındaki
+// "Yarın"/"Bir Ay" gibi seçimler için GERÇEK TARİH HESABI YAPILMAZ; yalnızca hangi
+// seçeneğin seçildiği state'te tutulur, hesap ileride servis katmanına bırakılır.
+// Tarihler kartında "Tarih seç" işaretlenince takvim girdisi, o seçeneğin YANINDA
+// (aynı satırda, sağında) koşullu olarak görünür; ayrı bir alt satırda değil.
+// Kullanıcılar kartında "Sabit liste"/"Kullanıcı Grupları" checkbox'ları İKİSİ DE
+// işaretlenebilir; gerçek atama YAPILMAZ, yalnızca seçim state'te tutulur (tarih
+// seçimleriyle aynı felsefe). Mesaj Ayarları kartında üç BAĞIMSIZ checkbox vardır:
+// (1) başlangıçtan 1 gün önce mail, (2) bitişten X gün önce N günde bir site içi
+// hatırlatma (işaretliyken satır içi sayı girdisi ve sıklık dropdown'ı aktifleşir),
+// (3) mesajların Stil şablonu ile gönderimi. Salt gösterimdir: GERÇEK MAIL/BİLDİRİM
+// GÖNDERİLMEZ, yalnızca seçimler state'te tutulur. İşlemler kartında dört BAĞIMSIZ
+// işlem checkbox'ı (birden çoğu seçilebilir) ve soru gösterim biçimi için 3'lü radyo
+// grubu (varsayılan seçili) vardır; salt gösterimdir, GERÇEK İŞLEV YOK, yalnızca
+// seçimler state'te tutulur. Kişi formundaki gibi tek modda
 // kullanıldığından ortak gövde bileşenine BÖLÜNMEZ (over-engineering yasağı).
 // Görünüm sınıfları kullanici-ekle.css ile paylaşılır (DRY); radyo grupları ve
 // alt başlık için gereken minimum ek stil anket-ekle.css'ten gelir.
 
-import { useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import AnketKart from './AnketKart'
+import {
+  ANKET_TIPI_SECENEKLERI,
+  DURUM_SECENEKLERI,
+  ERISIM_SEVIYESI_SECENEKLERI,
+  BASLANGIC_TARIHI_SECENEKLERI,
+  BITIS_TARIHI_SECENEKLERI,
+  KULLANICI_ATAMA_SECENEKLERI,
+  HATIRLATMA_SIKLIGI_SECENEKLERI,
+  ISLEM_SECENEKLERI,
+  SORU_GOSTERIM_SECENEKLERI,
+  BOS_ANKET_FORMU,
+  UYARI_SURESI_MS,
+  tarihAlaniGecersiz,
+} from '../common/anketFormAlanlari.js'
 import '../styles/kullanici-ekle.css'
 import '../styles/anket-ekle.css'
-
-// Anket tipi seçenekleri (bu sırayla). Zorunlu radyo grubudur; varsayılan seçili
-// yoktur. Tek yerde tanımlanıp render'da .map ile üretilir (DRY).
-const ANKET_TIPI_SECENEKLERI = [
-  'Kullanıcı Bilgi Anketi',
-  'Etkinlik Değerlendirme Anketi',
-  'Eğitim Değerlendirme Anketi',
-  'Etkinlik Davranış Anketi',
-  'Eğitim Davranış Anketi',
-]
-
-// Durum radyo grubu seçenekleri. Görünen metin ile state'te tutulan değer
-// aynıdır; varsayılan olarak "Aktif" seçilidir.
-const DURUM_SECENEKLERI = ['Aktif', 'Pasif']
-
-// Erişim seviyesi dropdown seçenekleri (bu sırayla). İlk seçenek placeholder
-// "Seçiniz"dir (boş değer) ve bu dizide yer almaz.
-const ERISIM_SEVIYESI_SECENEKLERI = [
-  'Çalışma grubumdakiler ve ben görebilir ve yönetebiliriz',
-  'Sadece ben görebilir ve yönetebilirim',
-  'Herkes görebilir ve yönetebilir',
-]
-
-// Formun başlangıç değerleri: metin alanları boş, Durum "Aktif", Anket Tipi ve
-// Erişim Seviyesi seçilmemiş (boş).
-const BOS_ANKET_FORMU = {
-  adi: '',
-  on_yazi: '',
-  son_yazi: '',
-  aciklama: '',
-  durum: 'Aktif',
-  anket_tipi: '',
-  erisim_seviyesi: '',
-}
 
 // AnketEkleForm: anket oluşturma/güncelleme alanlarını gösterir ve girdi toplar.
 // props: onGeriDon() -> "Geri Dön" tıklanınca çağrılır (üst bileşen listeye döner).
 function AnketEkleForm({ onGeriDon }) {
   const [form, setForm] = useState(BOS_ANKET_FORMU)
+  // "gün önce" kutusuna rakam dışı karakter girildiğinde kısa süre görünüp
+  // kendiliğinden kaybolan anlık uyarı mesajı (boşsa uyarı yok). Tek alan için.
+  const [rakamUyarisi, setRakamUyarisi] = useState('')
+  // Kaydet'e en az bir kez basıldı mı? Boş "gün önce" uyarısı yalnızca basıldıktan
+  // sonra görünsün diye tutulur (anında değil, Kaydet denemesinde).
+  const [kaydetDenendi, setKaydetDenendi] = useState(false)
+  // Anlık rakam uyarısının zamanlayıcı kimliği (state değil; render tetiklemez).
+  // Art arda girişte yenilenir, unmount'ta temizlenir.
+  const rakamZamanlayiciRef = useRef(null)
+
+  // Bileşen unmount olurken bekleyen rakam uyarısı zamanlayıcısını temizler
+  // (unmount sonrası setState uyarısını / memory leak'i önler).
+  useEffect(() => {
+    return () => {
+      if (rakamZamanlayiciRef.current) {
+        clearTimeout(rakamZamanlayiciRef.current)
+      }
+    }
+  }, [])
 
   // alanGuncelle: tek bir form alanının değerini günceller (kontrollü girdiler).
   function alanGuncelle(kimlik, deger) {
     setForm((oncekiler) => ({ ...oncekiler, [kimlik]: deger }))
   }
 
-  // Kaydet yalnızca zorunlu alanlar (Adı ve Anket Tipi) dolunca aktif olur; bu
-  // sadece UX içindir, güvenlik/doğrulama sınırı değildir.
-  const kaydetPasif = form.adi.trim() === '' || form.anket_tipi === ''
+  // rakamUyariTetikle: "gün önce" kutusundan rakam dışı karakter ayıklandığında
+  // anlık uyarıyı gösterir. Art arda geçersiz girişte önceki zamanlayıcıyı yeniler
+  // (uyarı görünür kalır) ve son girişten UYARI_SURESI_MS sonra uyarıyı kaldırır.
+  function rakamUyariTetikle(mesaj) {
+    setRakamUyarisi(mesaj)
+    if (rakamZamanlayiciRef.current) {
+      clearTimeout(rakamZamanlayiciRef.current)
+    }
+    rakamZamanlayiciRef.current = setTimeout(() => {
+      setRakamUyarisi('')
+      rakamZamanlayiciRef.current = null
+    }, UYARI_SURESI_MS)
+  }
+
+  // gunOnceGuncelle: "gün önce" ham girdisinden rakam dışı karakterleri süzer ve
+  // alanı günceller; en az bir karakter ayıklandıysa anlık rakam uyarısını tetikler.
+  function gunOnceGuncelle(hamDeger) {
+    const temiz = hamDeger.replace(/\D/g, '')
+    alanGuncelle('hatirlatma_gun_once', temiz)
+    if (temiz.length < hamDeger.length) {
+      rakamUyariTetikle('Lütfen yalnızca rakam girin.')
+    }
+  }
+
+  // cokluSeciminiDegistir: bir checkbox grubunun (dizi tutan alanKimligi) işaretini
+  // değiştirir; deger dizide varsa çıkarır, yoksa ekler (seçenekler bağımsız).
+  // Yalnızca "Kullanıcılar" kartı (kullanici_atama) bu dizi tabanlı grubu kullanır.
+  function cokluSeciminiDegistir(alanKimligi, deger) {
+    setForm((oncekiler) => {
+      const secili = oncekiler[alanKimligi].includes(deger)
+        ? oncekiler[alanKimligi].filter((oge) => oge !== deger)
+        : [...oncekiler[alanKimligi], deger]
+      return { ...oncekiler, [alanKimligi]: secili }
+    })
+  }
+
+  // Kaydet yalnızca zorunlu alanlar (Adı, Anket Tipi, Başlangıç ve Bitiş Tarihi)
+  // dolunca aktif olur; bu sadece UX içindir, güvenlik/doğrulama sınırı değildir.
+  const kaydetPasif =
+    form.adi.trim() === '' ||
+    form.anket_tipi === '' ||
+    tarihAlaniGecersiz(form.baslangic_secim, form.baslangic_tarih) ||
+    tarihAlaniGecersiz(form.bitis_secim, form.bitis_tarih)
+
+  // "gün önce" kutusunun altındaki tek uyarı yuvasında gösterilecek mesaj. Önceliği
+  // anlık rakam uyarısı alır; o boşsa, Kaydet'e basılmışken hatırlatma işaretli ve
+  // kutu boşsa "kaç gün önce" uyarısı gösterilir. Türetilmiş (ekstra state yok),
+  // yalnızca UX bilgilendirmesidir. Geçerli rakam girilince koşul kendiliğinden düşer.
+  const bosKaydetUyarisiGoster =
+    kaydetDenendi &&
+    form.mesaj_hatirlatma &&
+    form.hatirlatma_gun_once.trim() === ''
+  const hatirlatmaGunUyariMesaji =
+    rakamUyarisi ||
+    (bosKaydetUyarisiGoster ? 'Lütfen kaç gün önce olduğunu girin.' : '')
 
   return (
     <section className="kullanici-ekle">
@@ -204,6 +269,260 @@ function AnketEkleForm({ onGeriDon }) {
           </p>
         </AnketKart>
 
+        {/* Tarihler kartı: Başlangıç ve Bitiş tarihi için zorunlu radyo grupları.
+            "Tarih seç" işaretlenince takvim girdisi, o seçeneğin YANINDA (aynı satırda,
+            sağında) KOŞULLU render edilir (diğer seçeneklerde hiç render edilmez).
+            "Bugün", "Yarın", "Bir Ay", "İki Ay" için GERÇEK TARİH HESAPLANMAZ; yalnızca
+            hangi seçeneğin seçildiği state'te tutulur, hesap ileride servise bırakılır. */}
+        <AnketKart baslik="Tarihler">
+          {/* Başlangıç Tarihi: zorunlu radyo grubu; varsayılan seçili yok. Grup adı
+              "baslangic-tarihi". Seçenekler mevcut radyo kalıbıyla üretilir (DRY).
+              "Tarih seç" seçeneğinin yanında, seçiliyken takvim girdisi görünür. */}
+          <div className="form-satir">
+            <span className="form-etiket">
+              Başlangıç Tarihi <span className="zorunlu-yildiz">*</span>
+            </span>
+            <div className="anket-radyo-grup">
+              {BASLANGIC_TARIHI_SECENEKLERI.map((secenek) => (
+                <Fragment key={secenek.deger}>
+                  <label className="anket-radyo-secenek">
+                    <input
+                      type="radio"
+                      name="baslangic-tarihi"
+                      value={secenek.deger}
+                      checked={form.baslangic_secim === secenek.deger}
+                      onChange={() =>
+                        alanGuncelle('baslangic_secim', secenek.deger)
+                      }
+                    />
+                    <span>{secenek.etiket}</span>
+                  </label>
+                  {/* Takvim yalnızca "Tarih seç" seçeneğinin yanında ve o seçim
+                      işaretliyken görünür (koşullu render). */}
+                  {secenek.deger === 'tarih_sec' &&
+                    form.baslangic_secim === 'tarih_sec' && (
+                      <input
+                        className="form-kutu anket-tarih-secici"
+                        type="date"
+                        value={form.baslangic_tarih}
+                        onChange={(olay) =>
+                          alanGuncelle('baslangic_tarih', olay.target.value)
+                        }
+                      />
+                    )}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+
+          {/* Başlangıç ve Bitiş bölümlerini görsel olarak ayıran ince çizgi. */}
+          <div className="anket-tarih-ayirici" />
+
+          {/* Bitiş Tarihi: zorunlu radyo grubu; varsayılan seçili yok. Grup adı
+              "bitis-tarihi". "Tarih seç" seçeneğinin yanında, seçiliyken takvim
+              girdisi görünür. */}
+          <div className="form-satir">
+            <span className="form-etiket">
+              Bitiş Tarihi <span className="zorunlu-yildiz">*</span>
+            </span>
+            <div className="anket-radyo-grup">
+              {BITIS_TARIHI_SECENEKLERI.map((secenek) => (
+                <Fragment key={secenek.deger}>
+                  <label className="anket-radyo-secenek">
+                    <input
+                      type="radio"
+                      name="bitis-tarihi"
+                      value={secenek.deger}
+                      checked={form.bitis_secim === secenek.deger}
+                      onChange={() => alanGuncelle('bitis_secim', secenek.deger)}
+                    />
+                    <span>{secenek.etiket}</span>
+                  </label>
+                  {/* Takvim yalnızca "Tarih seç" seçeneğinin yanında ve o seçim
+                      işaretliyken görünür (koşullu render). */}
+                  {secenek.deger === 'tarih_sec' &&
+                    form.bitis_secim === 'tarih_sec' && (
+                      <input
+                        className="form-kutu anket-tarih-secici"
+                        type="date"
+                        value={form.bitis_tarih}
+                        onChange={(olay) =>
+                          alanGuncelle('bitis_tarih', olay.target.value)
+                        }
+                      />
+                    )}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        </AnketKart>
+
+        {/* Kullanıcılar kartı: ankete kimlerin atanacağını belirleyen seçenekler.
+            "Sabit liste" ve "Kullanıcı Grupları" checkbox'tır; İKİSİ DE aynı anda
+            işaretlenebilir (bağımsız). Zorunlu değildir. Salt gösterimdir: gerçek
+            atama/hesap YAPILMAZ, yalnızca seçim state'te tutulur; ileride atama
+            akışına bağlanacaktır. */}
+        <AnketKart baslik="Kullanıcılar">
+          {/* Etiketsiz, dikey (alt alta) checkbox grubu: iki seçenek üst üste
+              dizilir. Tek seçenek satırı (.anket-radyo-secenek) kalıbı korunur;
+              yalnızca grup dikey yerleşim modifier'ıyla sütuna alınır. */}
+          <div className="anket-radyo-grup anket-secenek-grup--dikey">
+            {KULLANICI_ATAMA_SECENEKLERI.map((secenek) => (
+              <label key={secenek.deger} className="anket-radyo-secenek">
+                <input
+                  type="checkbox"
+                  name="kullanici-atama"
+                  value={secenek.deger}
+                  checked={form.kullanici_atama.includes(secenek.deger)}
+                  onChange={() =>
+                    cokluSeciminiDegistir('kullanici_atama', secenek.deger)
+                  }
+                />
+                <span>{secenek.etiket}</span>
+              </label>
+            ))}
+          </div>
+        </AnketKart>
+
+        {/* Mesaj Ayarları kartı: ankete dair mesaj/hatırlatma tercihleri. Üç BAĞIMSIZ
+            checkbox alt alta dizilir (Kullanıcılar kartıyla aynı dikey grup kalıbı).
+            Salt gösterimdir: GERÇEK MAIL/BİLDİRİM GÖNDERİLMEZ, yalnızca seçimler
+            state'te tutulur; ileride mesaj akışına bağlanacaktır. */}
+        <AnketKart baslik="Mesaj Ayarları">
+          <div className="anket-radyo-grup anket-secenek-grup--dikey">
+            {/* 1. Başlangıçtan 1 gün önce mail: bağımsız boolean checkbox. */}
+            <label className="anket-radyo-secenek">
+              <input
+                type="checkbox"
+                name="mesaj-baslangic-mail"
+                checked={form.mesaj_baslangic_mail}
+                onChange={() =>
+                  alanGuncelle('mesaj_baslangic_mail', !form.mesaj_baslangic_mail)
+                }
+              />
+              <span>
+                Anket başlangıç tarihinden 1 gün önce kullanıcılara mail
+                gönderilsin.
+              </span>
+            </label>
+
+            {/* 2. Hatırlatma: checkbox + satır içi sayı girdisi ("kaç gün önce") ve
+                sıklık dropdown'ı ("kaç günde bir"). Metin satır içinde akar, dar
+                ekranda sarar. Sayı girdisi ve dropdown checkbox durumundan bağımsız
+                olarak HER ZAMAN aktiftir. */}
+            <div className="anket-hatirlatma-satir">
+              <label className="anket-radyo-secenek">
+                <input
+                  type="checkbox"
+                  name="mesaj-hatirlatma"
+                  checked={form.mesaj_hatirlatma}
+                  onChange={() =>
+                    alanGuncelle('mesaj_hatirlatma', !form.mesaj_hatirlatma)
+                  }
+                />
+                <span>Anket bitiminden</span>
+              </label>
+              {/* "gün önce" sayı girdisi: spinner'sız düz metin kutusu; yalnızca
+                  rakam kabul eder (rakam dışı karakterler girişte temizlenir). */}
+              <input
+                className="form-kutu anket-hatirlatma-gun"
+                type="text"
+                inputMode="numeric"
+                value={form.hatirlatma_gun_once}
+                onChange={(olay) => gunOnceGuncelle(olay.target.value)}
+              />
+              <span className="anket-hatirlatma-metin">gün önce,</span>
+              <select
+                className="form-kutu anket-hatirlatma-siklik"
+                value={form.hatirlatma_sikligi}
+                onChange={(olay) =>
+                  alanGuncelle('hatirlatma_sikligi', olay.target.value)
+                }
+              >
+                {HATIRLATMA_SIKLIGI_SECENEKLERI.map((secenek) => (
+                  <option key={secenek} value={secenek}>
+                    {secenek}
+                  </option>
+                ))}
+              </select>
+              <span className="anket-hatirlatma-metin">
+                günde bir hatırlatma mesajı (site içinde olacak)
+              </span>
+            </div>
+
+            {/* Tek uyarı yuvası: satırın hemen altında kendi bloğunda görünsün diye
+                sarmalayıcı div kullanılır. İki davranış aynı yerde toplanır:
+                (1) rakam dışı girişte anlık kaybolan uyarı, (2) Kaydet'e basılınca
+                boş kutu uyarısı. Girdi kalıbı KullaniciFormGovde ile aynı:
+                .alan-uyari + role="status". */}
+            {hatirlatmaGunUyariMesaji && (
+              <div>
+                <span className="alan-uyari" role="status">
+                  {hatirlatmaGunUyariMesaji}
+                </span>
+              </div>
+            )}
+
+            {/* 3. Stil şablonu ile gönderim: bağımsız boolean checkbox. */}
+            <label className="anket-radyo-secenek">
+              <input
+                type="checkbox"
+                name="mesaj-stil-sablonu"
+                checked={form.mesaj_stil_sablonu}
+                onChange={() =>
+                  alanGuncelle('mesaj_stil_sablonu', !form.mesaj_stil_sablonu)
+                }
+              />
+              <span>Anket mesajları Stil şablonu ile gönderilsin.</span>
+            </label>
+          </div>
+        </AnketKart>
+
+        {/* İşlemler kartı: üstte dört BAĞIMSIZ işlem checkbox'ı (birden çoğu aynı anda
+            işaretlenebilir; Kullanıcılar kartıyla aynı dikey grup kalıbı), altta ince
+            ayırıcı çizgi, en altta soru gösterim biçimi için 3'lü radyo grubu (birbirini
+            dışlar, varsayılan seçili). Salt gösterimdir: GERÇEK İŞLEV YOK, yalnızca
+            seçimler state'te tutulur; ileride ilgili akışlara bağlanacaktır. */}
+        <AnketKart baslik="İşlemler">
+          {/* Etiketsiz, dikey (alt alta) checkbox grubu; her seçenek bağımsızdır. */}
+          <div className="anket-radyo-grup anket-secenek-grup--dikey">
+            {ISLEM_SECENEKLERI.map((secenek) => (
+              <label key={secenek.deger} className="anket-radyo-secenek">
+                <input
+                  type="checkbox"
+                  name="anket-islem"
+                  value={secenek.deger}
+                  checked={form.islem_secenekleri.includes(secenek.deger)}
+                  onChange={() =>
+                    cokluSeciminiDegistir('islem_secenekleri', secenek.deger)
+                  }
+                />
+                <span>{secenek.etiket}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* İşlem checkbox'larını soru gösterim radyolarından ayıran ince çizgi. */}
+          <div className="anket-tarih-ayirici" />
+
+          {/* Soru gösterim biçimi: birbirini dışlayan 3'lü radyo grubu; uzun
+              seçenekler alt alta okunsun diye dikey grup kalıbı kullanılır. */}
+          <div className="anket-radyo-grup anket-secenek-grup--dikey">
+            {SORU_GOSTERIM_SECENEKLERI.map((secenek) => (
+              <label key={secenek.deger} className="anket-radyo-secenek">
+                <input
+                  type="radio"
+                  name="soru-gosterim"
+                  value={secenek.deger}
+                  checked={form.soru_gosterim === secenek.deger}
+                  onChange={() => alanGuncelle('soru_gosterim', secenek.deger)}
+                />
+                <span>{secenek.etiket}</span>
+              </label>
+            ))}
+          </div>
+        </AnketKart>
+
         <div className="kullanici-ekle-butonlar">
           {/* Kaydet ŞİMDİLİK İŞLEVSİZ: backend/API henüz yok. Zorunlu alanlar
               dolmadıkça pasiftir (yalnızca UX). Aktif olduğunda da kayıt/gönderim
@@ -218,6 +537,7 @@ function AnketEkleForm({ onGeriDon }) {
               type="button"
               className="birincil-buton"
               disabled={kaydetPasif}
+              onClick={() => setKaydetDenendi(true)}
             >
               Kaydet
             </button>

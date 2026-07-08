@@ -14,8 +14,11 @@
 // "Anket Ekle" butonu üst bileşene (onAnketEkle) haber vererek içerik alanında
 // anket oluşturma formunu açar; kişi listesindeki "Kullanıcı Ekle" ile aynı
 // kalıptadır. Formun kaydı ise backend adımında bağlanacaktır.
+// Arama satırının hemen altında, tablonun üstünde BAŞLIKSIZ bir filtre kartı
+// (AnketFiltre) render edilir; o da salt sunumdur (gerçek filtreleme/API yoktur).
 
 import { useState } from 'react'
+import AnketFiltre from './AnketFiltre'
 import '../styles/kullanici-listesi.css'
 
 // ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Anket Ekle" butonunda
@@ -112,6 +115,9 @@ function AnketListesi({ onAnketEkle }) {
           <span>Anket Ekle</span>
         </button>
       </div>
+      {/* Başlıksız filtre kartı: arama satırının hemen altında, tablonun üstünde.
+          Salt sunumdur; kendi state'ini tutar, gerçek filtreleme/API yoktur. */}
+      <AnketFiltre />
       {/* Tablo çerçevesi kişi listesiyle birebir aynı sınıflarla kurulur. Gerçek
           veri kaynağı olmadığından gövdeye satır basılmaz; başlıklı çerçeve boş
           görünmesin diye tek satırlık bir boş-durum hücresi konur. colSpan tüm

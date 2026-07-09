@@ -1,0 +1,138 @@
+/*
+  SoruMetniKart bileşeninin stilleri: bağımsız çerçeveli kart, üstte biçimlendirme
+  araç çubuğu, altında zengin metin yazım (contentEditable) alanı. Renk ve kenarlık
+  için mevcut global değişkenler (--renk-mavi, --renk-lacivert, --renk-kenarlik,
+  --renk-beyaz, --renk-zemin-acik, --renk-metin-soluk, --renk-vurgu) kullanılır;
+  görsel dil anket-ekle.css / kullanici-ekle.css ile tutarlıdır. Yalnızca sunum.
+*/
+
+/* Kart çerçevesi: bağımsız kullanımda da düzgün dursun diye kendi ince kenarlığı
+   ve iç boşluğu vardır (anket-kart ile aynı dil). */
+.soru-metni-kart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+/* Kart başlığı (opsiyonel): alan üstünde küçük ara başlık. */
+.soru-metni-baslik {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Araç çubuğu: biçim butonlarını, ayırıcıları, font boyutu/renk seçicilerini tek
+   satırda akıtır; dar ekranda alt satıra sarar. Hafif zeminle editörden ayrışır. */
+.soru-metni-arac-cubugu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-zemin-acik);
+}
+
+/* Biçim butonu: sade, kompakt, tıklanınca marka mavisiyle geri bildirim verir. */
+.soru-metni-arac-buton {
+  padding: 4px 10px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.soru-metni-arac-buton:hover,
+.soru-metni-arac-buton:focus-visible {
+  background: var(--renk-beyaz);
+  border-color: var(--renk-mavi);
+  color: var(--renk-mavi);
+  outline: none;
+}
+
+.soru-metni-arac-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+/* Araç çubuğu grupları arasında ince dikey ayırıcı. */
+.soru-metni-ayirici {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: var(--renk-kenarlik);
+}
+
+/* Font boyutu dropdown'ı: butonlarla aynı yükseklik/dilde kompakt seçim. */
+.soru-metni-secim {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Renk seçici sarmalayıcı: küçük etiket + renk kutusu yan yana. */
+.soru-metni-renk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--renk-lacivert);
+  cursor: pointer;
+}
+
+.soru-metni-renk-etiket {
+  font-weight: 600;
+}
+
+.soru-metni-renk input[type='color'] {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  background: var(--renk-beyaz);
+  cursor: pointer;
+}
+
+/* Yazım alanı: rahat okunur, yeterli yükseklikte contentEditable kutu. */
+.soru-metni-editor {
+  min-height: 140px;
+  padding: 12px 14px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.soru-metni-editor:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+  border-color: var(--renk-vurgu);
+}
+
+/* Boş durum ipucu: alan boşken data-placeholder metnini soluk renkte gösterir.
+   Kullanıcı yazmaya başlayınca (alan boş değil) kaybolur. */
+.soru-metni-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--renk-metin-soluk);
+  pointer-events: none;
+}

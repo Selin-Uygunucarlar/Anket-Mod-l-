@@ -1,0 +1,118 @@
+/*
+  Anket soruları listesine ÖZGÜ stil ekleri. Liste düzeni, başlık satırı, arama
+  kutusu ve tablo çerçevesi kullanici-listesi.css'ten PAYLAŞILIR (DRY); burada
+  yalnızca soruya özel parçalar tanımlanır: soru metni HTML içeriği sarmalayıcısı,
+  şık rozetleri, "Diğer Bilgiler" iki-satır düzeni ve İşlem sütunu butonları.
+  kullanici-* sınıfları EZİLMEZ; kullanıcı/anket listesi tasarımı değişmez. Renk
+  değişkenleri (--renk-*) anasayfa/login paletinden miras alınır.
+*/
+
+/* Soru metni HTML içeriği: hücre metni varsayılan olarak nowrap olduğundan burada
+   normal sarma açılır ve genişlik sınırlanır; böylece uzun/zengin içerik hücreyi
+   taşırmaz, satır satır okunur. İç etiketlerin (p, ul, ol) dış boşlukları sadeleşir. */
+.soru-metni-icerik {
+  white-space: normal;
+  max-width: 460px;
+  overflow-wrap: break-word;
+  line-height: 1.5;
+}
+
+.soru-metni-icerik p,
+.soru-metni-icerik ul,
+.soru-metni-icerik ol {
+  margin: 4px 0;
+}
+
+.soru-metni-icerik :first-child {
+  margin-top: 0;
+}
+
+.soru-metni-icerik :last-child {
+  margin-bottom: 0;
+}
+
+/* Şık listesi: madde işareti olmadan, rozetler alt alta akar. */
+.soru-secenek-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  white-space: normal;
+  max-width: 280px;
+}
+
+/* Tek bir şık rozeti: hafif zeminli, yuvarlak köşeli okunur etiket. */
+.soru-secenek-rozet {
+  padding: 4px 10px;
+  background: var(--renk-zemin-acik);
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--renk-lacivert);
+  overflow-wrap: break-word;
+}
+
+/* "Diğer Bilgiler" hücresi: soru tipi ve hazırlayan iki ayrı satırda. */
+.soru-diger-bilgiler {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  white-space: normal;
+}
+
+.soru-diger-satir {
+  font-size: 14px;
+  color: var(--renk-lacivert);
+}
+
+/* İşlem hücresi: Güncelle (pasif) + Sil butonlarını yan yana tutar. */
+.soru-islem-hucre {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* İşlem butonları için ortak taban: yuvarlak köşeli, kompakt tıklanabilir öğe.
+   Klavye odağında görünür dış çerçeve korunur (erişilebilirlik). */
+.soru-islem-buton {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.soru-islem-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+/* Güncelle: bu turda pasif; soluk görünür ve tıklanamaz olduğu bellidir. */
+.soru-guncelle-buton {
+  background: var(--renk-beyaz);
+  color: var(--renk-metin-soluk);
+  border-color: var(--renk-kenarlik);
+  cursor: not-allowed;
+}
+
+/* Sil: dikkat çekici ama sade; hover/odakta hafif koyulaşır. */
+.soru-sil-buton {
+  background: var(--renk-beyaz);
+  color: #b42318;
+  border-color: #f0c2bd;
+}
+
+.soru-sil-buton:hover,
+.soru-sil-buton:focus-visible {
+  background: #fdecea;
+  outline: none;
+}
+
+.soru-sil-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}

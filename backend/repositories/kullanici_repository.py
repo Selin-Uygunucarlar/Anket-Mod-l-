@@ -285,7 +285,9 @@ def kullanici_bagimliligi_var_mi(kullanici_kodu: str) -> bool:
     ÖNEMLİ: Şemaya kullanici_kodu'ya FK veren HER YENİ TABLO eklendiğinde bu fonksiyonun
     kullandığı sorguya (kullanici_sorgulari.KULLANICI_BAGIMLILIK_SORGUSU) o tablo için
     de bir kontrol EKLENMELİDİR; aksi halde sicil değişimi o tablodaki kayıtları
-    sessizce kırar (kontrol onları görmeden geçer).
+    sessizce kırar (kontrol onları görmeden geçer). İSTİSNA: Soru.hazirlayan_kodu FK'si
+    (migration 008) ON DELETE SET NULL + ON UPDATE CASCADE olduğundan sicil değişimini
+    kıramaz/yetim bırakamaz; bu yüzden bağımlılık kontrolüne BİLİNÇLİ olarak dahil edilmez.
     """
     parametreler = (kullanici_kodu,) * 6
     try:

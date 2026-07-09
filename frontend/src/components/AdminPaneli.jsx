@@ -34,7 +34,7 @@ const YONETIM_SECENEKLERI = [
     baslik: 'Anketler',
     altSecenekler: [
       { baslik: 'Anket Listesi', gorunum: 'anket-listesi' },
-      'Anket Soruları',
+      { baslik: 'Anket Soruları', gorunum: 'anket-sorulari' },
     ],
   },
   {

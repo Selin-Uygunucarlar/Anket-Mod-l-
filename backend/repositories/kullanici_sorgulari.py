@@ -176,6 +176,9 @@ KULLANICI_GUNCELLE_ALANLARI = (
 # ÖNEMLİ: Şemaya kullanici_kodu'ya FK veren HER YENİ TABLO eklendiğinde buraya o
 # tablo için bir EXISTS satırı EKLENMELİDİR; aksi halde sicil değişimi/silme
 # kontrolü o tablodaki kayıtları GÖRMEDEN geçer.
+# İSTİSNA: Soru.hazirlayan_kodu FK'si (migration 008) ON DELETE SET NULL + ON UPDATE
+# CASCADE olduğundan sicil değişimini kırmaz/yetim bırakmaz; bu sorguya BİLİNÇLİ
+# olarak EXISTS satırı EKLENMEZ (unutulmadı, gerekmediği için hariç tutuldu).
 KULLANICI_BAGIMLILIK_SORGUSU = """
     SELECT 1
     WHERE EXISTS (SELECT 1 FROM Kullanici WHERE ilgili_yonetici_kodu = %s)

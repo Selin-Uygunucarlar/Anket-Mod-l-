@@ -19,7 +19,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from common.constants import OTURUM_SURESI_DAKIKA
-from controllers import auth_controller, kullanici_controller, secenek_controller
+from controllers import (
+    auth_controller,
+    kullanici_controller,
+    secenek_controller,
+    soru_controller,
+)
 
 # Geliştirme (Vite) origin'leri; üretimde ortam bazlı genişletilir. "*" AÇILMAZ.
 _IZINLI_ORIGINLER = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -330,6 +335,40 @@ def sil_secenek(
     GET (liste) ve POST (ekle) uçlarından method ile ayrışır.
     """
     sonuc = secenek_controller.sil_secenek(oturum, istek.kategori, istek.deger)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/sorular")
+def list_sorular(oturum: str | None = Cookie(default=None)) -> JSONResponse:
+    """Oturumdaki admin için tüm anket sorularını döndürür (yalnızca protokol).
+
+    Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular ve yetkiyi
+    (yalnızca admin) uygular. soru_metni sunucu tarafında sanitize edilmiş HTML'dir.
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = soru_controller.list_sorular(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.delete("/api/sorular/{soru_id}")
+def sil_soru(
+    soru_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için tek bir anket sorusunu siler (yalnızca protokol).
+
+    soru_id path segment'inden alınır (int); gövde YOKTUR. Oturum/yetki/doğrulama
+    Controller/Service'te. Silme idempotenttir; şıklar ve cevaplar DB'de CASCADE
+    ile birlikte gider. Başarılı yanıtta kayan pencere için cookie yenilenir.
+    """
+    sonuc = soru_controller.sil_soru(oturum, soru_id)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

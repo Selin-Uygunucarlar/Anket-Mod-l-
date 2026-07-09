@@ -14,6 +14,7 @@ import AdminPaneli from '../components/AdminPaneli.jsx'
 import KullaniciYanCubugu from '../components/KullaniciYanCubugu.jsx'
 import KullaniciListesi from '../components/KullaniciListesi.jsx'
 import AnketListesi from '../components/AnketListesi.jsx'
+import SoruListesi from '../components/SoruListesi.jsx'
 import AnketEkleForm from '../components/AnketEkleForm.jsx'
 import KullaniciEkleForm from '../components/KullaniciEkleForm.jsx'
 import AyarlarSayfasi from '../components/AyarlarSayfasi.jsx'
@@ -116,6 +117,7 @@ function AnaSayfaPage() {
         {adminMi && secilenGorunum === 'anket-ekle' && (
           <AnketEkleForm onGeriDon={() => secGorunum('anket-listesi')} />
         )}
+        {adminMi && secilenGorunum === 'anket-sorulari' && <SoruListesi />}
         {adminMi && secilenGorunum === 'ayarlar' && <AyarlarSayfasi />}
         {(!adminMi || secilenGorunum === null) && (
           <div className="anasayfa-bos">{/* İçerik ileride eklenecek */}</div>

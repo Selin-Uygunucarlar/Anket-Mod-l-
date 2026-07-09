@@ -7,6 +7,11 @@ PyMySQL==1.2.0
 # Şifre hash'leme (yavaş/adaptive; auth modülü login doğrulamada kullanır)
 bcrypt==5.0.0
 
+# HTML sanitizasyon (XSS) — soru_metni biçimli HTML tutar; Service gösterim
+# öncesi sanitize eder (migration 007). allowlist tabanlı, script/style/olay
+# yakalayıcı ve javascript: şeması temizlenir.
+nh3==0.3.6
+
 # HTTP/sınır katmanı web framework'ü (Controller'ı HTTP'ye açan api/ adaptörü)
 # Pydantic v2 fastapi ile transitively gelir.
 fastapi==0.115.6

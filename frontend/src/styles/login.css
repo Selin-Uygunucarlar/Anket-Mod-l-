@@ -1,7 +1,9 @@
 /*
-  Giriş ekranının stilleri. Tam ekran arka plan, sol-orta hizalı kart,
-  yuvarlatılmış köşeler, belirgin gölge ve görselden alınan renk paletini
-  içerir. Yalnızca sunum (görsel) sorumluluğundadır.
+  Giriş ekranının stilleri. Arka plan görseli kırpılmadan, oranı korunarak
+  (contain) sağa yaslı gösterilir; kalan sol boşluk görselin beyaz zemin
+  rengiyle (#fefefe) dikişsiz kaynaşır ve giriş kartı bu sol boşlukta durur.
+  Ayrıca yuvarlatılmış köşeler, belirgin gölge ve görselden alınan renk
+  paletini içerir. Yalnızca sunum (görsel) sorumluluğundadır.
 */
 
 :root {
@@ -25,15 +27,18 @@ body {
   color: var(--renk-lacivert);
 }
 
-/* Sayfa: arka plan görseli tam görünür (contain, kırpılmaz); görsel oranı
-   ekrandan farklı olduğu için kalan kenar boşlukları, görselin köşe rengiyle
-   (#fafbfd) eşleşen düz zeminle kaynaşır. Kartı sola yaslar, dikeyde ortalar. */
+/* Sayfa: arka plan görseli kırpılmadan ve oranı bozulmadan (contain) gösterilir;
+   sağa yaslanır (right center), böylece geniş ekranlarda kalan boşluk sol tarafta
+   kalır. background-color (#fefefe) görselin beyaz zeminiyle eşleşir; bu sayede
+   soldaki boşluk görselin zeminiyle dikişsiz kaynaşır, boşluk gibi durmaz ve aynı
+   zamanda görsel yüklenene kadarki fallback zemin görevi görür. Kartı sola yaslar,
+   dikeyde ortalar. */
 .login-page {
   min-height: 100vh;
   width: 100%;
-  background-color: #fafbfd;
+  background-color: #fefefe;
   background-size: contain;
-  background-position: center;
+  background-position: right center;
   background-repeat: no-repeat;
   display: flex;
   align-items: center;

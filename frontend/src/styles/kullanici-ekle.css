@@ -126,6 +126,61 @@
   border-color: var(--renk-vurgu);
 }
 
+/* Soru Metni alanı: üstteki dropdown'larla (.form-satir) aynı hizada dursun diye
+   yatay yerleşim — etiket solda sabit 180px sütunda, zengin metin kartı sağda kalan
+   alanı doldurur. Kart çok satırlı olabildiği için etiket üstte hizalanır. Dar
+   ekranda (aşağıdaki media) dikeye döner. */
+.soru-ekle-metin-alani {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* Etiketi diğer alanların etiketleriyle aynı çizgide başlatmak için, kartın üst
+   kenarına oturacak küçük bir üst boşluk. */
+.soru-ekle-metin-alani > .form-etiket {
+  padding-top: 2px;
+}
+
+/* Etiketin sağındaki içerik (tek kart) satırda kalan genişliği doldurur;
+   min-width:0 uzun içeriğin taşmasını önler. */
+.soru-ekle-metin-alani > :not(.form-etiket) {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Seçenekler bölümü: dikey yerleşim. En üstte "Seçenekler *" başlığı, altında her
+   seçenek kendi satırında alt alta; aralarında eşit boşluk. Böylece "Seçenek N"
+   etiketleri, başlığın 180px sütununun sağında değil, ana etiket sütununda başlar. */
+.soru-ekle-secenekler-blok {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Tek seçenek satırı: solda "Seçenek N" etiketi, sağda metin kartı; etiket
+   kartla dikey ortada hizalı (align-items: center). */
+.soru-ekle-secenek-satiri {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Seçenek etiketi ("Seçenek N"): diğer form etiketleriyle aynı 180px sabit
+   genişlikte, böylece Soru Tipi/Konu/Amaç/Soru Metni etiketleriyle aynı sol
+   sütunda başlar ve tüm satırlarda aynı çizgide hizalanır. */
+.soru-ekle-secenek-etiket {
+  flex: 0 0 180px;
+}
+
+/* Kart satırda kalan genişliği doldurur; min-width:0 uzun içeriğin taşmasını önler. */
+.soru-ekle-secenek-satiri > .soru-metni-kart {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Uyarı metni (seçenekler yüklenemedi gibi ikincil bilgilendirme). */
 .kullanici-ekle-uyari {
   margin: 0;
@@ -316,7 +371,9 @@
     padding: 24px;
   }
 
-  .form-satir {
+  .form-satir,
+  .soru-ekle-metin-alani,
+  .soru-ekle-secenek-satiri {
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
@@ -324,5 +381,16 @@
 
   .form-etiket {
     flex: none;
+  }
+
+  /* Dar ekranda seçenek etiketi kartın üstüne geçer; sabit genişlik kalkar. */
+  .soru-ekle-secenek-etiket {
+    flex: none;
+  }
+
+  /* Dikey yerleşimde etiket kartın üstünde durur; yatay hizalama için eklenen
+     üst boşluğa gerek kalmaz. */
+  .soru-ekle-metin-alani > .form-etiket {
+    padding-top: 0;
   }
 }

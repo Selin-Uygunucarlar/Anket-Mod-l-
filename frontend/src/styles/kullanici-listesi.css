@@ -99,6 +99,12 @@
   transition: background 0.15s ease;
 }
 
+/* Başlık satırının doğrudan çocuğu olan ekle butonu her zaman sağa yaslı kalsın:
+   aynı satırda space-between ile, wrap olunca da margin-left:auto ile sağda durur. */
+.kullanici-liste-baslik-satiri > .kullanici-ekle-buton {
+  margin-left: auto;
+}
+
 .kullanici-ekle-buton:hover,
 .kullanici-ekle-buton:focus-visible {
   background: #005ba6;

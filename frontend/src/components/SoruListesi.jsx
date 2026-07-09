@@ -1,9 +1,10 @@
 // Anket soruları listesi bileşeni. Admin panelinden "Anket Soruları" seçilince
 // anasayfa içerik alanında render edilir. Yalnızca sunum sorumluluğundadır:
 // veriyi soruApi üzerinden ister ve tabloda gösterir; iş kuralı, yetki kontrolü
-// veya hesaplama İÇERMEZ (yetki sunucuda uygulanır). Yükleniyor, hata, boş ve
-// dolu durumları ayrı ayrı ele alınır; kullanıcıya yalnızca güvenli mesaj
-// gösterilir. Başlık yanındaki arama kutusu, ekranda zaten çekili olan veriyi
+// veya hesaplama İÇERMEZ (yetki sunucuda uygulanır). Yükleniyor ve hata durumları
+// ayrı mesajla ele alınır; soru yoksa tablo başlıklarıyla boş gövde görünür (ayrı
+// bir "bulunamadı" metni yazılmaz). Kullanıcıya yalnızca güvenli mesaj gösterilir.
+// Başlık yanındaki arama kutusu, ekranda zaten çekili olan veriyi
 // client-side süzer (soru metninin düz metni, soru tipi, hazırlayan adı) ve
 // yalnızca bir gösterim kolaylığıdır (iş kuralı değil). Bu turda soru EKLEME ve
 // GÜNCELLEME akışı yoktur: "Güncelle" butonu görünür ama PASİF'tir (Faz 4).
@@ -18,8 +19,7 @@ import OnayKutusu from './OnayKutusu.jsx'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
 
-// Tablo kolon başlıkları (bu sırayla). "İşlem" sütunu Güncelle (pasif) + Sil
-// taşır; boş-durum satırının colSpan'i için başlık sayısı da buradan gelir.
+// Tablo kolon başlıkları (bu sırayla). "İşlem" sütunu Güncelle (pasif) + Sil taşır.
 const SORU_KOLON_BASLIKLARI = [
   'Soru Metni',
   'Seçenekler',
@@ -146,12 +146,9 @@ function SoruListesi() {
     )
   }
 
-  if (!sorular || sorular.length === 0) {
-    return <p className="kullanici-liste-durum">Kayıtlı soru bulunamadı.</p>
-  }
-
   // Ekranda çekili veri, arama metnine göre süzülür; boş aramada tümü gelir.
-  const filtreliSorular = sorular.filter((soru) =>
+  // sorular normalde dizidir; yine de null-güvenli süzülür.
+  const filtreliSorular = (sorular ?? []).filter((soru) =>
     soruAramayaUyuyorMu(soru, aramaMetni),
   )
 
@@ -190,78 +187,67 @@ function SoruListesi() {
             </tr>
           </thead>
           <tbody>
-            {filtreliSorular.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={SORU_KOLON_BASLIKLARI.length}
-                  className="kullanici-liste-durum liste-bos-hucre"
-                >
-                  Eşleşen soru bulunamadı.
+            {filtreliSorular.map((soru) => (
+              <tr key={soru.soru_id}>
+                <td>
+                  {/* soru_metni SUNUCUDA (nh3, migration 007) sanitize edilmiş
+                      HTML'dir; UI yeniden sanitize etmez/işlemez. Bu yüzden
+                      dangerouslySetInnerHTML güvenlidir. Uzun içerik CSS ile
+                      (soru-metni-icerik) sarılır, hücre taşmaz. */}
+                  <div
+                    className="soru-metni-icerik"
+                    dangerouslySetInnerHTML={{ __html: soru.soru_metni }}
+                  />
+                </td>
+                <td>
+                  {soru.secenekler && soru.secenekler.length > 0 ? (
+                    <ul className="soru-secenek-listesi">
+                      {soru.secenekler.map((secenek, sira) => (
+                        <li
+                          key={`${soru.soru_id}-${sira}`}
+                          className="soru-secenek-rozet"
+                        >
+                          {secenek.secenek_metni}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>
+                  <div className="soru-diger-bilgiler">
+                    <span className="soru-diger-satir">
+                      Soru Tipi: {soru.soru_tipi}
+                    </span>
+                    <span className="soru-diger-satir">
+                      Hazırlayan: {hazirlayanAdiBicimlendir(soru)}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div className="soru-islem-hucre">
+                    {/* Güncelle bu turda PASİF (Faz 4'te bağlanacak); yalnızca
+                        görünür durur, tıklanamaz. */}
+                    <button
+                      type="button"
+                      className="soru-islem-buton soru-guncelle-buton"
+                      disabled
+                      title="Yakında"
+                    >
+                      Güncelle
+                    </button>
+                    <button
+                      type="button"
+                      className="soru-islem-buton soru-sil-buton"
+                      onClick={() => silmeyeBasla(soru)}
+                    >
+                      Sil
+                    </button>
+                  </div>
                 </td>
               </tr>
-            ) : (
-              filtreliSorular.map((soru) => (
-                <tr key={soru.soru_id}>
-                  <td>
-                    {/* soru_metni SUNUCUDA (nh3, migration 007) sanitize edilmiş
-                        HTML'dir; UI yeniden sanitize etmez/işlemez. Bu yüzden
-                        dangerouslySetInnerHTML güvenlidir. Uzun içerik CSS ile
-                        (soru-metni-icerik) sarılır, hücre taşmaz. */}
-                    <div
-                      className="soru-metni-icerik"
-                      dangerouslySetInnerHTML={{ __html: soru.soru_metni }}
-                    />
-                  </td>
-                  <td>
-                    {soru.secenekler && soru.secenekler.length > 0 ? (
-                      <ul className="soru-secenek-listesi">
-                        {soru.secenekler.map((secenek, sira) => (
-                          <li
-                            key={`${soru.soru_id}-${sira}`}
-                            className="soru-secenek-rozet"
-                          >
-                            {secenek.secenek_metni}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <div className="soru-diger-bilgiler">
-                      <span className="soru-diger-satir">
-                        Soru Tipi: {soru.soru_tipi}
-                      </span>
-                      <span className="soru-diger-satir">
-                        Hazırlayan: {hazirlayanAdiBicimlendir(soru)}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="soru-islem-hucre">
-                      {/* Güncelle bu turda PASİF (Faz 4'te bağlanacak); yalnızca
-                          görünür durur, tıklanamaz. */}
-                      <button
-                        type="button"
-                        className="soru-islem-buton soru-guncelle-buton"
-                        disabled
-                        title="Yakında"
-                      >
-                        Güncelle
-                      </button>
-                      <button
-                        type="button"
-                        className="soru-islem-buton soru-sil-buton"
-                        onClick={() => silmeyeBasla(soru)}
-                      >
-                        Sil
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>

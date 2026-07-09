@@ -16,9 +16,14 @@ import KullaniciListesi from '../components/KullaniciListesi.jsx'
 import AnketListesi from '../components/AnketListesi.jsx'
 import SoruListesi from '../components/SoruListesi.jsx'
 import AnketEkleForm from '../components/AnketEkleForm.jsx'
+import SoruEkleForm from '../components/SoruEkleForm.jsx'
 import KullaniciEkleForm from '../components/KullaniciEkleForm.jsx'
 import AyarlarSayfasi from '../components/AyarlarSayfasi.jsx'
 import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
+import {
+  SECENEK_KATEGORILERI,
+  SORU_SECENEK_KATEGORILERI,
+} from '../common/secenekKategorileri.js'
 import '../styles/anasayfa.css'
 
 // AnaSayfaPage: üst bar + içerik alanı + admin panelini birleştirir.
@@ -117,8 +122,26 @@ function AnaSayfaPage() {
         {adminMi && secilenGorunum === 'anket-ekle' && (
           <AnketEkleForm onGeriDon={() => secGorunum('anket-listesi')} />
         )}
-        {adminMi && secilenGorunum === 'anket-sorulari' && <SoruListesi />}
-        {adminMi && secilenGorunum === 'ayarlar' && <AyarlarSayfasi />}
+        {adminMi && secilenGorunum === 'anket-sorulari' && (
+          <SoruListesi onSoruEkle={() => secGorunum('soru-ekle')} />
+        )}
+        {adminMi && secilenGorunum === 'soru-ekle' && (
+          <SoruEkleForm onGeriDon={() => secGorunum('anket-sorulari')} />
+        )}
+        {adminMi && secilenGorunum === 'ayarlar' && (
+          <AyarlarSayfasi
+            baslik="Kullanıcı Seçenek Tanımları"
+            aciklama="Kullanıcı ekleme formundaki dropdown seçeneklerini burada yönetin. Bir kategori seçip yeni bir değer ekleyebilirsiniz."
+            kategoriler={SECENEK_KATEGORILERI}
+          />
+        )}
+        {adminMi && secilenGorunum === 'soru-ayarlar' && (
+          <AyarlarSayfasi
+            baslik="Soru Seçenek Tanımları"
+            aciklama="Anket sorusu ekleme formundaki Konu ve Amaç dropdown seçeneklerini burada yönetin. Bir kategori seçip yeni bir değer ekleyebilirsiniz."
+            kategoriler={SORU_SECENEK_KATEGORILERI}
+          />
+        )}
         {(!adminMi || secilenGorunum === null) && (
           <div className="anasayfa-bos">{/* İçerik ileride eklenecek */}</div>
         )}

@@ -1,7 +1,8 @@
 """Yönetilen dropdown seçenekleri (TanimliSecenek) iş katmanı.
 
-Neden: Kullanıcı ekleme formundaki 10 dropdown alanının seçeneklerini listeleme ve
-yeni seçenek ekleme iş kuralları burada toplanır. Bu bir YÖNETİM ucudur: yalnızca
+Neden: Formlardaki yönetilen dropdown alanlarının (kullanıcı ekleme formu + anket
+sorusu formundaki 'konu'/'amac') seçeneklerini listeleme ve yeni seçenek ekleme iş
+kuralları burada toplanır. Bu bir YÖNETİM ucudur: yalnızca
 admin listeleyebilir/ekleyebilir. Yetki, client'tan gelen role değil, sunucu tarafı
 oturumun sahibine (OturumSahibi) göre belirlenir. Kategori, sabit kümeye ait mi
 kontrolü de burada yapılır (Repository kategori/rol bilmez).
@@ -18,7 +19,8 @@ from repositories import secenek_repository
 
 _ADMIN_TURU = "admin"
 
-# Dropdown alanlarının sabit kimlik kümesi; DB şemasıyla (migration 005) birebir.
+# Yönetilen dropdown alanlarının sabit kimlik kümesi (izinli kategoriler).
+# İlk 10 alan kullanıcı ekleme formuna, 'konu'/'amac' anket sorusu formuna aittir.
 # kullanici_turu bu kümede DEĞİL (sabit 'admin'/'user', seçenekle yönetilmez).
 KATEGORILER = (
     "sirket",
@@ -31,6 +33,8 @@ KATEGORILER = (
     "arge_personeli",
     "personel_sigorta_is_yeri",
     "gorev_yeri",
+    "konu",
+    "amac",
 )
 
 

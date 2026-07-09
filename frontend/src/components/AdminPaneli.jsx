@@ -49,7 +49,10 @@ const YONETIM_SECENEKLERI = [
   { baslik: 'Raporlar' },
   {
     baslik: 'Ayarlar',
-    altSecenekler: [{ baslik: 'Seçenek Tanımları', gorunum: 'ayarlar' }],
+    altSecenekler: [
+      { baslik: 'Kullanıcı Seçenek Tanımları', gorunum: 'ayarlar' },
+      { baslik: 'Soru Seçenek Tanımları', gorunum: 'soru-ayarlar' },
+    ],
   },
 ]
 

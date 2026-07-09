@@ -1,27 +1,29 @@
-// Ayarlar (seçenek tanımları) sayfası bileşeni. Admin panelinden "Ayarlar >
-// Seçenek Tanımları" seçilince anasayfa içerik alanında render edilir. Amaç:
-// admin'in 10 yönetilen dropdown kategorisine yeni değerler eklemesi, mevcut
-// değerleri görmesi ve silmesi (onay sonrası). Yalnızca sunum sorumluluğundadır:
-// girdi toplar, seçenekleri secenekApi üzerinden ister/ekler/siler; iş kuralı,
-// yetki veya hesaplama İÇERMEZ
-// (yetki ve asıl doğrulama sunucuda). Boş değerde Ekle pasiftir (yalnızca UX).
-// Sayfa açıklaması, başlık yanındaki bilgi (ⓘ) düğmesine tıklanınca açılan bir
-// baloncukta gösterilir. Hata durumunda (zaten tanımlı seçenek dahil) yalnızca
-// backend'in güvenli mesajı gösterilir; teknik detay sızmaz.
+// Genel/parametreli "seçenek tanımları" ayarlar sayfası bileşeni. Admin panelinden
+// bir seçenek tanımları görünümü seçilince anasayfa içerik alanında render edilir.
+// Aynı bileşen farklı kategori kümeleriyle (props ile) birden çok yerde kullanılır:
+// örn. Kullanıcı Seçenek Tanımları ve Soru Seçenek Tanımları. Amaç: admin'in verilen
+// yönetilen dropdown kategorilerine yeni değerler eklemesi, mevcut değerleri görmesi
+// ve silmesi (onay sonrası). Yalnızca sunum sorumluluğundadır: girdi toplar,
+// seçenekleri secenekApi üzerinden ister/ekler/siler; iş kuralı, yetki veya hesaplama
+// İÇERMEZ (yetki ve asıl doğrulama sunucuda). Boş değerde Ekle pasiftir (yalnızca UX).
+// Başlık ve açıklama metni props'tan gelir; açıklama, başlık yanındaki bilgi (ⓘ)
+// düğmesine tıklanınca açılan bir baloncukta gösterilir. Liste tüm kategorileri tek
+// ['secenekler'] sorgusundan alır ve yalnızca verilen `kategoriler`i render eder.
+// Hata durumunda (zaten tanımlı seçenek dahil) yalnızca backend'in güvenli mesajı
+// gösterilir; teknik detay sızmaz.
 
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listSecenekler, ekleSecenek, silSecenek } from '../api/secenekApi.js'
-import {
-  SECENEK_KATEGORILERI,
-  gruplaSeceneklerKategoriyeGore,
-} from '../common/secenekKategorileri.js'
+import { gruplaSeceneklerKategoriyeGore } from '../common/secenekKategorileri.js'
 import '../styles/ayarlar.css'
 
 // AyarlarSayfasi: seçenek ekleme formu + mevcut seçeneklerin gruplu listesi.
-function AyarlarSayfasi() {
+// props: baslik (h2 metni), aciklama (bilgi baloncuğu metni), kategoriler
+// ([{ kimlik, etiket }]) -> kategori seçimi ve gruplu liste bu kümeden üretilir.
+function AyarlarSayfasi({ baslik, aciklama, kategoriler }) {
   // İlk kategori varsayılan seçili gelir; kullanıcı değiştirebilir.
-  const [kategori, setKategori] = useState(SECENEK_KATEGORILERI[0].kimlik)
+  const [kategori, setKategori] = useState(kategoriler[0].kimlik)
   const [deger, setDeger] = useState('')
   // Başlık yanındaki bilgi düğmesiyle açılan açıklama baloncuğunun durumu.
   const [aciklamaAcik, setAciklamaAcik] = useState(false)
@@ -110,12 +112,12 @@ function AyarlarSayfasi() {
   return (
     <section className="ayarlar">
       <div className="ayarlar-baslik-satiri">
-        <h2 className="ayarlar-baslik">Seçenek Tanımları</h2>
+        <h2 className="ayarlar-baslik">{baslik}</h2>
         <div className="ayarlar-bilgi-sarmalayici" ref={bilgiSarmalayiciRef}>
           <button
             type="button"
             className="ayarlar-bilgi-dugmesi"
-            aria-label="Seçenek Tanımları hakkında bilgi"
+            aria-label={`${baslik} hakkında bilgi`}
             aria-expanded={aciklamaAcik}
             onClick={() => setAciklamaAcik((acik) => !acik)}
           >
@@ -137,8 +139,7 @@ function AyarlarSayfasi() {
           </button>
           {aciklamaAcik && (
             <div className="ayarlar-bilgi-baloncuk" role="tooltip">
-              Kullanıcı ekleme formundaki dropdown seçeneklerini burada yönetin.
-              Bir kategori seçip yeni bir değer ekleyebilirsiniz.
+              {aciklama}
             </div>
           )}
         </div>
@@ -152,7 +153,7 @@ function AyarlarSayfasi() {
             value={kategori}
             onChange={(olay) => setKategori(olay.target.value)}
           >
-            {SECENEK_KATEGORILERI.map((secenekKategorisi) => (
+            {kategoriler.map((secenekKategorisi) => (
               <option key={secenekKategorisi.kimlik} value={secenekKategorisi.kimlik}>
                 {secenekKategorisi.etiket}
               </option>
@@ -199,7 +200,7 @@ function AyarlarSayfasi() {
 
         {!isPending &&
           !isError &&
-          SECENEK_KATEGORILERI.map((secenekKategorisi) => {
+          kategoriler.map((secenekKategorisi) => {
             const degerler = gruplandirilmis[secenekKategorisi.kimlik] ?? []
             return (
               <div key={secenekKategorisi.kimlik} className="ayarlar-grup">

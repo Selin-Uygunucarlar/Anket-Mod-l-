@@ -4,9 +4,10 @@
 // dropdown başlıkları hem AyarlarSayfasi'nın kategori seçimi/listesi buradan
 // beslenir (DRY). İş kuralı/karar içermez; yalnızca gösterim eşlemesi ve gruplama.
 
-// SECENEK_KATEGORILERI: 10 dropdown kategorisi, gösterim sırasıyla. Her öğe bir
-// kategori kimliği (backend ile birebir) ve kullanıcıya gösterilecek Türkçe
-// etiket taşır. Bu dizi hem sıralamayı hem etiketleri tek kaynaktan sağlar.
+// SECENEK_KATEGORILERI: kullanıcı ekleme/düzenleme formunun 10 dropdown kategorisi,
+// gösterim sırasıyla. Her öğe bir kategori kimliği (backend ile birebir) ve
+// kullanıcıya gösterilecek Türkçe etiket taşır. Bu dizi hem sıralamayı hem
+// etiketleri tek kaynaktan sağlar.
 export const SECENEK_KATEGORILERI = [
   { kimlik: 'sirket', etiket: 'Şirket' },
   { kimlik: 'grup', etiket: 'Grup' },
@@ -18,6 +19,15 @@ export const SECENEK_KATEGORILERI = [
   { kimlik: 'arge_personeli', etiket: 'Arge Personeli' },
   { kimlik: 'personel_sigorta_is_yeri', etiket: 'Personel Sigorta İş Yeri' },
   { kimlik: 'gorev_yeri', etiket: 'Görev Yeri' },
+]
+
+// SORU_SECENEK_KATEGORILERI: anket sorusu ekleme formunun yönetilen dropdown
+// kategorileri (Konu ve Amaç), gösterim sırasıyla. Kimlikler backend sözleşmesiyle
+// birebir ('konu', 'amac'); etiketler yalnızca gösterim içindir. Soru Seçenek
+// Tanımları ayarlar sayfası ve SoruEkleForm buradan beslenir (DRY).
+export const SORU_SECENEK_KATEGORILERI = [
+  { kimlik: 'konu', etiket: 'Konu' },
+  { kimlik: 'amac', etiket: 'Amaç' },
 ]
 
 // gruplaSeceneklerKategoriyeGore: backend'den düz gelen [{kategori, deger}]

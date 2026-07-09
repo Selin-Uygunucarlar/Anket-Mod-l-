@@ -10,7 +10,10 @@
 // GÜNCELLEME akışı yoktur: "Güncelle" butonu görünür ama PASİF'tir (Faz 4).
 // "Sil" ise önce bir onay kutusu açar, onaylanınca sunucuya silme isteği atar ve
 // listeyi tazeler. Tablo/stil sınıfları kullanıcı listesiyle paylaşılır (DRY);
-// yalnızca soruya özgü ekler soru- önekli sınıflarla gelir.
+// yalnızca soruya özgü ekler soru- önekli sınıflarla gelir. Başlık satırının
+// sağında "Yeni Soru Ekle" butonu bulunur; tıklanınca üst bileşene (onSoruEkle)
+// haber vererek içerik alanında soru ekleme görünümünü açar (anket/kullanıcı
+// ekle butonlarıyla aynı kalıp).
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -26,6 +29,26 @@ const SORU_KOLON_BASLIKLARI = [
   'Diğer Bilgiler',
   'İşlem',
 ]
+
+// ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Yeni Soru Ekle"
+// butonunda kullanılır (kullanıcı/anket listesindeki ekle butonuyla aynı görünüm).
+function ArtiIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
 
 // BuyutecIcon: büyüteç (arama) simgesini çizer. Başlık yanındaki arama kutusunun
 // içinde görsel ipucu olarak kullanılır (kullanıcı/anket listesiyle tasarım paritesi).
@@ -85,9 +108,11 @@ function soruAramayaUyuyorMu(soru, aramaMetni) {
 }
 
 // SoruListesi: soruları React Query ile çeker ve durumuna göre yükleniyor / hata
-// / boş / tablo gösterir. Prop almaz; veri kaynağı yalnızca soruApi'dir. Silme
-// tetikleme dışında yan etkisi yoktur.
-function SoruListesi() {
+// / boş / tablo gösterir. Veri kaynağı yalnızca soruApi'dir. Silme tetikleme
+// dışında yan etkisi yoktur.
+// props: onSoruEkle() -> "Yeni Soru Ekle" tıklanınca çağrılır (üst bileşen soru
+// ekleme görünümünü açar).
+function SoruListesi({ onSoruEkle }) {
   const [aramaMetni, setAramaMetni] = useState('')
   // Onay kutusunun hedefi olan soru (null iken onay kutusu kapalı).
   const [hedefSoru, setHedefSoru] = useState(null)
@@ -171,6 +196,16 @@ function SoruListesi() {
             />
           </div>
         </div>
+        {/* "Yeni Soru Ekle": kullanıcı/anket listesindeki ekle kalıbıyla üst
+            bileşene haber verir ve içerik alanında soru ekleme görünümünü açar. */}
+        <button
+          type="button"
+          className="kullanici-ekle-buton"
+          onClick={onSoruEkle}
+        >
+          <ArtiIcon />
+          <span>Yeni Soru Ekle</span>
+        </button>
       </div>
       {islemHatasi && (
         <p className="kullanici-liste-durum kullanici-liste-hata" role="alert">

@@ -39,23 +39,36 @@
   gap: 6px;
 }
 
+/* Etiket boyutu kullanici-ekle.css'teki .form-etiket ile aynı dilde (16px). */
 .gruplar-etiket {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--renk-lacivert);
 }
 
-/* Açılır seçim kutuları (grup seç / üye seç). */
+/* Açılır seçim kutuları (grup seç / üye seç): ölçüler .form-kutu ile aynı
+   (52px yükseklik, 0 14px dolgu, 17px yazı); min-width uygulama genelinden
+   biraz geniş tutulur ki uzun grup/üye adları rahat okunsun. */
 .gruplar-kutu {
   box-sizing: border-box;
-  height: 42px;
-  min-width: 240px;
-  padding: 0 12px;
+  height: 52px;
+  min-width: 320px;
+  padding: 0 14px;
   border: 1px solid var(--renk-kenarlik);
   border-radius: 10px;
   background: var(--renk-beyaz);
   color: var(--renk-lacivert);
-  font-size: 14px;
+  font-size: 17px;
+}
+
+/* "Ekle" butonu bu kontrol satırında kutularla aynı yükseklikte hizalansın diye
+   yükseklik (52px) kutulara eşitlenir; ayrıca yatay dolgu artırılarak buton
+   yatayda daha geniş görünür. Kural scoped olduğundan global .birincil-buton
+   (kullanici-ekle.css) ve diğer sayfalar etkilenmez. */
+.gruplar-kontrol .birincil-buton {
+  min-height: 52px;
+  padding: 0 40px;
+  font-size: 16px;
 }
 
 .gruplar-kutu:focus-visible {
@@ -89,23 +102,25 @@
   color: var(--renk-hata);
 }
 
-/* Üye listesi: her üye ayrı bir satır kartı olarak alt alta. */
+/* Üye listesi: her üye ayrı bir satır kartı olarak alt alta; kişiler görsel
+   olarak net ayrışsın diye satır arası boşluk seçim kutularıyla uyumlu tutulur. */
 .gruplar-uye-listesi {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-/* Tek üye satırı: solda ad-soyad + e-posta, sağda Çıkar butonu. */
+/* Tek üye satırı: solda ad-soyad + e-posta, sağda Çıkar butonu; seçim
+   kutularıyla aynı ölçekte, her kişi ferah ve ayrı bir kart alanı olur. */
 .gruplar-uye {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 16px 20px;
   border: 1px solid var(--renk-kenarlik);
   border-radius: 12px;
   background: var(--renk-beyaz);
@@ -118,26 +133,27 @@
 }
 
 .gruplar-uye-ad {
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--renk-lacivert);
 }
 
 .gruplar-uye-email {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--renk-metin-soluk);
 }
 
-/* "Çıkar" butonu: sade, kenarlıklı ikincil eylem; hover'da hata rengiyle vurgu. */
+/* "Çıkar" butonu: sade, kenarlıklı ikincil eylem; hover'da hata rengiyle vurgu.
+   Büyüyen üye kartıyla orantılı ölçü (42px yükseklik, 15px yazı). */
 .gruplar-cikar-buton {
   flex-shrink: 0;
-  height: 34px;
-  padding: 0 14px;
+  height: 42px;
+  padding: 0 18px;
   border: 1px solid var(--renk-kenarlik);
   border-radius: 8px;
   background: var(--renk-beyaz);
   color: var(--renk-metin);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -158,10 +174,15 @@
   opacity: 0.6;
 }
 
-/* Dar ekran: seçim kutularının minimum genişliğini gevşet. */
+/* Dar ekran: kutuların minimum genişliğini gevşet (320px'ten küçük) ve tam
+   genişliğe yay; buton da tam genişlik olur ki alanlar taşmadan dikey dizilsin. */
 @media (max-width: 640px) {
   .gruplar-kutu {
     min-width: 180px;
+    width: 100%;
+  }
+
+  .gruplar-kontrol .birincil-buton {
     width: 100%;
   }
 }

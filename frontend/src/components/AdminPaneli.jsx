@@ -28,6 +28,7 @@ const YONETIM_SECENEKLERI = [
           { baslik: 'Kullanıcı Listesi', gorunum: 'kullanici-listesi' },
         ],
       },
+      { baslik: 'Kullanıcı Grupları', gorunum: 'kullanici-gruplari' },
     ],
   },
   {
@@ -52,6 +53,7 @@ const YONETIM_SECENEKLERI = [
     altSecenekler: [
       { baslik: 'Kullanıcı Seçenek Tanımları', gorunum: 'ayarlar' },
       { baslik: 'Soru Seçenek Tanımları', gorunum: 'soru-ayarlar' },
+      { baslik: 'Grup Tanımları', gorunum: 'grup-ayarlar' },
     ],
   },
 ]

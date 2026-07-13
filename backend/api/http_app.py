@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from common.constants import OTURUM_SURESI_DAKIKA
 from controllers import (
     auth_controller,
+    grup_controller,
     kullanici_controller,
     secenek_controller,
     soru_controller,
@@ -126,6 +127,18 @@ class SoruEkleIstegi(BaseModel):
     amac: str
     soru_metni: str
     secenekler: list[str]
+
+
+class GrupEkleIstegi(BaseModel):
+    """Yeni kullanıcı grubu istek gövdesi. Boş/uzunluk/tekrar doğrulaması Service'te."""
+
+    ad: str
+
+
+class GrupUyeEkleIstegi(BaseModel):
+    """Gruba üye atama istek gövdesi. Sicil biçim/varlık doğrulaması Controller/Service'te."""
+
+    kullanici_kodu: str
 
 
 class SifreBelirleIstegi(BaseModel):
@@ -460,6 +473,116 @@ def sil_soru(
     ile birlikte gider. Başarılı yanıtta kayan pencere için cookie yenilenir.
     """
     sonuc = soru_controller.sil_soru(oturum, soru_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/gruplar")
+def list_gruplar(oturum: str | None = Cookie(default=None)) -> JSONResponse:
+    """Oturumdaki admin için tüm kullanıcı gruplarını üye sayısıyla döndürür (yalnızca protokol).
+
+    Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular ve yetkiyi
+    (yalnızca admin) uygular. Başarılı yanıtta kayan pencere için cookie yenilenir.
+    """
+    sonuc = grup_controller.list_gruplar(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/gruplar")
+def ekle_grup(
+    istek: GrupEkleIstegi, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için yeni bir kullanıcı grubu oluşturur (yalnızca protokol).
+
+    Gövde GrupEkleIstegi { ad }. Oturum/yetki/doğrulama (boş/uzunluk/tekrar)
+    Controller/Service'te. Ad zaten varsa VALIDATION_ERROR -> 400. Aynı path'teki
+    GET (liste) uçundan method ile ayrışır. Başarılıysa cookie yenilenir.
+    """
+    sonuc = grup_controller.create_grup(oturum, istek.ad)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.delete("/api/gruplar/{grup_id}")
+def sil_grup(
+    grup_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için bir kullanıcı grubunu siler (yalnızca protokol).
+
+    grup_id path segment'inden alınır (int). Oturum/yetki/doğrulama Controller/Service'te.
+    Silme idempotenttir; üyeler FK ON DELETE SET NULL ile grupsuz kalır. Başarılı
+    yanıtta kayan pencere için cookie yenilenir.
+    """
+    sonuc = grup_controller.delete_grup(oturum, grup_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/gruplar/{grup_id}/uyeler")
+def list_grup_uyeleri(
+    grup_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için bir grubun üyelerini döndürür (yalnızca protokol).
+
+    grup_id path segment'inden alınır (int). Oturum/yetki/doğrulama Controller/Service'te.
+    Grup yoksa ya da üyesi yoksa boş liste döner. `/uyeler` segmenti sabit
+    `DELETE /api/gruplar/{grup_id}` ile çakışmaz. Başarılıysa cookie yenilenir.
+    """
+    sonuc = grup_controller.list_grup_uyeleri(oturum, grup_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/gruplar/{grup_id}/uyeler")
+def ekle_grup_uyesi(
+    grup_id: int,
+    istek: GrupUyeEkleIstegi,
+    oturum: str | None = Cookie(default=None),
+) -> JSONResponse:
+    """Oturumdaki admin için bir kullanıcıyı gruba atar (yalnızca protokol).
+
+    grup_id path segment'inden (int), gövde GrupUyeEkleIstegi { kullanici_kodu }.
+    Oturum/yetki/doğrulama Controller/Service'te. Tek grup kuralı: kullanıcı zaten
+    başka gruptaysa yeni gruba TAŞINIR. Aynı path'teki GET (üye listesi) uçundan
+    method ile ayrışır. Başarılıysa cookie yenilenir.
+    """
+    sonuc = grup_controller.assign_uye(oturum, grup_id, istek.kullanici_kodu)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.delete("/api/gruplar/{grup_id}/uyeler/{kullanici_kodu}")
+def sil_grup_uyesi(
+    grup_id: int,
+    kullanici_kodu: str,
+    oturum: str | None = Cookie(default=None),
+) -> JSONResponse:
+    """Oturumdaki admin için bir kullanıcıyı gruptan çıkarır (yalnızca protokol).
+
+    grup_id ve kullanici_kodu path segment'lerinden alınır. Tek grup kuralı gereği
+    üyelik NULL'lanır; grup_id URL semantiği içindir, Service'e taşınmaz. Oturum/yetki/
+    doğrulama Controller/Service'te. Başarılıysa cookie yenilenir.
+    """
+    sonuc = grup_controller.remove_uye(oturum, kullanici_kodu)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

@@ -179,6 +179,10 @@ KULLANICI_GUNCELLE_ALANLARI = (
 # İSTİSNA: Soru.hazirlayan_kodu FK'si (migration 008) ON DELETE SET NULL + ON UPDATE
 # CASCADE olduğundan sicil değişimini kırmaz/yetim bırakmaz; bu sorguya BİLİNÇLİ
 # olarak EXISTS satırı EKLENMEZ (unutulmadı, gerekmediği için hariç tutuldu).
+# İSTİSNA: KullaniciGrubu (migration 010) kullanici_kodu'ya FK VERMEZ; ilişki TERS
+# yöndedir (Kullanici.grup_id -> KullaniciGrubu.grup_id). Yani bu tablo sicil
+# değişimini/silmeyi hiç görmez ve bu sorguya EKLENMESİ GEREKMEZ (bağımlılık ters
+# yönde olduğundan; bilinçli olarak dahil edilmedi).
 KULLANICI_BAGIMLILIK_SORGUSU = """
     SELECT 1
     WHERE EXISTS (SELECT 1 FROM Kullanici WHERE ilgili_yonetici_kodu = %s)

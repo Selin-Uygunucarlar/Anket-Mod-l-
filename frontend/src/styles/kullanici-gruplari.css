@@ -1,0 +1,167 @@
+/*
+  Kullanıcı Grupları (grup-odaklı üye yönetimi) görünümünün stilleri: sarmalayıcı,
+  grup seçimi satırı, üye ekleme satırı (dropdown + Ekle), durum metinleri
+  (yükleniyor / boş / hata) ve üye listesi (her satırda ad-soyad, e-posta ve
+  "Çıkar" butonu). Anasayfa içinde render edildiği için yerel --renk-vurgu
+  (anasayfa.css'te .anasayfa üzerinde tanımlı) ile global palet (login.css)
+  buradan miras alınır. Birincil buton stili (birincil-buton) kullanici-ekle.css'te
+  tanımlıdır ve burada yeniden kullanılır. Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Görünüm sarmalayıcısı. */
+.gruplar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Görünüm başlığı: içerik alanının üstünde net bir başlık. */
+.gruplar-baslik {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--renk-lacivert);
+}
+
+/* Grup seçimi ve üye ekleme alanlarını taşıyan üst kontrol satırı; dar ekranda
+   öğeler alt satıra sarar. */
+.gruplar-kontrol {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Etiket + kutu dikey ikili (grup seçimi ve üye seçimi için ortak). */
+.gruplar-alan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gruplar-etiket {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+/* Açılır seçim kutuları (grup seç / üye seç). */
+.gruplar-kutu {
+  box-sizing: border-box;
+  height: 42px;
+  min-width: 240px;
+  padding: 0 12px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  background: var(--renk-beyaz);
+  color: var(--renk-lacivert);
+  font-size: 14px;
+}
+
+.gruplar-kutu:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+  border-color: var(--renk-vurgu);
+}
+
+.gruplar-kutu:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Hata kutusu: güvenli mesaj (teknik detay yok). */
+.gruplar-hata {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: var(--renk-hata);
+  font-size: 14px;
+}
+
+/* Durum metinleri: yükleniyor / boş / hata (liste bölgesinde). */
+.gruplar-durum {
+  margin: 0;
+  color: var(--renk-metin-soluk);
+  font-size: 14px;
+}
+
+.gruplar-durum-hata {
+  color: var(--renk-hata);
+}
+
+/* Üye listesi: her üye ayrı bir satır kartı olarak alt alta. */
+.gruplar-uye-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Tek üye satırı: solda ad-soyad + e-posta, sağda Çıkar butonu. */
+.gruplar-uye {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+.gruplar-uye-bilgi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gruplar-uye-ad {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+.gruplar-uye-email {
+  font-size: 13px;
+  color: var(--renk-metin-soluk);
+}
+
+/* "Çıkar" butonu: sade, kenarlıklı ikincil eylem; hover'da hata rengiyle vurgu. */
+.gruplar-cikar-buton {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  background: var(--renk-beyaz);
+  color: var(--renk-metin);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gruplar-cikar-buton:hover:not(:disabled),
+.gruplar-cikar-buton:focus-visible {
+  border-color: var(--renk-hata);
+  color: var(--renk-hata);
+}
+
+.gruplar-cikar-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
+}
+
+.gruplar-cikar-buton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Dar ekran: seçim kutularının minimum genişliğini gevşet. */
+@media (max-width: 640px) {
+  .gruplar-kutu {
+    min-width: 180px;
+    width: 100%;
+  }
+}

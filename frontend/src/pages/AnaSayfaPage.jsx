@@ -19,6 +19,8 @@ import AnketEkleForm from '../components/AnketEkleForm.jsx'
 import SoruEkleForm from '../components/SoruEkleForm.jsx'
 import KullaniciEkleForm from '../components/KullaniciEkleForm.jsx'
 import AyarlarSayfasi from '../components/AyarlarSayfasi.jsx'
+import GrupTanimlariAyar from '../components/GrupTanimlariAyar.jsx'
+import KullaniciGruplariSayfasi from '../components/KullaniciGruplariSayfasi.jsx'
 import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
 import {
   SECENEK_KATEGORILERI,
@@ -169,6 +171,10 @@ function AnaSayfaPage() {
             kategoriler={SORU_SECENEK_KATEGORILERI}
           />
         )}
+        {adminMi && secilenGorunum === 'kullanici-gruplari' && (
+          <KullaniciGruplariSayfasi />
+        )}
+        {adminMi && secilenGorunum === 'grup-ayarlar' && <GrupTanimlariAyar />}
         {(!adminMi || secilenGorunum === null) && (
           <div className="anasayfa-bos">{/* İçerik ileride eklenecek */}</div>
         )}

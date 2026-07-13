@@ -224,6 +224,47 @@
   opacity: 0.5;
 }
 
+/* Grup satırı listesi: her grup ayrı bir satır kartı olarak alt alta. Grup
+   Tanımları ayarında kullanılır (ad + üye sayısı + sil butonu). */
+.ayarlar-satir-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Tek grup satırı: solda ad + üye sayısı rozeti, sağda sil butonu. */
+.ayarlar-satir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  background: var(--renk-beyaz);
+}
+
+.ayarlar-satir-ad {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+/* Üye sayısı rozeti: sade, soluk zeminli küçük etiket. */
+.ayarlar-satir-sayi {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--renk-zemin-acik);
+  color: var(--renk-metin-soluk);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* Dar ekran: A4 iç boşluğunu daralt (kullanici-ekle ile tutarlı). */
 @media (max-width: 640px) {
   .ayarlar {

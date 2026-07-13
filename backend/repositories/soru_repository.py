@@ -1,4 +1,4 @@
-"""Anket soruları (listeleme + silme) akışının veri erişim katmanı.
+"""Anket soruları (ekleme + listeleme + silme) akışının veri erişim katmanı.
 
 Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
@@ -67,6 +67,67 @@ def sorulari_getir() -> list[SoruKaydi]:
         )
         for satir in soru_satirlari
     ]
+
+
+def soru_ekle(
+    anket_id: int | None,
+    soru_metni: str,
+    soru_tipi: str,
+    sira_no: int | None,
+    zorunlu_mu: bool,
+    hazirlayan_kodu: str | None,
+    konu: str | None,
+    amac: str | None,
+    secenekler: list[str],
+) -> int:
+    """Bir soruyu ve (varsa) şıklarını TEK transaction'da ekler; yeni soru_id döner.
+
+    Önce Soru INSERT edilir; oluşan soru_id (cursor.lastrowid) alınır ve
+    `secenekler` listesindeki her metin için sıralı Secenek satırı (sira_no =
+    index+1) çoklu INSERT (executemany) ile eklenir. Boş liste HATA DEĞİLDİR:
+    yalnızca Soru eklenir, hiç şık girilmez (açık uçlu soru). anket_id None ise
+    soru BAĞIMSIZ eklenir (migration 009; ankete bağlama sonraki iş).
+
+    İşlem bütünlüğü veritabani_baglantisi context manager'ına aittir: blok
+    sorunsuz biterse commit, herhangi bir adımda istisna olursa ROLLBACK yapar
+    (Soru eklenip şıklar patlarsa yarım kayıt kalmaz). Tüm sorgular parametreli
+    (%s); string birleştirme yoktur. secenek_metni/soru_metni HAM içerik olarak
+    yazılır — sanitizasyon (XSS) Service'in işidir; Repository yetki/rol bilmez,
+    loglamaz. Teknik DB hatası DataAccessError'a sarmalanıp yukarı fırlatılır;
+    ham DB mesajı/tablo adı üst mesaja konmaz (orijinal `from` ile zincirlenir).
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    sorgular.SORU_EKLE_SORGUSU,
+                    (
+                        anket_id,
+                        soru_metni,
+                        soru_tipi,
+                        konu,
+                        amac,
+                        sira_no,
+                        zorunlu_mu,
+                        hazirlayan_kodu,
+                    ),
+                )
+                yeni_soru_id = imlec.lastrowid
+
+                if secenekler:
+                    # Şıklar giriş sırasına göre 1'den başlayan sira_no ile eklenir.
+                    secenek_parametreleri = [
+                        (yeni_soru_id, metin, indeks + 1)
+                        for indeks, metin in enumerate(secenekler)
+                    ]
+                    imlec.executemany(
+                        sorgular.SECENEK_EKLE_SORGUSU, secenek_parametreleri
+                    )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Soru eklenemedi.") from hata
+
+    return yeni_soru_id
 
 
 def soru_sil(soru_id: int) -> None:

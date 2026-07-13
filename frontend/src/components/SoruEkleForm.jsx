@@ -7,13 +7,17 @@
 // metin kartı) ve Seçenekler* (Seçenek Sayısı kadar zengin metin kartı) bulunur;
 // bunların içeriği HTML olarak UI state'inde toplanır (SoruMetniKart kullanılır).
 // Zorunlu alanlar ZORUNLU işaretlidir (yalnızca görsel; asıl doğrulama sunucuda).
-// KAYIT bu turda YOKTUR: Kaydet butonu eklenmez, gerçek gönderim/backend akışı
-// sonraki adıma bırakılır (yanıltıcı başarı gösterilmez). Görünüm sınıfları
-// kullanici-ekle.css ile paylaşılır (DRY); yalnızca küçük yerleşim sınıfları eklenir.
+// KAYIT: "Kaydet" butonu, toplanan alanları soruApi.soruEkle ile POST /api/sorular
+// ucuna iletir (backend hazır). Zorunlu alanlar boşken buton yalnızca UX amaçlı
+// pasiftir (basit presence guard; iş kuralı/karar sunucuda). Başarıda liste
+// tazelenip listeye dönülür; hata durumunda backend'in güvenli mesajı gösterilir
+// (teknik detay sızmaz). Görünüm sınıfları kullanici-ekle.css ile paylaşılır (DRY);
+// yalnızca küçük yerleşim sınıfları eklenir.
 
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listSecenekler } from '../api/secenekApi.js'
+import { soruEkle } from '../api/soruApi.js'
 import { gruplaSeceneklerKategoriyeGore } from '../common/secenekKategorileri.js'
 import { SORU_TIPLERI } from '../common/soruTipleri.js'
 import SoruMetniKart from './SoruMetniKart.jsx'
@@ -23,11 +27,19 @@ import '../styles/kullanici-ekle.css'
 // için ayrı bir common dosyası yerine burada üretilir.
 const SECENEK_SAYISI_SECENEKLERI = Array.from({ length: 14 }, (_, sira) => sira + 2)
 
-// SoruEkleForm: anket sorusu ekleme alanlarını gösterir ve girdi toplar.
-// props: onGeriDon() -> "Geri Dön" tıklanınca çağrılır (üst bileşen listeye döner).
+// seceneksHarfi: bir seçeneğin sıra indeksini gösterim harfine çevirir (0 -> A,
+// 1 -> B, ...). YALNIZCA görsel etikettir; gönderilen dizinin sırasını/indeksini
+// etkilemez. Seçenek Sayısı en çok 15 olduğundan A–O aralığında kalır (taşma yok).
+function seceneksHarfi(indeks) {
+  return String.fromCharCode(65 + indeks)
+}
+
+// SoruEkleForm: anket sorusu ekleme alanlarını gösterir, girdi toplar ve Kaydet ile
+// backend'e (soruApi.soruEkle) iletir. props: onGeriDon() -> "Geri Dön" tıklanınca
+// ve başarılı kayıt sonrası çağrılır (üst bileşen listeye döner).
 function SoruEkleForm({ onGeriDon }) {
   const [soruTipi, setSoruTipi] = useState('')
-  const [secenekSayisi, setSecenekSayisi] = useState('')
+  const [secenekSayisi, setSecenekSayisi] = useState('5')
   const [konu, setKonu] = useState('')
   const [amac, setAmac] = useState('')
   // Soru metni ve her bir seçeneğin metni HTML string olarak tutulur (SoruMetniKart
@@ -73,16 +85,69 @@ function SoruEkleForm({ onGeriDon }) {
   const konuSecenekleri = gruplandirilmis['konu'] ?? []
   const amacSecenekleri = gruplandirilmis['amac'] ?? []
 
+  const queryClient = useQueryClient()
+
+  // Kaydet isteği: toplanan alanları backend'e iletir. Başarıda soru listesini
+  // tazeler ve listeye döner (yeni soru orada görünür); teknik detay sızmaz.
+  const kaydetMutation = useMutation({
+    mutationFn: soruEkle,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sorular'] })
+      onGeriDon()
+    },
+  })
+
+  // zorunluAlanlarDolu: asteriskli zorunlu alanların (Soru Tipi, Konu, Amaç, Soru
+  // Metni, Seçenekler) boş olup olmadığını denetleyen BASİT presence guard'ı.
+  // Yalnızca Kaydet butonunu pasifleştirmek için (UX); iş kuralı/karar değildir,
+  // asıl doğrulama sunucudadır.
+  function zorunluAlanlarDolu() {
+    const doluMu = (deger) => (deger ?? '').trim() !== ''
+    if (!doluMu(soruTipi) || !doluMu(konu) || !doluMu(amac) || !doluMu(soruMetni)) {
+      return false
+    }
+    if (secenekMetinleri.length === 0) {
+      return false
+    }
+    return secenekMetinleri.every((metin) => doluMu(metin))
+  }
+
+  // handleGonder: formu gönderir. Zorunlu alanlar dolmadan buton pasif olduğundan
+  // burada ek iş kuralı yoktur; kayıt isteği kontrat şekliyle API'ye iletilir.
+  // secenekler dizisi olduğu gibi (sıra/indeks korunarak) gönderilir.
+  function handleGonder(olay) {
+    olay.preventDefault()
+    if (!zorunluAlanlarDolu()) {
+      return
+    }
+    kaydetMutation.mutate({
+      soru_tipi: soruTipi,
+      konu,
+      amac,
+      soru_metni: soruMetni,
+      secenekler: secenekMetinleri,
+    })
+  }
+
+  const kaydetPasif = !zorunluAlanlarDolu() || kaydetMutation.isPending
+  const kaydetButonMetni = kaydetMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'
+  const kaydetHatasi = kaydetMutation.isError
+    ? kaydetMutation.error?.message ||
+      'Soru kaydedilemedi. Lütfen tekrar deneyin.'
+    : ''
+
   return (
     <section className="kullanici-ekle">
       <h2 className="kullanici-ekle-baslik">Anket Sorusu Ekleme</h2>
 
-      {/* Backend olmadığından form gönderimi yoktur; alanlar saf UI state'inde
-          toplanır. Kaydet butonu bilinçli olarak YOKTUR (kayıt ucu sonraki adımda). */}
-      <form className="kullanici-ekle-form" noValidate>
+      {/* Form gönderimi Kaydet ile POST /api/sorular'a gider; alanlar saf UI
+          state'inde toplanır, gönderim ve doğrulama sunucuda tamamlanır. */}
+      <form className="kullanici-ekle-form" onSubmit={handleGonder} noValidate>
         <div className="kullanici-ekle-izgara">
           <label className="form-satir">
-            <span className="form-etiket">Soru Tipi</span>
+            <span className="form-etiket">
+              Soru Tipi <span className="zorunlu-yildiz">*</span>
+            </span>
             <select
               className="form-kutu"
               value={soruTipi}
@@ -181,19 +246,35 @@ function SoruEkleForm({ onGeriDon }) {
               // kendi başlığını göstermez (baslik verilmez).
               <div className="soru-ekle-secenek-satiri" key={indeks}>
                 <span className="form-etiket soru-ekle-secenek-etiket">
-                  Seçenek {indeks + 1}
+                  Seçenek {seceneksHarfi(indeks)}
                 </span>
                 <SoruMetniKart
                   deger={secenekMetni ?? ''}
                   onDegisim={(yeniHtml) => guncelleSecenekMetni(indeks, yeniHtml)}
-                  placeholder={`Seçenek ${indeks + 1} metnini yazın`}
+                  placeholder={`Seçenek ${seceneksHarfi(indeks)} metnini yazın`}
                 />
               </div>
             ))
           )}
         </div>
 
+        {kaydetHatasi && (
+          <div className="kullanici-ekle-hata" role="alert">
+            {kaydetHatasi}
+          </div>
+        )}
+
         <div className="kullanici-ekle-butonlar">
+          {/* Kaydet pasifken disabled buton hover almadığından tooltip'i saran
+              span üzerinden gösterilir; buton aktifken data-uyari verilmez. */}
+          <span
+            className="kaydet-sarmalayici"
+            data-uyari={kaydetPasif ? 'Lütfen zorunlu alanları doldurun' : undefined}
+          >
+            <button type="submit" className="birincil-buton" disabled={kaydetPasif}>
+              {kaydetButonMetni}
+            </button>
+          </span>
           <button type="button" className="ikincil-buton" onClick={onGeriDon}>
             Geri Dön
           </button>

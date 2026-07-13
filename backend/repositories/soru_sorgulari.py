@@ -5,8 +5,8 @@ ve hata sarmalama sorumluluğunu taşısın; ham SQL metinleri buraya ayrılır
 (SRP + dosya boyutu). Tüm sorgular parametrelidir (%s); string birleştirme YASAK —
 parametreler Repository'de cursor.execute'a ayrı geçilir.
 
-Güvenlik: soru_metni biçimli HAM HTML taşır; sanitizasyon Service'in işidir.
-Sorgular yalnızca listelemeye/silmeye ihtiyaç duyulan alanları seçer.
+Güvenlik: soru_metni ve secenek_metni biçimli HAM HTML taşır; sanitizasyon
+Service'in işidir. Sorgular ekleme/listeleme/silme için gereken alanları kullanır.
 """
 
 # Tüm anketlerin tüm sorularını düz liste olarak getirir. Hazırlayanın ad/soyad
@@ -37,6 +37,24 @@ SECENEKLER_LISTE_SORGUSU = """
            sc.sira_no
     FROM Secenek sc
     ORDER BY sc.soru_id, sc.sira_no, sc.secenek_id
+"""
+
+# Bağımsız veya ankete bağlı tek soru ekler (kayıt). anket_id BAĞIMSIZ soruda
+# NULL geçilir; NON-NULL ise fk_soru_anket geçerli anket_id zorlar (bkz. mig 009).
+# konu/amac form kategorileridir; soru_metni HAM içerik taşır (sanitizasyon Service'in
+# işi). Parametreli (%s); string birleştirme yok. Yeni soru_id cursor.lastrowid'den okunur.
+SORU_EKLE_SORGUSU = """
+    INSERT INTO Soru
+        (anket_id, soru_metni, soru_tipi, konu, amac, sira_no, zorunlu_mu, hazirlayan_kodu)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+# Bir soruya ait tek şıkkı ekler. secenek_metni BİÇİMLİ içerik tutabilir
+# (sanitizasyon Service'in işi). Çoklu şık için Repository executemany ile bu tek
+# şablonu parametre listesiyle çağırır; string birleştirme yok.
+SECENEK_EKLE_SORGUSU = """
+    INSERT INTO Secenek (soru_id, secenek_metni, sira_no)
+    VALUES (%s, %s, %s)
 """
 
 # Tek soruyu siler. Secenek (fk_secenek_soru) ve Cevap (fk_cevap_soru) FK'leri

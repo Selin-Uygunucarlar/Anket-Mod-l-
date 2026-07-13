@@ -238,12 +238,14 @@ function SoruListesi({ onSoruEkle }) {
                   {soru.secenekler && soru.secenekler.length > 0 ? (
                     <ul className="soru-secenek-listesi">
                       {soru.secenekler.map((secenek, sira) => (
+                        // secenek_metni SUNUCUDA sanitize edilmiş HTML'dir (soru_metni
+                        // ile aynı kalıp); UI yeniden sanitize etmez. Bu yüzden
+                        // dangerouslySetInnerHTML güvenlidir.
                         <li
                           key={`${soru.soru_id}-${sira}`}
                           className="soru-secenek-rozet"
-                        >
-                          {secenek.secenek_metni}
-                        </li>
+                          dangerouslySetInnerHTML={{ __html: secenek.secenek_metni }}
+                        />
                       ))}
                     </ul>
                   ) : (

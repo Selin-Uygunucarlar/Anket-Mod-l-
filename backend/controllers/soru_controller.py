@@ -15,6 +15,46 @@ from common.logger import logla_sinir_hatasi
 from models.soru import SoruKaydi
 from services import oturum_service, soru_service
 
+# Bir sorunun kabul edilen şık (seçenek) sayısı aralığı; frontend "Seçenek Sayısı"
+# alanıyla birebir. Aralık dışı istek sınırda ValidationError ile elenir.
+_SECENEK_ADET_MIN = 2
+_SECENEK_ADET_MAX = 15
+
+
+def ekle_soru(
+    ham_jeton: str,
+    soru_tipi: str,
+    konu: str,
+    amac: str,
+    soru_metni: str,
+    secenekler: list[str],
+) -> dict:
+    """Oturumu doğrulanmış admin için BAĞIMSIZ yeni bir anket sorusu ekler.
+
+    Oturum doğrulanır; girdinin tip/şekli bu sınırda doğrulanır (str + boş değil;
+    secenekler bir liste, her elemanı str, uzunluğu 2–15). İş kuralı (geçerli tip
+    kümesi), XSS sanitizasyonu ve yazma soru_service'e aittir; yetki de Service'te
+    (admin değil -> YetkiYokError). hazirlayan_kodu Service'te oturumdan alınır.
+    Hata BİR KEZ loglanır ve güvenli yanıt döner.
+
+    Başarılı: {"basari": True, "soru_id": <int>}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "soru_ekle", "soru_tipi": soru_tipi}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        _dogrula_ekle_girdisi(soru_tipi, konu, amac, soru_metni, secenekler)
+        yeni_soru_id = soru_service.ekle_soru(
+            sahip, soru_tipi, konu, amac, soru_metni, secenekler
+        )
+        return {"basari": True, "soru_id": yeni_soru_id}
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
 
 def list_sorular(ham_jeton: str) -> dict:
     """Oturumu doğrulanmış admin için tüm anket sorularını döndürür.
@@ -65,6 +105,41 @@ def sil_soru(ham_jeton: str, soru_id: int) -> dict:
     except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
         logla_sinir_hatasi(hata, baglam=baglam)
         return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def _dogrula_ekle_girdisi(
+    soru_tipi: str, konu: str, amac: str, soru_metni: str, secenekler: list[str]
+) -> None:
+    """Soru ekleme girdisinin tip/şeklini sınırda doğrular; ihlalde ValidationError.
+
+    Yalnızca şekil kontrolü yapılır (str + boş değil; secenekler liste, her elemanı
+    str, uzunluğu 2–15). İş kuralı (tipin geçerli kümede olması) ve sanitize sonrası
+    içerik kontrolü Service'in işidir; sınır ince tutulur.
+    """
+    _dogrula_zorunlu_metin(soru_tipi, "Soru tipi")
+    _dogrula_zorunlu_metin(konu, "Konu")
+    _dogrula_zorunlu_metin(amac, "Amaç")
+    _dogrula_zorunlu_metin(soru_metni, "Soru metni")
+    _dogrula_secenek_listesi(secenekler)
+
+
+def _dogrula_zorunlu_metin(deger, alan_adi: str) -> None:
+    """Bir alanın string ve boş/whitespace olmadığını doğrular; değilse ValidationError."""
+    if not isinstance(deger, str) or not deger.strip():
+        raise ValidationError(f"{alan_adi} zorunludur.")
+
+
+def _dogrula_secenek_listesi(secenekler) -> None:
+    """secenekler'in liste, her elemanının str ve adedin 2–15 olduğunu doğrular."""
+    if not isinstance(secenekler, list):
+        raise ValidationError("Seçenekler bir liste olmalıdır.")
+    if not _SECENEK_ADET_MIN <= len(secenekler) <= _SECENEK_ADET_MAX:
+        raise ValidationError(
+            f"Seçenek sayısı {_SECENEK_ADET_MIN}-{_SECENEK_ADET_MAX} arasında olmalıdır."
+        )
+    for secenek in secenekler:
+        if not isinstance(secenek, str):
+            raise ValidationError("Her seçenek metin olmalıdır.")
 
 
 def _dogrula_soru_id(soru_id: int) -> None:

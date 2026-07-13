@@ -112,6 +112,20 @@ class SecenekSilIstegi(BaseModel):
     deger: str
 
 
+class SoruEkleIstegi(BaseModel):
+    """BAĞIMSIZ anket sorusu ekleme istek gövdesi (anket_id YOK).
+
+    Tip/şekil doğrulaması Controller'da, iş kuralı + XSS sanitizasyonu Service'te.
+    hazirlayan_kodu gövdede DEĞİL: sunucu tarafı oturumdan alınır (client'a güvenilmez).
+    """
+
+    soru_tipi: str
+    konu: str
+    amac: str
+    soru_metni: str
+    secenekler: list[str]
+
+
 class SifreBelirleIstegi(BaseModel):
     """Kalıcı şifre belirleme istek gövdesi. Uzunluk/kural doğrulaması Service'te."""
 
@@ -351,6 +365,32 @@ def list_sorular(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
     """
     sonuc = soru_controller.list_sorular(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/sorular")
+def ekle_soru(
+    istek: SoruEkleIstegi, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için BAĞIMSIZ yeni bir anket sorusu ekler (yalnızca protokol).
+
+    Gövde alanları Controller'a iletilir; oturum/yetki/doğrulama/sanitize
+    Controller/Service'te. hazirlayan_kodu gövdede yoktur, oturumdan alınır. Aynı
+    path'teki GET (liste) ve DELETE (sil) uçlarından method ile ayrışır. Başarılı
+    yanıtta (soru_id dahil güvenli sözlük) kayan pencere için cookie yenilenir.
+    """
+    sonuc = soru_controller.ekle_soru(
+        oturum,
+        istek.soru_tipi,
+        istek.konu,
+        istek.amac,
+        istek.soru_metni,
+        istek.secenekler,
+    )
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

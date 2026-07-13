@@ -24,7 +24,7 @@ import OnayKutusu from './OnayKutusu.jsx'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
 
-// Tablo kolon başlıkları (bu sırayla). "İşlem" sütunu Güncelle (pasif) + Sil taşır.
+// Tablo kolon başlıkları (bu sırayla). "İşlem" sütunu Güncelle + Sil taşır.
 const SORU_KOLON_BASLIKLARI = [
   'Soru Metni',
   'Seçenekler',

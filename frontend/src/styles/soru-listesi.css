@@ -67,7 +67,7 @@
   color: var(--renk-lacivert);
 }
 
-/* İşlem hücresi: Güncelle (pasif) + Sil butonlarını yan yana tutar. */
+/* İşlem hücresi: Güncelle + Sil butonlarını yan yana tutar. */
 .soru-islem-hucre {
   display: inline-flex;
   align-items: center;
@@ -91,12 +91,23 @@
   outline-offset: 2px;
 }
 
-/* Güncelle: bu turda pasif; soluk görünür ve tıklanamaz olduğu bellidir. */
+/* Güncelle: aktif; tıklanınca soru düzenleme görünümünü açar. Sade beyaz zemin,
+   okunur lacivert metin; hover/odakta hafif zeminle tıklanabilirliği belli eder. */
 .soru-guncelle-buton {
   background: var(--renk-beyaz);
-  color: var(--renk-metin-soluk);
+  color: var(--renk-lacivert);
   border-color: var(--renk-kenarlik);
-  cursor: not-allowed;
+}
+
+.soru-guncelle-buton:hover,
+.soru-guncelle-buton:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
+}
+
+.soru-guncelle-buton:focus-visible {
+  outline: 2px solid var(--renk-vurgu);
+  outline-offset: 2px;
 }
 
 /* Sil: dikkat çekici ama sade; hover/odakta hafif koyulaşır. */

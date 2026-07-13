@@ -11,8 +11,8 @@ Service'in işidir. Sorgular ekleme/listeleme/silme için gereken alanları kull
 
 # Tüm anketlerin tüm sorularını düz liste olarak getirir. Hazırlayanın ad/soyad
 # bilgisi için Kullanici öz-LEFT JOIN (hazirlayan_kodu NULL ya da kullanıcı
-# silinmişse yonetici gibi None döner). Sıralama: anket, soru sırası, soru_id
-# (sira_no NULL olabildiğinden soru_id ikincil deterministik anahtardır).
+# silinmişse yonetici gibi None döner). Sıralama: en son eklenen üstte
+# (soru_id DESC; soru_id auto-increment olduğundan en yeni kayıt en büyük id'dir).
 SORULAR_LISTE_SORGUSU = """
     SELECT s.soru_id,
            s.anket_id,
@@ -27,7 +27,7 @@ SORULAR_LISTE_SORGUSU = """
            h.soyad AS hazirlayan_soyad
     FROM Soru s
     LEFT JOIN Kullanici h ON h.kullanici_kodu = s.hazirlayan_kodu
-    ORDER BY s.anket_id, s.sira_no, s.soru_id
+    ORDER BY s.soru_id DESC
 """
 
 # Tek soruyu soru_id ile getirir; SORULAR_LISTE_SORGUSU ile AYNI alan kümesi

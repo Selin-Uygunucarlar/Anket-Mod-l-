@@ -5,8 +5,9 @@
 // uç toplanır). Modlar:
 //   'liste'      -> Seçenek Sayısı kadar zengin metin kartı (SoruMetniKart); bugünkü
 //                   davranış aynen. Kart içerikleri HTML olarak üst state'te tutulur.
-//   'evet_hayir' -> düzenlenemez, bilgi amaçlı "Evet / Hayır" önizlemesi (kullanıcı
-//                   girdisi yok; gönderilecek sabiti backend/üst bileşen kurar).
+//   'evet_hayir' -> solda "Seçenekler" etiketi, karşısında düzenlenemez, bilgi amaçlı
+//                   "Evet / Hayır" rozet önizlemesi (kullanıcı girdisi yok; gönderilecek
+//                   sabiti backend/üst bileşen kurar).
 //   'skala_5'    -> iki sade metin girişi: "1 için ifade" ve "5 için ifade" (uçlar).
 // Görünüm için kullanici-ekle.css'teki mevcut form sınıfları paylaşılır (DRY).
 
@@ -37,16 +38,19 @@ function SoruSecenekAlani({
   onSkalaAltUcDegis,
   onSkalaUstUcDegis,
 }) {
-  // evet_hayir: sabit iki seçenek yalnız bilgi amaçlı gösterilir; kullanıcı girdisi
-  // olmadığından zorunlu yıldızı yoktur. Gönderilecek ["Evet","Hayır"] sabitini üst
-  // bileşen kurar (UI burada karar/hesaplama yapmaz).
+  // evet_hayir: diğer tiplerle aynı satır düzeni kullanılır; solda 180px "Seçenekler"
+  // etiketi, karşısında (sağda) sabit Evet/Hayır rozetleri durur. Sabitler yalnız bilgi
+  // amaçlı gösterildiğinden kullanıcı girdisi ve zorunlu yıldızı yoktur; sabit-uyarı notu
+  // altta kalır. Gönderilecek ["Evet","Hayır"] sabitini üst bileşen kurar (UI karar vermez).
   if (secenekModu === 'evet_hayir') {
     return (
       <div className="soru-ekle-secenekler-blok">
-        <span className="form-etiket">Seçenekler</span>
-        <div className="soru-ekle-sabit-onizleme" aria-label="Sabit seçenekler">
-          <span className="soru-ekle-sabit-rozet">Evet</span>
-          <span className="soru-ekle-sabit-rozet">Hayır</span>
+        <div className="soru-ekle-secenek-satiri">
+          <span className="form-etiket soru-ekle-secenek-etiket">Seçenekler</span>
+          <div className="soru-ekle-sabit-onizleme" aria-label="Sabit seçenekler">
+            <span className="soru-ekle-sabit-rozet">Evet</span>
+            <span className="soru-ekle-sabit-rozet">Hayır</span>
+          </div>
         </div>
         <p className="kullanici-ekle-uyari">
           Bu soru tipinde seçenekler sabittir; değiştirilemez.

@@ -107,6 +107,71 @@ def sil_soru(ham_jeton: str, soru_id: int) -> dict:
         return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
 
 
+def get_soru_detay(ham_jeton: str, soru_id: int) -> dict:
+    """Oturumu doğrulanmış admin için tek bir anket sorusunun detayını döndürür.
+
+    Cookie'den gelen ham jeton oturum_service ile doğrulanır (geçersiz ->
+    OturumError); soru_id pozitif tamsayı değilse ValidationError. Yetki (yalnızca
+    admin) ve kayıt bulunamadı durumu soru_service'e bırakılır (admin değil ->
+    YetkiYokError, kayıt yok -> NotFoundError). Dönen sorunun soru_metni/şıkları
+    Service'te sanitize edilmiştir (düzenleme ön-doldurma için). Hata BİR KEZ
+    loglanır ve güvenli yanıt döner; teknik detay sızmaz.
+
+    Başarılı: {"basari": True, "soru": {soru alanları...}}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "soru_detay", "soru_id": soru_id}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        _dogrula_soru_id(soru_id)
+        soru = soru_service.get_soru(sahip, soru_id)
+        return {"basari": True, "soru": _soru_to_dict(soru)}
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def guncelle_soru(
+    ham_jeton: str,
+    soru_id: int,
+    soru_tipi: str,
+    konu: str,
+    amac: str,
+    soru_metni: str,
+    secenekler: list[str],
+) -> dict:
+    """Oturumu doğrulanmış admin için var olan bir anket sorusunu günceller.
+
+    Oturum doğrulanır; soru_id pozitif tamsayı olmalı (_dogrula_soru_id) ve girdinin
+    tip/şekli ekleme ile aynı sınırda doğrulanır (_dogrula_ekle_girdisi: str + boş
+    değil; secenekler liste, her elemanı str, uzunluğu 2–15). İş kuralı (geçerli
+    tip kümesi), XSS sanitizasyonu, varlık kontrolü ve yazma soru_service'e aittir;
+    yetki de Service'te (admin değil -> YetkiYokError, kayıt yok -> NotFoundError).
+    Hata BİR KEZ loglanır ve güvenli yanıt döner; teknik detay sızmaz.
+
+    Başarılı: {"basari": True}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "soru_guncelle", "soru_id": soru_id}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        _dogrula_soru_id(soru_id)
+        _dogrula_ekle_girdisi(soru_tipi, konu, amac, soru_metni, secenekler)
+        soru_service.guncelle_soru(
+            sahip, soru_id, soru_tipi, konu, amac, soru_metni, secenekler
+        )
+        return {"basari": True}
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
 def _dogrula_ekle_girdisi(
     soru_tipi: str, konu: str, amac: str, soru_metni: str, secenekler: list[str]
 ) -> None:
@@ -155,8 +220,9 @@ def _dogrula_soru_id(soru_id: int) -> None:
 def _soru_to_dict(soru: SoruKaydi) -> dict:
     """Tek bir SoruKaydi'ni JSON-güvenli sözlüğe çevirir.
 
-    soru_metni Service'te sanitize edilmiş HTML'dir. Hazırlayan ad/soyad AYRI
-    tutulur (isim birleştirme/format frontend'in işidir). Şıklar {secenek_metni,
+    soru_metni Service'te sanitize edilmiş HTML'dir. konu/amac düzenleme formunun
+    ön-doldurması için taşınır (liste de taşır, sorun değil). Hazırlayan ad/soyad
+    AYRI tutulur (isim birleştirme/format frontend'in işidir). Şıklar {secenek_metni,
     sira_no} sözlükleri olarak listelenir.
     """
     return {
@@ -164,6 +230,8 @@ def _soru_to_dict(soru: SoruKaydi) -> dict:
         "anket_id": soru.anket_id,
         "soru_metni": soru.soru_metni,
         "soru_tipi": soru.soru_tipi,
+        "konu": soru.konu,
+        "amac": soru.amac,
         "sira_no": soru.sira_no,
         "zorunlu_mu": soru.zorunlu_mu,
         "hazirlayan_kodu": soru.hazirlayan_kodu,

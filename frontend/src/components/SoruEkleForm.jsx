@@ -1,23 +1,27 @@
-// Anket sorusu ekleme formu. Anket soruları listesindeki "Yeni Soru Ekle"
-// butonuyla anasayfa içerik alanında render edilir. Salt sunum sorumluluğundadır:
+// Anket sorusu ekleme/düzenleme formu. Anket soruları listesindeki "Yeni Soru
+// Ekle" butonuyla (ekleme modu) veya bir satırın "Güncelle" butonuyla (düzenleme
+// modu) anasayfa içerik alanında render edilir. Salt sunum sorumluluğundadır:
 // alanları gösterir ve girdi toplar; iş kuralı, yetki veya hesaplama İÇERMEZ.
 // Alanlar (her biri kendi UI state'inde): Soru Tipi (sabit liste), Seçenek Sayısı
 // (2-15), Konu* ve Amaç* (yönetilen seçeneklerden gelir; ['secenekler'] sorgusuyla
 // çekilip kategoriye göre gruplanır). Izgaranın altında Soru Metni* (tek zengin
 // metin kartı) ve Seçenekler* (Seçenek Sayısı kadar zengin metin kartı) bulunur;
 // bunların içeriği HTML olarak UI state'inde toplanır (SoruMetniKart kullanılır).
-// Zorunlu alanlar ZORUNLU işaretlidir (yalnızca görsel; asıl doğrulama sunucuda).
-// KAYIT: "Kaydet" butonu, toplanan alanları soruApi.soruEkle ile POST /api/sorular
-// ucuna iletir (backend hazır). Zorunlu alanlar boşken buton yalnızca UX amaçlı
-// pasiftir (basit presence guard; iş kuralı/karar sunucuda). Başarıda liste
-// tazelenip listeye dönülür; hata durumunda backend'in güvenli mesajı gösterilir
-// (teknik detay sızmaz). Görünüm sınıfları kullanici-ekle.css ile paylaşılır (DRY);
-// yalnızca küçük yerleşim sınıfları eklenir.
+// Düzenleme modunda mevcut soru soruApi.soruDetayGetir ile çekilip alanlar
+// ÖN-DOLDURULUR (KullaniciEkleForm düzenleme kalıbı). Zorunlu alanlar ZORUNLU
+// işaretlidir (yalnızca görsel; asıl doğrulama sunucuda). KAYIT: "Kaydet"/"Güncelle"
+// butonu, toplanan alanları eklemede soruApi.soruEkle ile POST /api/sorular,
+// düzenlemede soruApi.soruGuncelle ile PUT /api/sorular/{soru_id} ucuna iletir
+// (backend hazır). Zorunlu alanlar boşken buton yalnızca UX amaçlı pasiftir (basit
+// presence guard; iş kuralı/karar sunucuda). Başarıda liste tazelenip listeye
+// dönülür; hata durumunda backend'in güvenli mesajı gösterilir (teknik detay
+// sızmaz). Görünüm sınıfları kullanici-ekle.css ile paylaşılır (DRY); yalnızca
+// küçük yerleşim sınıfları eklenir.
 
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listSecenekler } from '../api/secenekApi.js'
-import { soruEkle } from '../api/soruApi.js'
+import { soruEkle, soruDetayGetir, soruGuncelle } from '../api/soruApi.js'
 import { gruplaSeceneklerKategoriyeGore } from '../common/secenekKategorileri.js'
 import { SORU_TIPLERI } from '../common/soruTipleri.js'
 import SoruMetniKart from './SoruMetniKart.jsx'
@@ -34,10 +38,13 @@ function seceneksHarfi(indeks) {
   return String.fromCharCode(65 + indeks)
 }
 
-// SoruEkleForm: anket sorusu ekleme alanlarını gösterir, girdi toplar ve Kaydet ile
-// backend'e (soruApi.soruEkle) iletir. props: onGeriDon() -> "Geri Dön" tıklanınca
-// ve başarılı kayıt sonrası çağrılır (üst bileşen listeye döner).
-function SoruEkleForm({ onGeriDon }) {
+// SoruEkleForm: anket sorusu ekleme/düzenleme alanlarını gösterir, girdi toplar ve
+// Kaydet/Güncelle ile backend'e (soruApi.soruEkle veya soruApi.soruGuncelle) iletir.
+// props: onGeriDon() -> "Geri Dön" tıklanınca ve başarılı kayıt sonrası çağrılır
+// (üst bileşen listeye döner); duzenlenecekSoru -> verilirse düzenleme modu (en az
+// soru_id taşıyan satır özeti); verilmezse ekleme modu (davranış aynen korunur).
+function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
+  const duzenlemeModu = Boolean(duzenlenecekSoru)
   const [soruTipi, setSoruTipi] = useState('')
   const [secenekSayisi, setSecenekSayisi] = useState('5')
   const [konu, setKonu] = useState('')
@@ -64,6 +71,36 @@ function SoruEkleForm({ onGeriDon }) {
     })
   }, [secenekSayisi])
 
+  // Düzenleme modunda mevcut sorunun tüm alanlarını backend'den çeker (satır özeti
+  // konu/amac/seçenek metinlerini içermez). Yalnızca düzenleme modunda aktiftir.
+  const {
+    data: soruDetayi,
+    isPending: detayYukleniyor,
+    isError: detayHatasi,
+    error: detayHataObjesi,
+  } = useQuery({
+    queryKey: ['soru-detay', duzenlenecekSoru?.soru_id],
+    queryFn: () => soruDetayGetir(duzenlenecekSoru.soru_id),
+    enabled: duzenlemeModu,
+  })
+
+  // Detay geldiğinde formu bir kez mevcut değerlerle doldurur (düzenleme modu).
+  // secenekMetinleri ile secenekSayisi aynı anda set edilir; secenekSayisi detay
+  // uzunluğuna eşitlendiğinde yukarıdaki senkron useEffect zaten aynı uzunluğu
+  // gördüğü için diziye dokunmaz (ön-doldurulan metinler korunur).
+  useEffect(() => {
+    if (!soruDetayi) {
+      return
+    }
+    const seceneklerListesi = soruDetayi.secenekler ?? []
+    setSoruTipi(soruDetayi.soru_tipi ?? '')
+    setKonu(soruDetayi.konu ?? '')
+    setAmac(soruDetayi.amac ?? '')
+    setSoruMetni(soruDetayi.soru_metni ?? '')
+    setSecenekMetinleri(seceneklerListesi.map((secenek) => secenek.secenek_metni ?? ''))
+    setSecenekSayisi(String(seceneklerListesi.length))
+  }, [soruDetayi])
+
   // guncelleSecenekMetni: belirtilen indeksteki seçeneğin HTML içeriğini günceller;
   // diziyi kopyalayıp yalnızca o indeksi değiştirir, diğer seçenekleri korur.
   function guncelleSecenekMetni(indeks, yeniHtml) {
@@ -87,12 +124,20 @@ function SoruEkleForm({ onGeriDon }) {
 
   const queryClient = useQueryClient()
 
-  // Kaydet isteği: toplanan alanları backend'e iletir. Başarıda soru listesini
-  // tazeler ve listeye döner (yeni soru orada görünür); teknik detay sızmaz.
+  // Kaydet/Güncelle isteği: toplanan alanları backend'e iletir. mutationFn moda göre
+  // dallanır — düzenlemede soruGuncelle(soru_id, payload), eklemede soruEkle(payload).
+  // Başarıda soru listesini (ve düzenlemede detay sorgularını) tazeler ve listeye
+  // döner; teknik detay sızmaz.
   const kaydetMutation = useMutation({
-    mutationFn: soruEkle,
+    mutationFn: (payload) =>
+      duzenlemeModu
+        ? soruGuncelle(duzenlenecekSoru.soru_id, payload)
+        : soruEkle(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sorular'] })
+      if (duzenlemeModu) {
+        queryClient.invalidateQueries({ queryKey: ['soru-detay'] })
+      }
       onGeriDon()
     },
   })
@@ -129,16 +174,50 @@ function SoruEkleForm({ onGeriDon }) {
     })
   }
 
+  // Düzenleme modunda mevcut soru çekilirken / çekilemezse uygun durum gösterilir.
+  if (duzenlemeModu && detayYukleniyor) {
+    return (
+      <section className="kullanici-ekle">
+        <p className="kullanici-liste-durum">Yükleniyor...</p>
+      </section>
+    )
+  }
+  if (duzenlemeModu && detayHatasi) {
+    // detayHataObjesi.message backend'in güvenli mesajıdır; teknik detay sızmaz.
+    return (
+      <section className="kullanici-ekle">
+        <div className="kullanici-ekle-hata" role="alert">
+          {detayHataObjesi?.message ||
+            'Soru detayı yüklenemedi. Lütfen tekrar deneyin.'}
+        </div>
+        <div className="kullanici-ekle-butonlar">
+          <button type="button" className="ikincil-buton" onClick={onGeriDon}>
+            Geri Dön
+          </button>
+        </div>
+      </section>
+    )
+  }
+
   const kaydetPasif = !zorunluAlanlarDolu() || kaydetMutation.isPending
-  const kaydetButonMetni = kaydetMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'
+  const baslik = duzenlemeModu ? 'Anket Sorusu Düzenleme' : 'Anket Sorusu Ekleme'
+  const kaydetButonMetni = duzenlemeModu
+    ? kaydetMutation.isPending
+      ? 'Güncelleniyor...'
+      : 'Güncelle'
+    : kaydetMutation.isPending
+    ? 'Kaydediliyor...'
+    : 'Kaydet'
   const kaydetHatasi = kaydetMutation.isError
     ? kaydetMutation.error?.message ||
-      'Soru kaydedilemedi. Lütfen tekrar deneyin.'
+      (duzenlemeModu
+        ? 'Soru güncellenemedi. Lütfen tekrar deneyin.'
+        : 'Soru kaydedilemedi. Lütfen tekrar deneyin.')
     : ''
 
   return (
     <section className="kullanici-ekle">
-      <h2 className="kullanici-ekle-baslik">Anket Sorusu Ekleme</h2>
+      <h2 className="kullanici-ekle-baslik">{baslik}</h2>
 
       {/* Form gönderimi Kaydet ile POST /api/sorular'a gider; alanlar saf UI
           state'inde toplanır, gönderim ve doğrulama sunucuda tamamlanır. */}

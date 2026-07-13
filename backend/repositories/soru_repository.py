@@ -1,4 +1,4 @@
-"""Anket soruları (ekleme + listeleme + silme) akışının veri erişim katmanı.
+"""Anket soruları (ekleme + listeleme + silme + detay + güncelleme) veri erişim katmanı.
 
 Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
@@ -57,6 +57,8 @@ def sorulari_getir() -> list[SoruKaydi]:
             anket_id=satir["anket_id"],
             soru_metni=satir["soru_metni"],
             soru_tipi=satir["soru_tipi"],
+            konu=satir["konu"],
+            amac=satir["amac"],
             sira_no=satir["sira_no"],
             # TINYINT gelebileceğinden Python bool'a çevrilir.
             zorunlu_mu=bool(satir["zorunlu_mu"]),
@@ -148,3 +150,105 @@ def soru_sil(soru_id: int) -> None:
     except pymysql.MySQLError as hata:
         # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
         raise DataAccessError("Soru silinemedi.") from hata
+
+
+def soru_getir(soru_id: int) -> SoruKaydi | None:
+    """Tek soruyu hazırlayan bilgisi ve şıklarıyla döner; yoksa None.
+
+    Neden None: "bulunamadı" bir iş kararıdır ve Service'e aittir (Repository
+    NotFound fırlatmaz). Şıklar SORU_DETAY_SECENEKLER_SORGUSU ile sıralı çekilir;
+    sorulari_getir'deki montaj üslubuyla tutarlı olarak Python'da SoruKaydi'ye
+    (konu/amac dahil) eşlenir. zorunlu_mu Python bool'a çevrilir (DB'den TINYINT
+    gelebilir). soru_metni HAM döner (sanitizasyon Service'in işi). Yetki/rol
+    kontrolü burada DEĞİL, Service/Controller'dadır. Teknik DB hatası
+    DataAccessError'a sarmalanıp yukarı fırlatılır; ham DB mesajı/tablo adı sızmaz.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.SORU_DETAY_SORGUSU, (soru_id,))
+                soru_satiri = imlec.fetchone()
+                if soru_satiri is None:
+                    return None
+                imlec.execute(
+                    sorgular.SORU_DETAY_SECENEKLER_SORGUSU, (soru_id,)
+                )
+                secenek_satirlari = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Soru okunamadı.") from hata
+
+    secenekler = [
+        SoruSecenegi(
+            secenek_metni=satir["secenek_metni"],
+            sira_no=satir["sira_no"],
+        )
+        for satir in secenek_satirlari
+    ]
+
+    return SoruKaydi(
+        soru_id=soru_satiri["soru_id"],
+        anket_id=soru_satiri["anket_id"],
+        soru_metni=soru_satiri["soru_metni"],
+        soru_tipi=soru_satiri["soru_tipi"],
+        konu=soru_satiri["konu"],
+        amac=soru_satiri["amac"],
+        sira_no=soru_satiri["sira_no"],
+        # TINYINT gelebileceğinden Python bool'a çevrilir.
+        zorunlu_mu=bool(soru_satiri["zorunlu_mu"]),
+        hazirlayan_kodu=soru_satiri["hazirlayan_kodu"],
+        hazirlayan_ad=soru_satiri["hazirlayan_ad"],
+        hazirlayan_soyad=soru_satiri["hazirlayan_soyad"],
+        secenekler=secenekler,
+    )
+
+
+def soru_guncelle(
+    soru_id: int,
+    soru_metni: str,
+    soru_tipi: str,
+    konu: str | None,
+    amac: str | None,
+    secenekler: list[str],
+) -> None:
+    """Bir sorunun metnini/kategorilerini ve şıklarını TEK transaction'da günceller.
+
+    Sıra: (1) SORU_GUNCELLE_SORGUSU ile Soru satırının düzenlenebilir alanları
+    (soru_metni, soru_tipi, konu, amac) güncellenir; (2) SORU_SECENEKLERINI_SIL_
+    SORGUSU ile eski şıklar silinir; (3) `secenekler` listesindeki her metin
+    sira_no = index+1 ile SECENEK_EKLE_SORGUSU (executemany) ile yeniden eklenir
+    ("hepsini sil + yeniden yaz" — şık düzenlemenin en yalın tutarlı yolu).
+    anket_id/sira_no/zorunlu_mu/hazirlayan_kodu DEĞİŞMEZ (düzenleme bunları taşımaz).
+
+    Boş `secenekler` HATA DEĞİLDİR: yalnızca eski şıklar silinir, yeni şık eklenmez
+    (açık uçlu soru). Kayıt yoksa UPDATE etkisizdir (rowcount 0) ve bu SESSİZCE
+    geçilir — "bulunamadı" kararını Service verir (önce soru_getir ile varlık
+    doğrular); burada NotFound FIRLATILMAZ. İşlem bütünlüğü context manager'a
+    aittir: blok sorunsuz biterse commit, herhangi bir adımda istisna olursa
+    ROLLBACK (yarım güncelleme kalmaz). Tüm sorgular parametreli (%s); string
+    birleştirme yok. secenek_metni/soru_metni HAM yazılır (sanitizasyon Service'in
+    işi). Teknik DB hatası DataAccessError'a sarmalanıp yukarı fırlatılır; ham DB
+    mesajı/tablo adı üst mesaja konmaz (orijinal `from` ile zincirlenir).
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    sorgular.SORU_GUNCELLE_SORGUSU,
+                    (soru_metni, soru_tipi, konu, amac, soru_id),
+                )
+                imlec.execute(
+                    sorgular.SORU_SECENEKLERINI_SIL_SORGUSU, (soru_id,)
+                )
+                if secenekler:
+                    # Şıklar giriş sırasına göre 1'den başlayan sira_no ile yeniden eklenir.
+                    secenek_parametreleri = [
+                        (soru_id, metin, indeks + 1)
+                        for indeks, metin in enumerate(secenekler)
+                    ]
+                    imlec.executemany(
+                        sorgular.SECENEK_EKLE_SORGUSU, secenek_parametreleri
+                    )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Soru güncellenemedi.") from hata

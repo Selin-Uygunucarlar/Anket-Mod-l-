@@ -6,8 +6,9 @@
 // bir "bulunamadı" metni yazılmaz). Kullanıcıya yalnızca güvenli mesaj gösterilir.
 // Başlık yanındaki arama kutusu, ekranda zaten çekili olan veriyi
 // client-side süzer (soru metninin düz metni, soru tipi, hazırlayan adı) ve
-// yalnızca bir gösterim kolaylığıdır (iş kuralı değil). Bu turda soru EKLEME ve
-// GÜNCELLEME akışı yoktur: "Güncelle" butonu görünür ama PASİF'tir (Faz 4).
+// yalnızca bir gösterim kolaylığıdır (iş kuralı değil). "Güncelle" butonu, üst
+// bileşene (onSoruDuzenle) haber vererek içerik alanında soru düzenleme görünümünü
+// açar (satır özetini taşır; form mevcut alanları backend'den kendisi çeker).
 // "Sil" ise önce bir onay kutusu açar, onaylanınca sunucuya silme isteği atar ve
 // listeyi tazeler. Tablo/stil sınıfları kullanıcı listesiyle paylaşılır (DRY);
 // yalnızca soruya özgü ekler soru- önekli sınıflarla gelir. Başlık satırının
@@ -18,6 +19,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { sorulariGetir, soruSil } from '../api/soruApi.js'
+import { soruTipiEtiketi } from '../common/soruTipleri.js'
 import OnayKutusu from './OnayKutusu.jsx'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
@@ -89,10 +91,11 @@ function hazirlayanAdiBicimlendir(soru) {
 }
 
 // soruAramayaUyuyorMu: bir soru satırının, girilen arama metnine uyup uymadığını
-// döner. Ekranda görünen/anlamlı alanlardan (soru metninin düz metni, soru tipi,
-// hazırlayan adı) tek bir metin oluşturup Türkçe locale ile büyük/küçük harf
-// duyarsız alt-dize kontrolü yapar. Boş aramada tüm satırlar uyar. Saf sunum
-// süzme mantığıdır; iş kuralı taşımaz.
+// döner. Ekranda görünen/anlamlı alanlardan (soru metninin düz metni, soru tipinin
+// TÜRKÇE ETİKETİ, hazırlayan adı) tek bir metin oluşturup Türkçe locale ile
+// büyük/küçük harf duyarsız alt-dize kontrolü yapar. Kullanıcı ekranda gördüğü
+// etiketle arayabilsin diye ham kimlik değil etiket üzerinden süzülür. Boş aramada
+// tüm satırlar uyar. Saf sunum süzme mantığıdır; iş kuralı taşımaz.
 function soruAramayaUyuyorMu(soru, aramaMetni) {
   const aranan = aramaMetni.trim().toLocaleLowerCase('tr')
   if (aranan === '') {
@@ -100,7 +103,7 @@ function soruAramayaUyuyorMu(soru, aramaMetni) {
   }
   const aranabilirAlanlar = [
     htmlDenDuzMetin(soru.soru_metni),
-    soru.soru_tipi ?? '',
+    soruTipiEtiketi(soru.soru_tipi),
     hazirlayanAdiBicimlendir(soru),
   ]
   const aranabilirMetin = aranabilirAlanlar.join(' ').toLocaleLowerCase('tr')
@@ -108,11 +111,12 @@ function soruAramayaUyuyorMu(soru, aramaMetni) {
 }
 
 // SoruListesi: soruları React Query ile çeker ve durumuna göre yükleniyor / hata
-// / boş / tablo gösterir. Veri kaynağı yalnızca soruApi'dir. Silme tetikleme
-// dışında yan etkisi yoktur.
+// / boş / tablo gösterir. Veri kaynağı yalnızca soruApi'dir. Silme ve düzenleme
+// tetikleme dışında yan etkisi yoktur.
 // props: onSoruEkle() -> "Yeni Soru Ekle" tıklanınca çağrılır (üst bileşen soru
-// ekleme görünümünü açar).
-function SoruListesi({ onSoruEkle }) {
+// ekleme görünümünü açar); onSoruDuzenle(soru) -> bir satırın "Güncelle" butonu
+// tıklanınca çağrılır (üst bileşen o soru için düzenleme görünümünü açar).
+function SoruListesi({ onSoruEkle, onSoruDuzenle }) {
   const [aramaMetni, setAramaMetni] = useState('')
   // Onay kutusunun hedefi olan soru (null iken onay kutusu kapalı).
   const [hedefSoru, setHedefSoru] = useState(null)
@@ -255,7 +259,7 @@ function SoruListesi({ onSoruEkle }) {
                 <td>
                   <div className="soru-diger-bilgiler">
                     <span className="soru-diger-satir">
-                      Soru Tipi: {soru.soru_tipi}
+                      Soru Tipi: {soruTipiEtiketi(soru.soru_tipi)}
                     </span>
                     <span className="soru-diger-satir">
                       Hazırlayan: {hazirlayanAdiBicimlendir(soru)}
@@ -264,13 +268,12 @@ function SoruListesi({ onSoruEkle }) {
                 </td>
                 <td>
                   <div className="soru-islem-hucre">
-                    {/* Güncelle bu turda PASİF (Faz 4'te bağlanacak); yalnızca
-                        görünür durur, tıklanamaz. */}
+                    {/* Güncelle: üst bileşene haber vererek bu soru için düzenleme
+                        görünümünü açar (form alanları backend'den çekilir). */}
                     <button
                       type="button"
                       className="soru-islem-buton soru-guncelle-buton"
-                      disabled
-                      title="Yakında"
+                      onClick={() => onSoruDuzenle(soru)}
                     >
                       Güncelle
                     </button>

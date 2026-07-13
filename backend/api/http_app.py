@@ -113,10 +113,12 @@ class SecenekSilIstegi(BaseModel):
 
 
 class SoruEkleIstegi(BaseModel):
-    """BAĞIMSIZ anket sorusu ekleme istek gövdesi (anket_id YOK).
+    """BAĞIMSIZ anket sorusu ekleme/güncelleme istek gövdesi (anket_id YOK).
 
-    Tip/şekil doğrulaması Controller'da, iş kuralı + XSS sanitizasyonu Service'te.
-    hazirlayan_kodu gövdede DEĞİL: sunucu tarafı oturumdan alınır (client'a güvenilmez).
+    Aynı alan kümesi hem POST (ekle) hem PUT (güncelle) için kullanılır (DRY, tıpkı
+    KullaniciEkleIstegi gibi). Tip/şekil doğrulaması Controller'da, iş kuralı + XSS
+    sanitizasyonu Service'te. hazirlayan_kodu gövdede DEĞİL: sunucu tarafı oturumdan
+    alınır (client'a güvenilmez). Güncellemede kaydın soru_id'si path'ten gelir.
     """
 
     soru_tipi: str
@@ -385,6 +387,55 @@ def ekle_soru(
     """
     sonuc = soru_controller.ekle_soru(
         oturum,
+        istek.soru_tipi,
+        istek.konu,
+        istek.amac,
+        istek.soru_metni,
+        istek.secenekler,
+    )
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/sorular/{soru_id}")
+def get_soru_detay(
+    soru_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için tek bir anket sorusunun detayını döndürür (yalnızca protokol).
+
+    soru_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
+    Controller oturumu doğrular, yetkiyi (yalnızca admin) uygular; kayıt yok -> 404.
+    soru_metni/şıklar Service'te sanitize edilmiş HTML'dir (düzenleme ön-doldurma).
+    Sabit `GET /api/sorular` (liste) ile çakışmaz; DELETE/PUT aynı path'te method ile
+    ayrışır. Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = soru_controller.get_soru_detay(oturum, soru_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.put("/api/sorular/{soru_id}")
+def guncelle_soru(
+    soru_id: int,
+    istek: SoruEkleIstegi,
+    oturum: str | None = Cookie(default=None),
+) -> JSONResponse:
+    """Oturumdaki admin için var olan bir anket sorusunu günceller (yalnızca protokol).
+
+    soru_id path segment'inden alınır (int); gövde SoruEkleIstegi (ekleme ile aynı
+    model). Oturum/yetki/doğrulama/sanitize/varlık kontrolü Controller/Service'te;
+    hazirlayan_kodu gövdede yoktur. Kayıt yok -> NOT_FOUND -> 404. GET/PUT/DELETE
+    aynı path'te method ile ayrışır. Başarılı yanıtta kayan pencere için cookie yenilenir.
+    """
+    sonuc = soru_controller.guncelle_soru(
+        oturum,
+        soru_id,
         istek.soru_tipi,
         istek.konu,
         istek.amac,

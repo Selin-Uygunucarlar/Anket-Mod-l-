@@ -48,6 +48,10 @@ function AnaSayfaPage() {
   // state'i. null iken düzenleme görünümü açık değildir; form mevcut alanları
   // sicil koduyla backend'den kendisi çeker.
   const [duzenlenecekKullanici, setDuzenlenecekKullanici] = useState(null)
+  // Düzenleme görünümünde düzenlenecek sorunun liste özetini tutan saf UI state'i.
+  // null iken soru düzenleme görünümü açık değildir; form mevcut alanları soru_id
+  // ile backend'den kendisi çeker (kullanıcı düzenleme kalıbıyla aynı).
+  const [duzenlenecekSoru, setDuzenlenecekSoru] = useState(null)
 
   // toggleAdminPaneli: hamburger tıklanınca paneli açar/kapatır.
   function toggleAdminPaneli() {
@@ -83,6 +87,20 @@ function AnaSayfaPage() {
   function kullaniciListesineDon() {
     setDuzenlenecekKullanici(null)
     secGorunum('kullanici-listesi')
+  }
+
+  // soruDuzenlemeyiAc: soru listesindeki bir satırın "Güncelle" butonu tıklanınca
+  // çağrılır; düzenlenecek soruyu belirler ve soru düzenleme görünümünü açar.
+  function soruDuzenlemeyiAc(soru) {
+    setDuzenlenecekSoru(soru)
+    setSecilenGorunum('soru-duzenle')
+  }
+
+  // soruListesineDon: soru düzenleme ekranından listeye döner ve düzenleme hedefini
+  // temizler (bir sonraki açılış temiz başlasın).
+  function soruListesineDon() {
+    setDuzenlenecekSoru(null)
+    secGorunum('anket-sorulari')
   }
 
   return (
@@ -123,10 +141,19 @@ function AnaSayfaPage() {
           <AnketEkleForm onGeriDon={() => secGorunum('anket-listesi')} />
         )}
         {adminMi && secilenGorunum === 'anket-sorulari' && (
-          <SoruListesi onSoruEkle={() => secGorunum('soru-ekle')} />
+          <SoruListesi
+            onSoruEkle={() => secGorunum('soru-ekle')}
+            onSoruDuzenle={soruDuzenlemeyiAc}
+          />
         )}
         {adminMi && secilenGorunum === 'soru-ekle' && (
           <SoruEkleForm onGeriDon={() => secGorunum('anket-sorulari')} />
+        )}
+        {adminMi && secilenGorunum === 'soru-duzenle' && duzenlenecekSoru && (
+          <SoruEkleForm
+            duzenlenecekSoru={duzenlenecekSoru}
+            onGeriDon={soruListesineDon}
+          />
         )}
         {adminMi && secilenGorunum === 'ayarlar' && (
           <AyarlarSayfasi

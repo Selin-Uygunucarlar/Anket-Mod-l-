@@ -22,12 +22,14 @@ class SoruSecenegi:
 
 @dataclass
 class SoruKaydi:
-    """Soru listesinde gösterilen tek bir soru; hazırlayan bilgisi ve şıklarıyla."""
+    """Bir soruyu hazırlayan bilgisi ve şıklarıyla özetler; hem liste hem tekil detay için ortak."""
 
     soru_id: int
     anket_id: int
     soru_metni: str           # HAM HTML/markup; sanitizasyon Service'te yapılır (XSS)
     soru_tipi: str            # metin / çoktan seçmeli / ölçek ...
+    konu: str | None          # soru ekleme/düzenleme formunun kategorisi; tanımsızsa None
+    amac: str | None          # soru ekleme/düzenleme formunun kategorisi; tanımsızsa None
     sira_no: int | None       # sorunun anket içi sırası; tanımsızsa None
     zorunlu_mu: bool          # cevaplanması zorunlu mu
     hazirlayan_kodu: str | None   # hazırlayan admin'in sicili; bilinmiyorsa None

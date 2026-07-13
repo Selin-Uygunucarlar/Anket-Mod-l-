@@ -18,6 +18,8 @@ SORULAR_LISTE_SORGUSU = """
            s.anket_id,
            s.soru_metni,
            s.soru_tipi,
+           s.konu,
+           s.amac,
            s.sira_no,
            s.zorunlu_mu,
            s.hazirlayan_kodu,
@@ -26,6 +28,59 @@ SORULAR_LISTE_SORGUSU = """
     FROM Soru s
     LEFT JOIN Kullanici h ON h.kullanici_kodu = s.hazirlayan_kodu
     ORDER BY s.anket_id, s.sira_no, s.soru_id
+"""
+
+# Tek soruyu soru_id ile getirir; SORULAR_LISTE_SORGUSU ile AYNI alan kümesi
+# (hazırlayan öz-LEFT JOIN, konu/amac dahil) + WHERE s.soru_id = %s. DTO tutarlılığı
+# için liste ile birebir aynı kolonlar döner. Kayıt yoksa boş sonuç (Repository None
+# döner). Parametreli (%s); string birleştirme yok.
+SORU_DETAY_SORGUSU = """
+    SELECT s.soru_id,
+           s.anket_id,
+           s.soru_metni,
+           s.soru_tipi,
+           s.konu,
+           s.amac,
+           s.sira_no,
+           s.zorunlu_mu,
+           s.hazirlayan_kodu,
+           h.ad    AS hazirlayan_ad,
+           h.soyad AS hazirlayan_soyad
+    FROM Soru s
+    LEFT JOIN Kullanici h ON h.kullanici_kodu = s.hazirlayan_kodu
+    WHERE s.soru_id = %s
+"""
+
+# Verilen tek soruya ait şıkları sıralı getirir (detay montajı için). Sıralama:
+# sira_no, secenek_id (sira_no NULL olabildiğinden secenek_id ikincil deterministik
+# anahtar). Parametreli (%s); string birleştirme yok.
+SORU_DETAY_SECENEKLER_SORGUSU = """
+    SELECT sc.soru_id,
+           sc.secenek_metni,
+           sc.sira_no
+    FROM Secenek sc
+    WHERE sc.soru_id = %s
+    ORDER BY sc.sira_no, sc.secenek_id
+"""
+
+# Tek sorunun düzenlenebilir alanlarını (soru_metni, soru_tipi, konu, amac) günceller.
+# anket_id/sira_no/zorunlu_mu/hazirlayan_kodu DÜZENLEMEDE TAŞINMAZ, bu yüzden SET'e
+# GİRMEZ (değişmez). soru_metni HAM içerik taşır (sanitizasyon Service'in işi). Kayıt
+# yoksa hiçbir satır etkilenmez; "bulunamadı" kararı Service'e aittir. Parametreli (%s).
+SORU_GUNCELLE_SORGUSU = """
+    UPDATE Soru
+    SET soru_metni = %s,
+        soru_tipi = %s,
+        konu = %s,
+        amac = %s
+    WHERE soru_id = %s
+"""
+
+# Verilen soruya ait TÜM şıkları siler. Güncellemede şıklar "hepsini sil + yeniden
+# yaz" ile değiştirilir (SECENEK_EKLE_SORGUSU yeniden kullanılır). Aynı transaction
+# içinde çalıştırılır; kayıt yoksa idempotent. Parametreli (%s); string birleştirme yok.
+SORU_SECENEKLERINI_SIL_SORGUSU = """
+    DELETE FROM Secenek WHERE soru_id = %s
 """
 
 # Tüm soruların tüm şıklarını tek sorguda getirir (N+1 önlemek için). Repository

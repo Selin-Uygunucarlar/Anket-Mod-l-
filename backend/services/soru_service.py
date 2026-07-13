@@ -7,6 +7,12 @@ SUNUCU TARAFI sanitizasyon (migration 007/009) burada, kayda/gösterime çıkmad
 önce yapılır. Ekleme akışında şık metinleri (secenek_metni) de artık BİÇİMLİ HTML
 olduğundan (migration 009) aynı allowlist ile sanitize edilir.
 
+Şık listesinin ANLAMI soru tipine göre değişir (kablo sözleşmesi list[str] aynı
+kalır): evet_hayir'de client şıkları YOK SAYILIR, sunucu kanonik ["Evet","Hayır"]
+kurar; skala_5'te client 2 uç ifade gönderir (sanitize edilir), sunucu ara
+noktaları ekleyip [uc1,"2","3","4",uc5] kurar; diğer tiplerde her şık sanitize
+edilen serbest listedir. Bu normalizasyon _secenekleri_tipe_gore_hazirla'da toplanır.
+
 Bu katman HTTP ve SQL bilmez; veriye Repository üzerinden erişir. Hatalar burada
 LOGLANMAZ, yukarı fırlatılır; loglama yalnızca sınır katmanında bir kez yapılır.
 """
@@ -24,19 +30,34 @@ from repositories import soru_repository
 
 _ADMIN_TURU = "admin"
 
+# Şık normalizasyonunda özel davranışa sahip tip kimlikleri (aşağıdaki kümenin
+# üyeleri). Bu iki tip _secenekleri_tipe_gore_hazirla'da ayrı dallanır.
+_EVET_HAYIR_TIPI = "evet_hayir"
+_SKALA_5_TIPI = "skala_5"
+
 # Bir sorunun alabileceği geçerli soru tipleri (iş kuralı sabiti). Frontend'in
 # gösterdiği 7 tipin kimlikleriyle birebir; bu küme DIŞINDA bir tip reddedilir.
 _GECERLI_SORU_TIPLERI = frozenset(
     {
         "coktan_secmeli_tek",
         "coktan_secmeli_coklu",
-        "evet_hayir",
-        "skala_5",
+        _EVET_HAYIR_TIPI,
+        _SKALA_5_TIPI,
         "listeden_secmeli",
         "yorum",
         "grid",
     }
 )
+
+# evet_hayir sorusu için sunucunun kurduğu KANONİK şık listesi. Client'tan gelen
+# şık metinleri yok sayılır; bu iki değer sunucu sabitidir (kullanıcı girdisi
+# değil) ve güvenli literal olduklarından sanitize gerektirmez.
+_EVET_HAYIR_SECENEKLERI = ["Evet", "Hayır"]
+
+# 5'li skalanın SUNUCU tarafından kurulan ara nokta etiketleri. Yalnızca iki uç
+# ifade kullanıcı girdisidir (sanitize edilir); aradaki 2/3/4 düz metin
+# sabitleridir ve sanitize gerektirmez.
+_SKALA_ARA_NOKTALAR = ["2", "3", "4"]
 
 # soru_metni sanitizasyonunun izinli etiket kümesi. Editör (SoruMetniKart) yalnızca
 # document.execCommand ile biçim üretir: kalın/italik/altı çizili (b,strong,i,em,u),
@@ -107,6 +128,63 @@ def _sanitize_edilmis_bos_mu(sanitize_edilmis: str) -> bool:
     return not duz_metin.strip()
 
 
+def _sanitize_serbest_secenekler(secenek_metinleri: list[str]) -> list[str]:
+    """Serbest şık listesindeki her metni XSS'e karşı sanitize eder; boş şıkkı reddeder.
+
+    Neden: çoktan seçmeli/liste/grid/yorum tiplerinde şıklar KULLANICI girdisidir;
+    her biri allowlist ile temizlenir ve sanitize sonrası görünür içerik taşımalıdır
+    (yalnız boşluk/etiket -> reddedilir). Boş liste kabul edilir (açık uçlu soru).
+    İhlalde ValidationError fırlatılır (loglanmaz, yukarı çıkar).
+    """
+    temiz_secenekler: list[str] = []
+    for ham_secenek in secenek_metinleri:
+        temiz_secenek = _sanitize_soru_metni(ham_secenek)
+        if _sanitize_edilmis_bos_mu(temiz_secenek):
+            raise ValidationError("Seçenek metni boş olamaz.")
+        temiz_secenekler.append(temiz_secenek)
+    return temiz_secenekler
+
+
+def _hazirla_skala_secenekleri(secenek_metinleri: list[str]) -> list[str]:
+    """5'li skala için iki uç ifadeyi doğrulayıp [uc1,'2','3','4',uc5] listesini kurar.
+
+    Neden: Skala uçları (1 ve 5) KULLANICI girdisidir; sanitize edilir ve boş
+    olamaz. Ara noktalar (2,3,4) bir İŞ KURALIDIR ve UI'da değil BURADA, sunucu
+    tarafında eklenir. Tam olarak 2 uç beklenir; değilse ValidationError. İhlalde
+    ValidationError fırlatılır (loglanmaz, yukarı çıkar).
+    """
+    if len(secenek_metinleri) != 2:
+        raise ValidationError("5'li skala için 1 ve 5 uç ifadeleri gereklidir.")
+
+    temiz_uclar: list[str] = []
+    for ham_uc in secenek_metinleri:
+        temiz_uc = _sanitize_soru_metni(ham_uc)
+        if _sanitize_edilmis_bos_mu(temiz_uc):
+            raise ValidationError("Skala uç ifadeleri boş olamaz.")
+        temiz_uclar.append(temiz_uc)
+
+    return [temiz_uclar[0], *_SKALA_ARA_NOKTALAR, temiz_uclar[1]]
+
+
+def _secenekleri_tipe_gore_hazirla(
+    soru_tipi: str, secenek_metinleri: list[str]
+) -> list[str]:
+    """Soru tipine göre şık listesini normalize/doğrular; kayda hazır list[str] döner.
+
+    Neden: şıkkın ANLAMI tipe göre değişir (kablo sözleşmesi list[str] aynı kalır).
+    evet_hayir: client değeri YOK SAYILIR, sunucu kanonik ['Evet','Hayır'] kurar.
+    skala_5: client 2 uç ifade gönderir (sanitize), sunucu [uc1,'2','3','4',uc5]
+    kurar. Diğer tipler: her şık sanitize + boş reddi (boş liste = açık uçlu).
+    ekle_soru ve guncelle_soru bu TEK kuralı paylaşır (DRY). Yalnızca kullanıcı
+    girdileri sanitize edilir; sunucu sabitleri (Evet/Hayır/2/3/4) gerektirmez.
+    """
+    if soru_tipi == _EVET_HAYIR_TIPI:
+        return list(_EVET_HAYIR_SECENEKLERI)
+    if soru_tipi == _SKALA_5_TIPI:
+        return _hazirla_skala_secenekleri(secenek_metinleri)
+    return _sanitize_serbest_secenekler(secenek_metinleri)
+
+
 def _hazirla_soru_alanlari(
     soru_tipi: str,
     konu: str,
@@ -118,12 +196,13 @@ def _hazirla_soru_alanlari(
 
     Neden: ekle_soru ve guncelle_soru AYNI kurallara uyar; bu gerçek tekrar tek
     yerde toplanır (DRY). soru_tipi geçerli kümede olmalı; konu/amac dolu olmalı
-    (TanimliSecenek'e karşı DOĞRULANMAZ, yalnız boş kontrolü). soru_metni ve her şık
-    HAM HTML'dir: sanitize edilir ve sanitize sonrası görünür içerik taşımalıdır
-    (yalnız boşluk/etiket -> reddedilir). Yetki kontrolü BURADA DEĞİL, çağıran public
-    fonksiyondadır (admin kontrolü doğrulamadan önce yapılır). Döner: (konu_temiz,
-    amac_temiz, sanitize_soru_metni, sanitize_edilmis_secenekler). İhlalde
-    ValidationError fırlatılır (loglanmaz, yukarı çıkar).
+    (TanimliSecenek'e karşı DOĞRULANMAZ, yalnız boş kontrolü). soru_metni HAM
+    HTML'dir: sanitize edilir ve sanitize sonrası görünür içerik taşımalıdır (yalnız
+    boşluk/etiket -> reddedilir). Şıklar TİPE GÖRE _secenekleri_tipe_gore_hazirla ile
+    normalize edilir (evet_hayir kanonik, skala_5 uç+ara, diğerleri serbest). Yetki
+    kontrolü BURADA DEĞİL, çağıran public fonksiyondadır (admin kontrolü doğrulamadan
+    önce yapılır). Döner: (konu_temiz, amac_temiz, sanitize_soru_metni,
+    hazir_secenekler). İhlalde ValidationError fırlatılır (loglanmaz, yukarı çıkar).
     """
     if soru_tipi not in _GECERLI_SORU_TIPLERI:
         raise ValidationError("Geçersiz soru tipi.")
@@ -139,15 +218,9 @@ def _hazirla_soru_alanlari(
     if _sanitize_edilmis_bos_mu(soru_metni):
         raise ValidationError("Soru metni boş olamaz.")
 
-    # Her şık ayrı sanitize edilir; sanitize sonrası boşalan şık kabul edilmez.
-    sanitize_edilmis_secenekler: list[str] = []
-    for ham_secenek in secenek_metinleri:
-        temiz_secenek = _sanitize_soru_metni(ham_secenek)
-        if _sanitize_edilmis_bos_mu(temiz_secenek):
-            raise ValidationError("Seçenek metni boş olamaz.")
-        sanitize_edilmis_secenekler.append(temiz_secenek)
+    secenekler = _secenekleri_tipe_gore_hazirla(soru_tipi, secenek_metinleri)
 
-    return konu_temiz, amac_temiz, soru_metni, sanitize_edilmis_secenekler
+    return konu_temiz, amac_temiz, soru_metni, secenekler
 
 
 def ekle_soru(

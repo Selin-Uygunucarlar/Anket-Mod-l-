@@ -2,41 +2,43 @@
 // Ekle" butonuyla (ekleme modu) veya bir satırın "Güncelle" butonuyla (düzenleme
 // modu) anasayfa içerik alanında render edilir. Salt sunum sorumluluğundadır:
 // alanları gösterir ve girdi toplar; iş kuralı, yetki veya hesaplama İÇERMEZ.
-// Alanlar (her biri kendi UI state'inde): Soru Tipi (sabit liste), Seçenek Sayısı
-// (2-15), Konu* ve Amaç* (yönetilen seçeneklerden gelir; ['secenekler'] sorgusuyla
-// çekilip kategoriye göre gruplanır). Izgaranın altında Soru Metni* (tek zengin
-// metin kartı) ve Seçenekler* (Seçenek Sayısı kadar zengin metin kartı) bulunur;
-// bunların içeriği HTML olarak UI state'inde toplanır (SoruMetniKart kullanılır).
-// Düzenleme modunda mevcut soru soruApi.soruDetayGetir ile çekilip alanlar
-// ÖN-DOLDURULUR (KullaniciEkleForm düzenleme kalıbı). Zorunlu alanlar ZORUNLU
-// işaretlidir (yalnızca görsel; asıl doğrulama sunucuda). KAYIT: "Kaydet"/"Güncelle"
-// butonu, toplanan alanları eklemede soruApi.soruEkle ile POST /api/sorular,
-// düzenlemede soruApi.soruGuncelle ile PUT /api/sorular/{soru_id} ucuna iletir
-// (backend hazır). Zorunlu alanlar boşken buton yalnızca UX amaçlı pasiftir (basit
-// presence guard; iş kuralı/karar sunucuda). Başarıda liste tazelenip listeye
-// dönülür; hata durumunda backend'in güvenli mesajı gösterilir (teknik detay
-// sızmaz). Görünüm sınıfları kullanici-ekle.css ile paylaşılır (DRY); yalnızca
-// küçük yerleşim sınıfları eklenir.
+// Alanlar (her biri kendi UI state'inde): Soru Tipi (sabit liste), Konu* ve Amaç*
+// (yönetilen seçeneklerden gelir; ['secenekler'] sorgusuyla çekilip kategoriye göre
+// gruplanır). SEÇENEK alanı SORU TİPİNE GÖRE değişir (soruTipiSecenekModu):
+//   'liste'      -> "Seçenek Sayısı" (2-15) dropdown'ı + o kadar zengin metin kartı
+//                   (SoruMetniKart); içerik HTML olarak toplanır. Gönderilen
+//                   secenekler = kart metinleri (bugünkü davranış).
+//   'evet_hayir' -> Seçenek Sayısı/kartlar gizlenir; sabit "Evet / Hayır" önizlemesi
+//                   gösterilir. Gönderilen secenekler = ["Evet","Hayır"].
+//   'skala_5'    -> Seçenek Sayısı/kartlar gizlenir; iki uç ifade girişi (1 ve 5).
+//                   Gönderilen secenekler = [skalaAltUc, skalaUstUc]; skalanın 5'li
+//                   yapısını backend kurar (UI iki ucu toplar, hesaplama yapmaz).
+// Seçenek yerleşimi SoruSecenekAlani bileşenine ayrılmıştır (SRP). Soru Metni* her
+// modda tek zengin metin kartıdır. Düzenleme modunda mevcut soru soruApi.soruDetayGetir
+// ile çekilip alanlar tipe göre ÖN-DOLDURULUR (skala'da yalnız uçlar; ara noktalar yok
+// sayılır). Zorunlu alanlar ZORUNLU işaretlidir (yalnızca görsel; asıl doğrulama
+// sunucuda). KAYIT: "Kaydet"/"Güncelle" butonu, toplanan alanları eklemede
+// soruApi.soruEkle ile POST /api/sorular, düzenlemede soruApi.soruGuncelle ile
+// PUT /api/sorular/{soru_id} ucuna iletir (backend hazır; payload şekli her tipte
+// aynı: { soru_tipi, konu, amac, soru_metni, secenekler }). Zorunlu alanlar boşken
+// buton yalnızca UX amaçlı pasiftir (basit presence guard; iş kuralı/karar sunucuda).
+// Başarıda liste tazelenip listeye dönülür; hata durumunda backend'in güvenli mesajı
+// gösterilir (teknik detay sızmaz). Görünüm sınıfları kullanici-ekle.css ile
+// paylaşılır (DRY); yalnızca küçük yerleşim sınıfları eklenir.
 
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listSecenekler } from '../api/secenekApi.js'
 import { soruEkle, soruDetayGetir, soruGuncelle } from '../api/soruApi.js'
 import { gruplaSeceneklerKategoriyeGore } from '../common/secenekKategorileri.js'
-import { SORU_TIPLERI } from '../common/soruTipleri.js'
+import { SORU_TIPLERI, soruTipiSecenekModu } from '../common/soruTipleri.js'
+import SoruSecenekAlani from './SoruSecenekAlani.jsx'
 import SoruMetniKart from './SoruMetniKart.jsx'
 import '../styles/kullanici-ekle.css'
 
 // Seçenek Sayısı dropdown'ının değerleri: 2'den 15'e kadar. Tek yerde kullanıldığı
 // için ayrı bir common dosyası yerine burada üretilir.
 const SECENEK_SAYISI_SECENEKLERI = Array.from({ length: 14 }, (_, sira) => sira + 2)
-
-// seceneksHarfi: bir seçeneğin sıra indeksini gösterim harfine çevirir (0 -> A,
-// 1 -> B, ...). YALNIZCA görsel etikettir; gönderilen dizinin sırasını/indeksini
-// etkilemez. Seçenek Sayısı en çok 15 olduğundan A–O aralığında kalır (taşma yok).
-function seceneksHarfi(indeks) {
-  return String.fromCharCode(65 + indeks)
-}
 
 // SoruEkleForm: anket sorusu ekleme/düzenleme alanlarını gösterir, girdi toplar ve
 // Kaydet/Güncelle ile backend'e (soruApi.soruEkle veya soruApi.soruGuncelle) iletir.
@@ -49,11 +51,20 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
   const [secenekSayisi, setSecenekSayisi] = useState('5')
   const [konu, setKonu] = useState('')
   const [amac, setAmac] = useState('')
-  // Soru metni ve her bir seçeneğin metni HTML string olarak tutulur (SoruMetniKart
-  // biçimlendirilmiş içerik üretir). Seçenekler dizisi, seçili Seçenek Sayısı kadar
-  // eleman içerir; senkronizasyonu aşağıdaki useEffect yapar.
+  // Soru metni ve (liste modunda) her seçeneğin metni HTML string olarak tutulur
+  // (SoruMetniKart biçimlendirilmiş içerik üretir). Seçenekler dizisi, seçili Seçenek
+  // Sayısı kadar eleman içerir; senkronizasyonu aşağıdaki useEffect yapar.
   const [soruMetni, setSoruMetni] = useState('')
   const [secenekMetinleri, setSecenekMetinleri] = useState([])
+  // skala_5 modunun iki uç ifadesi (sade metin): "1 için ifade" ve "5 için ifade".
+  // Ara noktaları (2,3,4) backend kurar; UI yalnız uçları toplar.
+  const [skalaAltUc, setSkalaAltUc] = useState('')
+  const [skalaUstUc, setSkalaUstUc] = useState('')
+
+  // Seçili soru tipinin seçenek modu (liste/evet_hayir/skala_5). Hangi seçenek
+  // yerleşiminin gösterileceğini ve gönderilecek secenekler'in nasıl kurulacağını
+  // belirler; iş kuralı değil, gösterim eşlemesidir.
+  const secenekModu = soruTipiSecenekModu(soruTipi)
 
   // Seçenek Sayısı değiştikçe seçenek metni dizisini o uzunluğa getirir; hâlihazırda
   // yazılmış içerikleri korur (kısalırken baştakiler kalır, uzarken '' eklenir).
@@ -84,21 +95,37 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
     enabled: duzenlemeModu,
   })
 
-  // Detay geldiğinde formu bir kez mevcut değerlerle doldurur (düzenleme modu).
-  // secenekMetinleri ile secenekSayisi aynı anda set edilir; secenekSayisi detay
-  // uzunluğuna eşitlendiğinde yukarıdaki senkron useEffect zaten aynı uzunluğu
-  // gördüğü için diziye dokunmaz (ön-doldurulan metinler korunur).
+  // Detay geldiğinde formu bir kez mevcut değerlerle doldurur (düzenleme modu),
+  // seçenek alanını TİPE GÖRE doldurur:
+  //   - liste: secenekMetinleri + secenekSayisi (secenekSayisi detay uzunluğuna
+  //     eşitlendiğinde senkron useEffect aynı uzunluğu görüp diziye dokunmaz).
+  //   - skala_5: stored secenekler [uc1,"2","3","4",uc5] gelir; yalnız ilk/son eleman
+  //     kullanıcı uç ifadesidir, ara noktalar (2,3,4) YOK SAYILIR.
+  //   - evet_hayir: kullanıcı girdisi yok (sabit); seçenek state'ine dokunulmaz.
   useEffect(() => {
     if (!soruDetayi) {
       return
     }
     const seceneklerListesi = soruDetayi.secenekler ?? []
-    setSoruTipi(soruDetayi.soru_tipi ?? '')
+    const tip = soruDetayi.soru_tipi ?? ''
+    setSoruTipi(tip)
     setKonu(soruDetayi.konu ?? '')
     setAmac(soruDetayi.amac ?? '')
     setSoruMetni(soruDetayi.soru_metni ?? '')
-    setSecenekMetinleri(seceneklerListesi.map((secenek) => secenek.secenek_metni ?? ''))
-    setSecenekSayisi(String(seceneklerListesi.length))
+
+    const mod = soruTipiSecenekModu(tip)
+    if (mod === 'skala_5') {
+      const ilkUc = seceneklerListesi[0]?.secenek_metni ?? ''
+      const sonUc =
+        seceneklerListesi.length > 0
+          ? seceneklerListesi[seceneklerListesi.length - 1]?.secenek_metni ?? ''
+          : ''
+      setSkalaAltUc(ilkUc)
+      setSkalaUstUc(sonUc)
+    } else if (mod === 'liste') {
+      setSecenekMetinleri(seceneklerListesi.map((secenek) => secenek.secenek_metni ?? ''))
+      setSecenekSayisi(String(seceneklerListesi.length))
+    }
   }, [soruDetayi])
 
   // guncelleSecenekMetni: belirtilen indeksteki seçeneğin HTML içeriğini günceller;
@@ -142,14 +169,22 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
     },
   })
 
-  // zorunluAlanlarDolu: asteriskli zorunlu alanların (Soru Tipi, Konu, Amaç, Soru
-  // Metni, Seçenekler) boş olup olmadığını denetleyen BASİT presence guard'ı.
-  // Yalnızca Kaydet butonunu pasifleştirmek için (UX); iş kuralı/karar değildir,
-  // asıl doğrulama sunucudadır.
+  // zorunluAlanlarDolu: asteriskli zorunlu alanların boş olup olmadığını denetleyen
+  // BASİT presence guard'ı; yalnızca Kaydet butonunu pasifleştirmek içindir (UX),
+  // iş kuralı/karar değildir (asıl doğrulama sunucuda). Seçenek kontrolü TİPE göre:
+  //   - evet_hayir: seçenekler sabit; ek kontrol yok.
+  //   - skala_5: her iki uç ifade de trim sonrası dolu olmalı.
+  //   - liste: her seçenek kartı dolu olmalı (en az bir kart bulunmalı).
   function zorunluAlanlarDolu() {
     const doluMu = (deger) => (deger ?? '').trim() !== ''
     if (!doluMu(soruTipi) || !doluMu(konu) || !doluMu(amac) || !doluMu(soruMetni)) {
       return false
+    }
+    if (secenekModu === 'evet_hayir') {
+      return true
+    }
+    if (secenekModu === 'skala_5') {
+      return doluMu(skalaAltUc) && doluMu(skalaUstUc)
     }
     if (secenekMetinleri.length === 0) {
       return false
@@ -157,9 +192,25 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
     return secenekMetinleri.every((metin) => doluMu(metin))
   }
 
+  // secenekleriTipeGoreKur: aktif seçenek moduna göre backend sözleşmesine uygun
+  // secenekler dizisini üretir. UI iş kuralı/hesaplama YAPMAZ; yalnız aktif modun
+  // topladığı değerleri iletir (skalanın 5'li yapısını backend kurar):
+  //   - evet_hayir: sabit ["Evet","Hayır"] (2 eleman; sınır katmanı boş liste kabul etmez).
+  //   - skala_5: [skalaAltUc, skalaUstUc] (2 uç; backend ara noktaları ekler).
+  //   - liste: seçenek kartı metinleri (sıra/indeks korunarak).
+  function secenekleriTipeGoreKur() {
+    if (secenekModu === 'evet_hayir') {
+      return ['Evet', 'Hayır']
+    }
+    if (secenekModu === 'skala_5') {
+      return [skalaAltUc, skalaUstUc]
+    }
+    return secenekMetinleri
+  }
+
   // handleGonder: formu gönderir. Zorunlu alanlar dolmadan buton pasif olduğundan
   // burada ek iş kuralı yoktur; kayıt isteği kontrat şekliyle API'ye iletilir.
-  // secenekler dizisi olduğu gibi (sıra/indeks korunarak) gönderilir.
+  // secenekler moda göre kurulur (yalnız aktif modun alanları gönderilir).
   function handleGonder(olay) {
     olay.preventDefault()
     if (!zorunluAlanlarDolu()) {
@@ -170,7 +221,7 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
       konu,
       amac,
       soru_metni: soruMetni,
-      secenekler: secenekMetinleri,
+      secenekler: secenekleriTipeGoreKur(),
     })
   }
 
@@ -241,21 +292,25 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
             </select>
           </label>
 
-          <label className="form-satir">
-            <span className="form-etiket">Seçenek Sayısı</span>
-            <select
-              className="form-kutu"
-              value={secenekSayisi}
-              onChange={(olay) => setSecenekSayisi(olay.target.value)}
-            >
-              <option value="">Seçiniz</option>
-              {SECENEK_SAYISI_SECENEKLERI.map((sayi) => (
-                <option key={sayi} value={sayi}>
-                  {sayi}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Seçenek Sayısı yalnız 'liste' modunda anlamlıdır; evet_hayir (sabit) ve
+              skala_5 (iki uç) modlarında gizlenir. */}
+          {secenekModu === 'liste' && (
+            <label className="form-satir">
+              <span className="form-etiket">Seçenek Sayısı</span>
+              <select
+                className="form-kutu"
+                value={secenekSayisi}
+                onChange={(olay) => setSecenekSayisi(olay.target.value)}
+              >
+                <option value="">Seçiniz</option>
+                {SECENEK_SAYISI_SECENEKLERI.map((sayi) => (
+                  <option key={sayi} value={sayi}>
+                    {sayi}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="form-satir">
             <span className="form-etiket">
@@ -307,35 +362,17 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
           />
         </div>
 
-        {/* Seçenekler: dikey bir bölüm. En üstte tek satır "Seçenekler *" başlığı,
-            altında Seçenek Sayısı kadar seçenek satırı alt alta dizilir. Her satırın
-            "Seçenek N" etiketi, üstteki dropdown'ların etiketleriyle aynı 180px sol
-            sütunda başlar. Sayı seçilmediyse (dizi boş) kart yerine yönlendirme ipucu
-            gösterilir. */}
-        <div className="soru-ekle-secenekler-blok">
-          <span className="form-etiket">
-            Seçenekler <span className="zorunlu-yildiz">*</span>
-          </span>
-          {secenekMetinleri.length === 0 ? (
-            <p className="kullanici-ekle-uyari">Önce Seçenek Sayısı seçiniz</p>
-          ) : (
-            secenekMetinleri.map((secenekMetni, indeks) => (
-              // Her seçenek satırı: solda 180px "Seçenek N" etiketi, sağda metin
-              // kartı; etiket kartla dikey ortada hizalanır (yerleşim CSS'te). Kart
-              // kendi başlığını göstermez (baslik verilmez).
-              <div className="soru-ekle-secenek-satiri" key={indeks}>
-                <span className="form-etiket soru-ekle-secenek-etiket">
-                  Seçenek {seceneksHarfi(indeks)}
-                </span>
-                <SoruMetniKart
-                  deger={secenekMetni ?? ''}
-                  onDegisim={(yeniHtml) => guncelleSecenekMetni(indeks, yeniHtml)}
-                  placeholder={`Seçenek ${seceneksHarfi(indeks)} metnini yazın`}
-                />
-              </div>
-            ))
-          )}
-        </div>
+        {/* Seçenek alanı seçili soru tipinin moduna göre değişir (liste kartları /
+            sabit Evet-Hayır önizlemesi / iki uç ifade). Yerleşim SoruSecenekAlani'da. */}
+        <SoruSecenekAlani
+          secenekModu={secenekModu}
+          secenekMetinleri={secenekMetinleri}
+          onSecenekMetniDegis={guncelleSecenekMetni}
+          skalaAltUc={skalaAltUc}
+          skalaUstUc={skalaUstUc}
+          onSkalaAltUcDegis={setSkalaAltUc}
+          onSkalaUstUcDegis={setSkalaUstUc}
+        />
 
         {kaydetHatasi && (
           <div className="kullanici-ekle-hata" role="alert">

@@ -181,6 +181,31 @@
   min-width: 0;
 }
 
+/* Evet/Hayır sabit önizlemesi: kullanıcı düzenleyemez, yalnız bilgi amaçlı iki
+   rozet yan yana. Seçenek kartlarının yerini tutar (evet_hayir modu). */
+.soru-ekle-sabit-onizleme {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.soru-ekle-sabit-rozet {
+  padding: 8px 16px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 999px;
+  background: var(--renk-zemin-acik);
+  color: var(--renk-lacivert);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Skala uç girişleri, seçenek satırı yerleşimini paylaşır; sade input kartla aynı
+   sağ sütunu doldurur. */
+.soru-ekle-secenek-satiri > .form-kutu {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Uyarı metni (seçenekler yüklenemedi gibi ikincil bilgilendirme). */
 .kullanici-ekle-uyari {
   margin: 0;

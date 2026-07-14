@@ -2,7 +2,9 @@
   Kullanıcı Grupları (grup-odaklı üye yönetimi) görünümünün stilleri: sarmalayıcı,
   grup seçimi satırı, üye ekleme satırı (dropdown + Ekle), durum metinleri
   (yükleniyor / boş / hata) ve üye listesi (her satırda ad-soyad, e-posta ve
-  "Çıkar" butonu). Anasayfa içinde render edildiği için yerel --renk-vurgu
+  "Çıkar" butonu). Grup seçilmemişken liste alanında gerçek üye kartıyla aynı
+  ölçüde soluk bir boş kart (.gruplar-uye-bos) durur; yerleşim baştan sabit
+  kalsın diye. Anasayfa içinde render edildiği için yerel --renk-vurgu
   (anasayfa.css'te .anasayfa üzerinde tanımlı) ile global palet (login.css)
   buradan miras alınır. Birincil buton stili (birincil-buton) kullanici-ekle.css'te
   tanımlıdır ve burada yeniden kullanılır. Yalnızca sunum sorumluluğundadır.
@@ -124,6 +126,17 @@
   border: 1px solid var(--renk-kenarlik);
   border-radius: 12px;
   background: var(--renk-beyaz);
+}
+
+/* Grup seçilmemişkenki boş kart: gerçek üye kartıyla aynı ölçüdedir (aynı dolgu,
+   kenarlık ve buton), yalnızca metni soluktur ve tıklanabilir değildir. */
+.gruplar-uye-bos {
+  cursor: default;
+}
+
+.gruplar-uye-bos .gruplar-uye-ad {
+  font-weight: 400;
+  color: var(--renk-metin-soluk);
 }
 
 .gruplar-uye-bilgi {

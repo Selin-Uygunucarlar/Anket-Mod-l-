@@ -1,7 +1,10 @@
 // Kullanıcı Grupları (grup-odaklı üye yönetimi) görünümü. Admin panelinden
 // "Kullanıcı Grupları" seçilince anasayfa içerik alanında render edilir. Akış:
 // üstte bir grup seçilir -> o grubun üyeleri listelenir -> üye çıkarılabilir
-// veya üye olmayan kullanıcılardan biri seçilip gruba eklenebilir. Yalnızca
+// veya üye olmayan kullanıcılardan biri seçilip gruba eklenebilir. Sayfa
+// yerleşimi baştan sabittir: üye ekleme kutusu ve "Ekle" butonu grup seçilmeden
+// de görünür ama pasiftir, liste alanında ise tek bir boş üye kartı yönlendirme
+// metni gösterir; böylece grup seçilince öğeler yerinden oynamaz. Yalnızca
 // sunum sorumluluğundadır: veriyi grupApi/kullaniciApi üzerinden ister ve gösterir,
 // girdi toplar; iş kuralı, yetki veya hesaplama İÇERMEZ (yetki sunucuda). Bir
 // kullanıcı zaten başka gruptaysa gruba eklenince taşınır — bu backend davranışıdır,
@@ -120,7 +123,9 @@ function KullaniciGruplariSayfasi() {
   }
 
   const adaylar = uyeOlmayanKullanicilar(tumKullanicilar, uyeler)
-  const eklePasif = eklenecekKod === '' || ataMutation.isPending
+  const grupSecilmedi = secilenGrupId === ''
+  // Ekleme yalnızca bir grup ve bir aday seçiliyken ve istek sürmüyorken mümkün.
+  const eklePasif = grupSecilmedi || eklenecekKod === '' || ataMutation.isPending
 
   return (
     <section className="gruplar">
@@ -144,39 +149,36 @@ function KullaniciGruplariSayfasi() {
           </select>
         </label>
 
-        {secilenGrupId !== '' && (
-          <>
-            <label className="gruplar-alan">
-              <span className="gruplar-etiket">Üye Ekle</span>
-              <select
-                className="gruplar-kutu"
-                value={eklenecekKod}
-                onChange={(olay) => setEklenecekKod(olay.target.value)}
+        <label className="gruplar-alan">
+          <span className="gruplar-etiket">Üye Ekle</span>
+          <select
+            className="gruplar-kutu"
+            value={eklenecekKod}
+            onChange={(olay) => setEklenecekKod(olay.target.value)}
+            disabled={grupSecilmedi}
+          >
+            <option value="">Kullanıcı seçin</option>
+            {adaylar.map((kullanici) => (
+              <option
+                key={kullanici.kullanici_kodu}
+                value={kullanici.kullanici_kodu}
               >
-                <option value="">Kullanıcı seçin</option>
-                {adaylar.map((kullanici) => (
-                  <option
-                    key={kullanici.kullanici_kodu}
-                    value={kullanici.kullanici_kodu}
-                  >
-                    {`${buyukHarfeCevir(kullanici.ad)} ${buyukHarfeCevir(
-                      kullanici.soyad,
-                    )} (${kullanici.kullanici_kodu})`}
-                  </option>
-                ))}
-              </select>
-            </label>
+                {`${buyukHarfeCevir(kullanici.ad)} ${buyukHarfeCevir(
+                  kullanici.soyad,
+                )} (${kullanici.kullanici_kodu})`}
+              </option>
+            ))}
+          </select>
+        </label>
 
-            <button
-              type="button"
-              className="birincil-buton"
-              onClick={uyeEkle}
-              disabled={eklePasif}
-            >
-              {ataMutation.isPending ? 'Ekleniyor...' : 'Ekle'}
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          className="birincil-buton"
+          onClick={uyeEkle}
+          disabled={eklePasif}
+        >
+          {ataMutation.isPending ? 'Ekleniyor...' : 'Ekle'}
+        </button>
       </div>
 
       {ataMutation.isError && (
@@ -197,8 +199,24 @@ function KullaniciGruplariSayfasi() {
         <p className="gruplar-durum gruplar-durum-hata">{gruplarHatasi.message}</p>
       )}
 
-      {secilenGrupId === '' && !gruplarHatali && (
-        <p className="gruplar-durum">Üyelerini görmek için bir grup seçin.</p>
+      {grupSecilmedi && !gruplarHatali && (
+        <ul className="gruplar-uye-listesi">
+          <li className="gruplar-uye gruplar-uye-bos">
+            <span className="gruplar-uye-bilgi">
+              <span className="gruplar-uye-ad">
+                Üyelerini görmek için bir grup seçin.
+              </span>
+            </span>
+            <button
+              type="button"
+              className="gruplar-cikar-buton"
+              disabled
+              aria-hidden="true"
+            >
+              Çıkar
+            </button>
+          </li>
+        </ul>
       )}
 
       {secilenGrupId !== '' && uyelerYukleniyor && (

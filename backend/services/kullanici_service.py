@@ -31,9 +31,9 @@ _ADMIN_TURU = "admin"
 # Yeni kullanıcının alabileceği kullanıcı türleri (rol/tür sabit kümesi).
 _GECERLI_TURLER = ("admin", "user")
 
-# Basit e-posta biçim kontrolü: '@' ve sonrasında '.' içeren makul bir adres.
-# Ağır/RFC doğrulaması değildir; nihai doğruluk gönderim/kayıt anlamındadır.
-_EMAIL_DESENI = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# E-posta biçim kontrolü: yalnızca ASCII (İngilizce) karakterlere izin verilir;
+# Türkçe/Unicode harf içeren adresler reddedilir. Ağır/RFC doğrulaması değildir.
+_EMAIL_DESENI = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 # Yeni kullanıcı için üretilen geçici (tek kullanımlık) şifrenin entropi uzunluğu.
 _GECICI_SIFRE_BAYT = 9
@@ -252,13 +252,20 @@ def _dogrula_kullanici_is_kurallari(
     """Create + güncelle için ORTAK iş kuralı doğrulaması (DRY).
 
     Kurallar: kullanici_turu geçerli kümede olmalı (admin/user); e-posta biçimi
-    geçerli olmalı; verilmişse ilgili_yonetici_kodu gerçek bir kullanıcıya işaret
-    etmeli (yetim FK yok). Doğrulanmış (boş -> None) ilgili_yonetici_kodu döner.
-    Benzersizlik/varlık ön kontrolleri çağırana özgüdür; buraya konmaz.
+    geçerli ve ASCII olmalı; verilmişse ilgili_yonetici_kodu gerçek bir kullanıcıya
+    işaret etmeli (yetim FK yok). Doğrulanmış (boş -> None) ilgili_yonetici_kodu
+    döner. Benzersizlik/varlık ön kontrolleri çağırana özgüdür; buraya konmaz.
     """
     if kullanici_turu not in _GECERLI_TURLER:
         raise ValidationError("Kullanıcı türü 'admin' veya 'user' olmalı.")
     if not _EMAIL_DESENI.match(email):
+        # ASCII dışı karakter, biçim hatasından ayrı mesajla bildirilir ki
+        # kullanıcı reddin nedenini (ör. Türkçe harf) anlayabilsin.
+        if not str(email).isascii():
+            raise ValidationError(
+                "E-posta yalnızca İngilizce harf, rakam ve . _ % + - "
+                "karakterleri içerebilir."
+            )
         raise ValidationError("Geçerli bir e-posta adresi giriniz.")
 
     ilgili_yonetici_kodu = _bos_ise_none(ham_yonetici_kodu)

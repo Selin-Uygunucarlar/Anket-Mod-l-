@@ -3,8 +3,8 @@
 // değişikliklerini yukarıya iletir; iş kuralı, yetki veya hesaplama İÇERMEZ.
 // Başlık, kaydet butonunun metni, hata mesajı ve tüm handler'lar dışarıdan
 // (KullaniciEkleForm) verilir; böylece iki mod aynı arayüzü paylaşır. Kod/ad/
-// soyad alanlarındaki girdi süzme yalnızca erken UX geri bildirimidir, güvenlik/
-// doğrulama sınırı değildir (asıl doğrulama sunucuda).
+// soyad alanlarındaki girdi süzme ve e-posta biçim uyarısı yalnızca erken UX geri
+// bildirimidir, güvenlik/doğrulama sınırı değildir (asıl doğrulama sunucuda).
 
 import {
   ZORUNLU_METIN_ALANLARI,
@@ -22,6 +22,7 @@ import '../styles/kullanici-ekle.css'
 //   alanUyarilari     -> alan kimliği -> o an gösterilen anlık süzme uyarısı
 //   suzVeGuncelle()   -> süzülen metin alanları için (kimlik, temizle, ham, mesaj)
 //   alanGuncelle()    -> süzme gerektirmeyen alanlar için (kimlik, değer)
+//   onEpostaBlur()    -> e-posta alanından çıkınca (biçim uyarısı değerlendirilir)
 //   gruplandirilmis   -> kategori -> [seçenek değerleri] (dropdown içerikleri)
 //   secenekHatasi     -> dropdown seçenekleri yüklenemediyse true (uyarı gösterir)
 //   hataMesaji        -> kaydet/güncelle hatası güvenli mesajı ('' ise gizli)
@@ -35,6 +36,7 @@ function KullaniciFormGovde({
   alanUyarilari,
   suzVeGuncelle,
   alanGuncelle,
+  onEpostaBlur,
   gruplandirilmis,
   secenekHatasi,
   hataMesaji,
@@ -70,6 +72,8 @@ function KullaniciFormGovde({
                       ayiklamaUyarisi(alan)
                     )
                   }
+                  // Biçim uyarısı yalnızca e-postada ve alandan çıkınca gösterilir.
+                  onBlur={alan.kimlik === 'email' ? onEpostaBlur : undefined}
                 />
                 {alanUyarilari[alan.kimlik] && (
                   <span className="alan-uyari" role="status">

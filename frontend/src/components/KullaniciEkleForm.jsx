@@ -5,8 +5,9 @@
 // seçeneklerini secenekApi'den ister, düzenleme modunda mevcut kaydı
 // getKullaniciDetay ile doldurur ve kaydı createKullanici/guncelleKullanici
 // üzerinden backend'e iletir; iş kuralı, yetki veya hesaplama İÇERMEZ (yetki ve
-// asıl doğrulama sunucuda). Zorunlu alanların boş olup olmadığı yalnızca UX için
-// (Kaydet/Güncelle butonunu pasifleştirmek) kontrol edilir. Ekleme başarısında
+// asıl doğrulama sunucuda). Zorunlu alanların boşluğu ve e-posta biçimi yalnızca
+// UX için (uyarı göstermek + Kaydet/Güncelle butonunu pasifleştirmek) kontrol
+// edilir; sunucu doğrulaması bunlara güvenilerek atlanmaz. Ekleme başarısında
 // üretilen geçici şifre bir kez gösterilir; düzenlemede şifre üretilmez, başarıda
 // listeye dönülür ve liste tazelenir. Hata durumunda yalnızca backend'in güvenli
 // mesajı gösterilir (teknik detay sızmaz). Ortak form gövdesi KullaniciFormGovde,
@@ -25,6 +26,8 @@ import {
   BOS_FORM,
   UYARI_SURESI_MS,
   temizleAlanDegeri,
+  epostaKarakterUyarisi,
+  epostaBicimUyarisi,
   zorunluAlanlarDolu,
 } from '../common/kullaniciFormAlanlari.js'
 import GeciciSifreKutusu from './GeciciSifreKutusu.jsx'
@@ -96,9 +99,13 @@ function KullaniciEkleForm({ onGeriDon, duzenlenecekKullanici }) {
   })
 
   // Detay geldiğinde formu bir kez mevcut değerlerle doldurur (düzenleme modu).
+  // Kayıtlı e-posta biçimce geçersizse uyarı hemen görünür; aksi halde uyarı
+  // çıkmaz. Böylece pasif kalan Güncelle butonunun sebebi ekranda açıklanır.
   useEffect(() => {
     if (detay) {
-      setForm(detaydanFormHazirla(detay))
+      const hazirForm = detaydanFormHazirla(detay)
+      setForm(hazirForm)
+      epostaUyarisiniYenile(hazirForm.email, true)
     }
   }, [detay])
 
@@ -144,15 +151,45 @@ function KullaniciEkleForm({ onGeriDon, duzenlenecekKullanici }) {
     }, UYARI_SURESI_MS)
   }
 
+  // epostaUyarisiniYenile: e-posta uyarısını anlık değere göre yazar veya kaldırır.
+  // Karakter uyarısı yazarken de gösterilir; biçim uyarısı yalnızca alan terk
+  // edilmişse (alanTerkEdildi) gösterilir, böylece adres yazılırken erken uyarı
+  // çıkmaz. Ad/soyad uyarılarının aksine zamanlayıcıyla kaybolmaz; sorun düzelene
+  // kadar ekranda kalır (Kaydet/Güncelle o sürede zaten pasiftir).
+  function epostaUyarisiniYenile(deger, alanTerkEdildi) {
+    const mesaj =
+      epostaKarakterUyarisi(deger) ||
+      (alanTerkEdildi ? epostaBicimUyarisi(deger) : '')
+    setAlanUyarilari((oncekiler) => {
+      const guncel = { ...oncekiler }
+      if (mesaj) {
+        guncel.email = mesaj
+      } else {
+        delete guncel.email
+      }
+      return guncel
+    })
+  }
+
   // suzVeGuncelle: alanın ham girdisini temizleAlanDegeri ile süzer ve alanı
   // günceller; süzme sırasında en az bir karakter ayıklandıysa (temiz < ham)
   // alana uygun anlık uyarıyı tetikler. Süzme + uyarı için tek giriş noktasıdır.
+  // E-posta ayrı davranır: karakter ayıklanmaz, uyarı kalıcıdır.
   function suzVeGuncelle(kimlik, temizle, hamDeger, uyariMesaji) {
     const temiz = temizleAlanDegeri(temizle, hamDeger)
     alanGuncelle(kimlik, temiz)
+    if (kimlik === 'email') {
+      epostaUyarisiniYenile(temiz, false)
+      return
+    }
     if (temiz.length < hamDeger.length) {
       uyariTetikle(kimlik, uyariMesaji)
     }
+  }
+
+  // epostaAlanindanCikildi: alandan çıkınca biçim uyarısını da değerlendirir.
+  function epostaAlanindanCikildi() {
+    epostaUyarisiniYenile(form.email, true)
   }
 
   // handleSubmit: formu gönderir. Zorunlu alanlar dolmadan buton pasif olduğundan
@@ -228,6 +265,7 @@ function KullaniciEkleForm({ onGeriDon, duzenlenecekKullanici }) {
       alanUyarilari={alanUyarilari}
       suzVeGuncelle={suzVeGuncelle}
       alanGuncelle={alanGuncelle}
+      onEpostaBlur={epostaAlanindanCikildi}
       gruplandirilmis={gruplandirilmis}
       secenekHatasi={secenekHatasi}
       hataMesaji={hataMesaji}

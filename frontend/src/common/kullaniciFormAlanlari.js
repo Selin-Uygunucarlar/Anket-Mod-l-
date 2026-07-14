@@ -75,14 +75,49 @@ export function ayiklamaUyarisi(alan) {
   return ''
 }
 
+// E-posta biçimi: yalnızca erken UX geri bildirimi için kullanılan desen. Asıl
+// (bağlayıcı) e-posta kuralı sunucudadır; buradaki kopya, kullanıcıyı sunucu
+// yanıtını beklemeden uyarmak içindir, katmanlar arası bir doğrulama sınırı değil.
+const EPOSTA_DESENI = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+const ASCII_DISI_KARAKTER = /[^\x00-\x7F]/
+
+// E-posta uyarısı iki parçadır çünkü gösterim zamanları farklıdır: karakter
+// uyarısı yazarken anında verilebilir (kesin hata), biçim uyarısı ise ancak alan
+// terk edilince anlamlıdır (yarım yazılmış adres henüz hata değildir). İkisi de
+// değeri süzmez/değiştirmez: yazılan karakter alanda kalır, yalnızca uyarılır.
+
+// epostaKarakterUyarisi: ASCII dışı karakter varsa uyarıyı döner, yoksa ''.
+// Boş alan uyarı üretmez (zorunluluk zaten butonu pasif tutar).
+export function epostaKarakterUyarisi(deger) {
+  const kirpilmis = (deger ?? '').trim()
+  if (kirpilmis !== '' && ASCII_DISI_KARAKTER.test(kirpilmis)) {
+    return 'E-posta yalnızca İngilizce karakter içerebilir.'
+  }
+  return ''
+}
+
+// epostaBicimUyarisi: karakterler uygun ama adres desene uymuyorsa uyarıyı döner,
+// yoksa ''. Yalnızca alandan çıkınca gösterilir; yazarken erken uyarmaz.
+export function epostaBicimUyarisi(deger) {
+  const kirpilmis = (deger ?? '').trim()
+  if (kirpilmis !== '' && !EPOSTA_DESENI.test(kirpilmis)) {
+    return 'Geçerli bir e-posta adresi giriniz.'
+  }
+  return ''
+}
+
 // zorunluAlanlarDolu: Kaydet/Güncelle butonunu etkinleştirmek için zorunlu
-// alanların (boşluk kırpılmış) dolu olup olmadığını döner. Sadece UX kontrolüdür.
+// alanların dolu ve e-postanın biçimce kabul edilebilir olup olmadığını döner.
+// Uyarı henüz ekranda görünmese de (yazarken) buton pasif kalır. Sadece UX
+// kontrolüdür; sunucu doğrulamasının yerine geçmez.
 export function zorunluAlanlarDolu(form) {
   return (
     form.kullanici_kodu.trim() !== '' &&
     form.ad.trim() !== '' &&
     form.soyad.trim() !== '' &&
     form.email.trim() !== '' &&
+    epostaKarakterUyarisi(form.email) === '' &&
+    epostaBicimUyarisi(form.email) === '' &&
     form.kullanici_turu !== ''
   )
 }

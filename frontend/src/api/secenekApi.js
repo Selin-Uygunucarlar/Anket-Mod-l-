@@ -5,6 +5,8 @@
 // "KULLANICI EKLEME + YÖNETİLEN SEÇENEKLER" bloğuyla birebir. Oturum httpOnly
 // cookie ile taşındığından credentials:'include' zorunludur.
 
+import { oturumGecersizMi, oturumGecersizYayinla } from '../common/oturumOlaylari.js'
+
 // Backend taban adresi. URL bir sır değildir; ortam değişkeni yoksa yerel
 // geliştirme adresi varsayılan olarak kullanılır.
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -40,7 +42,8 @@ export async function listSecenekler() {
     return govde.secenekler
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || LISTE_HATA_MESAJI)
 }
 
@@ -71,7 +74,8 @@ export async function ekleSecenek(kategori, deger) {
     return
   }
 
-  // basari:false (dup dahil) — backend'in güvenli mesajını taşı; yoksa jenerik.
+  // basari:false (dup dahil) — oturum sona erdiyse sinyal yay; güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || EKLE_HATA_MESAJI)
 }
 
@@ -103,6 +107,7 @@ export async function silSecenek(kategori, deger) {
     return
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || SIL_HATA_MESAJI)
 }

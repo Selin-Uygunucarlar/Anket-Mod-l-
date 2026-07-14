@@ -4,6 +4,7 @@
 // YAZILMAZ; oturum her açılışta sunucudan (me) tazelenir. İş kuralı içermez.
 import { createContext, useContext, useEffect, useState } from 'react'
 import { me, logout } from '../api/authApi.js'
+import { oturumGecersizAboneOl } from '../common/oturumOlaylari.js'
 
 // Bağlam nesnesi; useAuth ile tüketilir.
 const AuthContext = createContext(null)
@@ -13,6 +14,9 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [oturumKullanici, setOturumKullanici] = useState(null)
   const [yukleniyor, setYukleniyor] = useState(true)
+  // Hareketsizlik nedeniyle oturumun sona erdiğini (SESSION_INVALID) işaretler;
+  // GuardliRota bunu görünce /login yerine bilgi ekranını gösterir.
+  const [oturumSonaErdi, setOturumSonaErdi] = useState(false)
 
   // Uygulama açılışında bir kez oturumu sunucudan hydrate eder.
   // me() null dönerse (giriş yok/geçersiz) kullanıcı null kalır; bu bir hata
@@ -44,9 +48,30 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Herhangi bir API çağrısında oturumun sunucuda sona erdiği (SESSION_INVALID)
+  // fark edilirse bağlam sessizce temizlenir ve bilgi ekranı bayrağı kaldırılır;
+  // GuardliRota önce bilgi ekranını, süre dolunca /login'i gösterir. Sunucu
+  // cookie'si zaten geçersiz olduğundan ek logout çağrısı yapılmaz. Abonelik
+  // bileşen sökülürken kaldırılır.
+  useEffect(() => {
+    const aboneliktenCik = oturumGecersizAboneOl(() => {
+      setOturumKullanici(null)
+      setOturumSonaErdi(true)
+    })
+    return aboneliktenCik
+  }, [])
+
   // girisYap: başarılı login sonrası bağlamı doldurur (istek zaten yapılmıştır).
+  // Temiz girişte önceki oturum-sona-erdi bayrağı kalmamalıdır.
   function girisYap(kullanici) {
     setOturumKullanici(kullanici)
+    setOturumSonaErdi(false)
+  }
+
+  // oturumBildiriminiTemizle: bilgi ekranının süresi dolunca bayrağı düşürür;
+  // böylece GuardliRota normal akışta /login'e yönlendirir.
+  function oturumBildiriminiTemizle() {
+    setOturumSonaErdi(false)
   }
 
   // oturumuTazele: oturum durumunu sunucudan (me) yeniden çeker ve bağlamı
@@ -71,9 +96,11 @@ export function AuthProvider({ children }) {
   const deger = {
     oturumKullanici,
     yukleniyor,
+    oturumSonaErdi,
     girisYap,
     oturumuTazele,
     cikisYap,
+    oturumBildiriminiTemizle,
   }
   return <AuthContext.Provider value={deger}>{children}</AuthContext.Provider>
 }

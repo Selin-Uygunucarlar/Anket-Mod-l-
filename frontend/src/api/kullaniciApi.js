@@ -4,6 +4,8 @@
 // şekli ~/Desktop/kontratlar.txt "KULLANICI LİSTESİ ÖZELLİĞİ" ile birebir.
 // Oturum httpOnly cookie ile taşındığından credentials:'include' zorunludur.
 
+import { oturumGecersizMi, oturumGecersizYayinla } from '../common/oturumOlaylari.js'
+
 // Backend taban adresi. URL bir sır değildir; ortam değişkeni yoksa yerel
 // geliştirme adresi varsayılan olarak kullanılır.
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -40,7 +42,8 @@ export async function listKullanicilar() {
     return govde.kullanicilar
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || GENEL_HATA_MESAJI)
 }
 
@@ -76,7 +79,8 @@ export async function getKullaniciDetay(kullaniciKodu) {
     return govde.kullanici
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || DETAY_HATA_MESAJI)
 }
 
@@ -115,7 +119,8 @@ export async function createKullanici(veri) {
     }
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || EKLE_HATA_MESAJI)
 }
 
@@ -156,7 +161,8 @@ export async function guncelleKullanici(kullaniciKodu, veri) {
     return { kullanici_kodu: govde.kullanici_kodu }
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || GUNCELLE_HATA_MESAJI)
 }
 
@@ -194,6 +200,7 @@ export async function degistirAktiflik(kullaniciKodu) {
     return { kullanici_kodu: govde.kullanici_kodu, aktif: govde.aktif }
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || AKTIFLIK_HATA_MESAJI)
 }

@@ -5,6 +5,8 @@
 // bloğuyla birebir. Tüm uçlar admin-only (yetki sunucuda) ve oturum httpOnly
 // cookie ile taşındığından credentials:'include' zorunludur.
 
+import { oturumGecersizMi, oturumGecersizYayinla } from '../common/oturumOlaylari.js'
+
 // Backend taban adresi. URL bir sır değildir; ortam değişkeni yoksa yerel
 // geliştirme adresi varsayılan olarak kullanılır.
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -43,7 +45,8 @@ export async function listGruplar() {
     return govde.gruplar
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || LISTE_HATA_MESAJI)
 }
 
@@ -74,7 +77,8 @@ export async function ekleGrup(ad) {
     return { grup_id: govde.grup_id }
   }
 
-  // basari:false (zaten var dahil) — backend'in güvenli mesajını taşı; yoksa jenerik.
+  // basari:false (zaten var dahil) — oturum sona erdiyse sinyal yay; güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || EKLE_HATA_MESAJI)
 }
 
@@ -106,7 +110,8 @@ export async function silGrup(grupId) {
     return
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || SIL_HATA_MESAJI)
 }
 
@@ -138,7 +143,8 @@ export async function listGrupUyeleri(grupId) {
     return govde.uyeler
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || UYELER_HATA_MESAJI)
 }
 
@@ -173,7 +179,8 @@ export async function grubaAta(grupId, kullaniciKodu) {
     return
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || ATA_HATA_MESAJI)
 }
 
@@ -208,6 +215,7 @@ export async function gruptanCikar(grupId, kullaniciKodu) {
     return
   }
 
-  // basari:false — backend'in güvenli mesajını taşı; yoksa jenerik mesaj.
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || CIKAR_HATA_MESAJI)
 }

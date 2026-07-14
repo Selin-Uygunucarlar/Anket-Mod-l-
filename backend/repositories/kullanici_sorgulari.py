@@ -68,6 +68,17 @@ KULLANICI_KODU_VAR_SORGUSU = """
     SELECT 1 FROM Kullanici WHERE kullanici_kodu = %s LIMIT 1
 """
 
+# Verilen kullanici_kodu'lardan DB'de GERÇEKTEN var olanları döner (client'tan gelen
+# sicillere güvenilmez; eksikleri Service karşılaştırıp bulur). IN listesinin yer
+# tutucuları Repository'de sicil sayısı kadar üretilir; bu şablon tek bir %s taşır ve
+# ", ".join ile çoğaltılır. DEĞERLER ASLA metne gömülmez -- yalnızca %s SAYISI
+# dinamiktir; tüm siciller execute'a parametre olarak geçer (SQL injection'a kapalı).
+KULLANICI_KODLARI_VAR_MI_SORGUSU = """
+    SELECT kullanici_kodu
+    FROM Kullanici
+    WHERE kullanici_kodu IN ({yer_tutucular})
+"""
+
 # Verilen email kayıtlı mı — benzersizlik ön kontrolü için.
 EMAIL_VAR_SORGUSU = """
     SELECT 1 FROM Kullanici WHERE email = %s LIMIT 1

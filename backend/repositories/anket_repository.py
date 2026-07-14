@@ -1,4 +1,4 @@
-"""Anket (oluşturma + listeleme) veri erişim katmanı.
+"""Anket (oluşturma + kullanıcı atama + listeleme) veri erişim katmanı.
 
 Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
@@ -29,8 +29,8 @@ def anketleri_getir() -> list[AnketOzeti]:
     """Tüm anketleri, oluşturan bilgisi ve atama/yanıt sayılarıyla döner.
 
     Sıra: en yeni anket üstte (anket_id DESC). Atama/yanıt sayıları AnketAtama
-    üzerinden hesaplanır; kullanıcı ataması sonraki faz olduğundan bugün 0 dönerler
-    (sorgu doğrudur, veri yoktur). Yetki kontrolü burada DEĞİL, Service'tedir.
+    üzerinden hesaplanır (anket oluşturulurken yazılan atamalar buraya yansır;
+    kimseye atanmamış anket 0 alır). Yetki kontrolü burada DEĞİL, Service'tedir.
     """
     try:
         with veritabani_baglantisi() as baglanti:
@@ -69,19 +69,27 @@ def anket_ekle(
     bitis_tarihi: datetime,
     olusturan_kodu: str | None,
     soru_idler: list[int],
+    atanacak_kullanici_kodlari: list[str],
+    son_tarih: datetime,
 ) -> int:
-    """Anketi ve soru bağlarını TEK transaction'da ekler; yeni anket_id döner.
+    """Anketi, soru bağlarını ve kullanıcı atamalarını TEK transaction'da ekler.
 
     Önce Anket INSERT edilir; oluşan anket_id (cursor.lastrowid) alınır ve
     `soru_idler` listesindeki her soru için AnketSoru bağ satırı (sira_no =
     index+1, yani gelen sıra korunur) çoklu INSERT (executemany) ile yazılır.
+    Ardından `atanacak_kullanici_kodlari`ndaki her kişi için AnketAtama satırı
+    yazılır (atama_tarihi = yazma anı, son_tarih = anketin bitişi, durum =
+    ATAMA_BASLANGIC_DURUMU). Atama KİŞİ bazlıdır: grup DB'ye yazılmaz; grubu
+    üyelerine çözmek, tekilleştirmek ve atamanın zorunlu olup olmadığına karar
+    vermek Service'in işidir. Liste boşsa AnketAtama'ya hiç INSERT yapılmaz.
 
     İşlem bütünlüğü veritabani_baglantisi context manager'ına aittir: blok
     sorunsuz biterse commit, herhangi bir adımda istisna olursa ROLLBACK yapar.
-    Bu yüzden KISMİ KAYIT OLUŞMAZ: soru bağları yazılamazsa anket de yazılmaz.
-    olusturma_tarihi gönderilmez; DB DEFAULT CURRENT_TIMESTAMP ile yazar.
-    Tüm sorgular parametreli (%s); string birleştirme yoktur. Doğrulama (soru
-    id'lerinin varlığı, erişim seviyesi kuralları, tarih hesabı) Service'in işidir.
+    Bu yüzden KISMİ KAYIT OLUŞMAZ: soru bağları ya da atamalar yazılamazsa anket
+    de yazılmaz. olusturma_tarihi gönderilmez; DB DEFAULT CURRENT_TIMESTAMP ile
+    yazar. Tüm sorgular parametreli (%s); string birleştirme yoktur. Doğrulama
+    (soru/kullanıcı id'lerinin varlığı, erişim seviyesi kuralları, tarih hesabı)
+    Service'in işidir. Yeni anket_id döner.
     """
     try:
         with veritabani_baglantisi() as baglanti:
@@ -112,6 +120,23 @@ def anket_ekle(
                     ]
                     imlec.executemany(
                         sorgular.ANKETSORU_EKLE_SORGUSU, bag_parametreleri
+                    )
+
+                if atanacak_kullanici_kodlari:
+                    # Atamalar tek anda yazıldığından hepsi aynı atama_tarihi'ni taşır.
+                    atama_tarihi = datetime.now()
+                    atama_parametreleri = [
+                        (
+                            yeni_anket_id,
+                            kullanici_kodu,
+                            atama_tarihi,
+                            son_tarih,
+                            sorgular.ATAMA_BASLANGIC_DURUMU,
+                        )
+                        for kullanici_kodu in atanacak_kullanici_kodlari
+                    ]
+                    imlec.executemany(
+                        sorgular.ANKETATAMA_EKLE_SORGUSU, atama_parametreleri
                     )
     except pymysql.MySQLError as hata:
         # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.

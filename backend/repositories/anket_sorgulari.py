@@ -14,8 +14,8 @@ olarak taşınır. SORU_IDLERI_VAR_MI_SORGUSU tek istisna değildir: orada da ya
 # Anket listesi satırları. Oluşturanın ad/soyad'ı için Kullanici LEFT JOIN
 # (olusturan_kodu NULL ya da kullanıcı silinmişse -- FK ON DELETE SET NULL -- None
 # döner). atanan/yanitlayan sayıları AnketAtama üzerinden ilişkili alt sorgularla
-# hesaplanır; kullanıcı ataması sonraki faz olduğu için bugün 0 dönerler (sorgu
-# doğrudur, veri yoktur -- sahte sabit yazılmaz). yanitlayan: AnketAtama.durum
+# hesaplanır (anket oluşturulurken yazılan atamalar buraya yansır; kimseye
+# atanmamış anket 0 alır). yanitlayan: AnketAtama.durum
 # 'tamamlandı' olanlar (bu Anket.durum DEĞİL, kişiye özel atama durumudur).
 # Sıralama: en son eklenen üstte (anket_id DESC; auto-increment olduğundan en yeni
 # kayıt en büyük id'dir -- soru_sorgulari ile aynı üslup).
@@ -68,4 +68,23 @@ SORU_IDLERI_VAR_MI_SORGUSU = """
     SELECT soru_id
     FROM Soru
     WHERE soru_id IN ({yer_tutucular})
+"""
+
+# Yeni bir atamanın başlangıç durumu (AnketAtama.durum; şemadaki değerler:
+# atandı / devam_ediyor / tamamlandı). Kişiye özel atama durumudur, Anket.durum
+# DEĞİL. Sabit burada tanımlanır ki değer SQL metnine ya da Repository koduna
+# sihirli dize (magic string) olarak gömülmesin; DB kolon değeri olduğundan yeri
+# bu modüldür (katmanlar arası paylaşılan bir iş eşiği değildir -> constants.py'ye
+# konmaz). Sorguya PARAMETRE olarak geçer.
+ATAMA_BASLANGIC_DURUMU = "atandı"
+
+# Anketin bir kullanıcıya atanmasını (AnketAtama satırı) ekler. Çoklu kişi için
+# Repository executemany ile bu tek şablonu parametre listesiyle çağırır; string
+# birleştirme yok. baslama_tarihi/tamamlanma_tarihi SET EDİLMEZ: atama anında kişi
+# ankete başlamamıştır, DB'de NULL kalırlar (tamamlanma_tarihi <-> durum tutarlılığı
+# korunur: durum 'atandı' iken tamamlanma_tarihi NULL'dur). atama_tarihi (yazma anı),
+# son_tarih ve durum parametreyle (%s) geçer; sabit metin SQL'e gömülmez.
+ANKETATAMA_EKLE_SORGUSU = """
+    INSERT INTO AnketAtama (anket_id, kullanici_kodu, atama_tarihi, son_tarih, durum)
+    VALUES (%s, %s, %s, %s, %s)
 """

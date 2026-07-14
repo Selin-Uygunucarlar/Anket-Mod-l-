@@ -8,18 +8,26 @@ yarın / bir ay / iki ay) birer İŞ KURALIDIR: gerçek tarihe burada, sunucuda
 
 Güvenlik: client'a güvenilmez. olusturan_kodu OTURUMDAN alınır; erişim grubu
 client'tan ALINMAZ, erisim_seviyesi 'grup' iken oturum sahibinin KENDİ grubundan
-(Kullanici.grup_id) çözülür; gönderilen soru id'lerinin tamamının DB'de var olduğu
-doğrulanır (aksi halde ValidationError).
+(Kullanici.grup_id) çözülür; gönderilen soru id'lerinin, grup id'lerinin ve
+kullanıcı sicillerinin tamamının DB'de var olduğu doğrulanır (aksi halde
+ValidationError).
+
+Kavram ayrımı (KARIŞTIRILMAZ): erisim_seviyesi 'grup', anketi KİMİN GÖREBİLECEĞİdir
+ve oturum sahibinin kendi grubundan çözülür. Ankete ATANACAK kişiler ise ayrı bir
+kavramdır: client'ın seçtiği grup_idler'in ÜYELERİ + tek tek seçilen kullanici_kodlari
+birleştirilir. İkisi arasında bağ yoktur.
 
 Sanitizasyon notu: on_yazi/son_yazi/aciklama DÜZ METİN girdileridir
 (<input type="text">), zengin metin DEĞİL -> nh3 sanitizasyonu GEREKMEZ, yalnızca
 trim edilir (unutulmuş değil, bilinçli). Biçimli HTML tutan soru metinleri zaten
 soru_service'te sanitize edilir.
 
-Kapsam notu: Formun "Kullanıcılar", "Mesaj Ayarları" ve "İşlemler" kartları bu
-fazın DIŞINDADIR; sunucuya gönderilmez ve yazılmaz. Bu yüzden Anket.almak_zorunda /
-ana_sayfada_goster / sira_no_goster DB varsayılanında kalır, soru_gosterim_tipi
-NULL kalır. Bu bilinçli bir kapsam kararıdır, eksik/unutulmuş değildir.
+Kapsam notu: Formun "Kullanıcılar" kartının ATAMA kısmı (seçilen gruplar + seçilen
+kullanıcılar) artık KAPSAMDADIR ve AnketAtama'ya kişi olarak yazılır. "Mesaj
+Ayarları" ve "İşlemler" kartları hâlâ kapsam DIŞINDADIR; sunucuya gönderilmez ve
+yazılmaz. Bu yüzden Anket.almak_zorunda / ana_sayfada_goster / sira_no_goster DB
+varsayılanında kalır, soru_gosterim_tipi NULL kalır. Bu bilinçli bir kapsam
+kararıdır, eksik/unutulmuş değildir.
 
 Bu katman HTTP ve SQL bilmez; veriye Repository üzerinden erişir. Hatalar burada
 LOGLANMAZ, yukarı fırlatılır; loglama yalnızca sınır katmanında bir kez yapılır.
@@ -31,7 +39,7 @@ from datetime import date, datetime, time, timedelta
 from common.errors import ValidationError, YetkiYokError
 from models.anket import AnketOzeti
 from models.oturum import OturumSahibi
-from repositories import anket_repository, grup_repository
+from repositories import anket_repository, grup_repository, kullanici_repository
 
 _ADMIN_TURU = "admin"
 
@@ -92,12 +100,16 @@ def ekle_anket(
     bitis_secim: str,
     bitis_tarih: str | None,
     soru_idler: list[int],
+    grup_idler: list[int],
+    kullanici_kodlari: list[str],
 ) -> int:
-    """Yeni bir anket oluşturur (soru bağlarıyla birlikte); yeni anket_id döner.
+    """Yeni anketi soru bağları ve kullanıcı atamalarıyla oluşturur; anket_id döner.
 
     Yalnızca admin çağırabilir. Tüm iş kuralları burada uygulanır: zorunlu ad,
     geçerli durum/anket_tipi, erişim seviyesi, tarih hesabı ve bitiş > başlangıç,
-    soruların varlığı. olusturan_kodu ve (seviye 'grup' ise) erişim grubu OTURUMDAN
+    soruların/grupların/kullanıcıların varlığı. Ankete atanacak kişiler, seçilen
+    grupların üyeleri ile tek tek seçilen kullanıcıların tekilleştirilmiş
+    birleşimidir. olusturan_kodu ve (seviye 'grup' ise) erişim grubu OTURUMDAN
     çözülür; client gönderse bile dikkate alınmaz. Hata loglanmaz, YUKARI FIRLAR.
     """
     if talep_eden.kullanici_turu != _ADMIN_TURU:
@@ -118,6 +130,7 @@ def ekle_anket(
         raise ValidationError("Bitiş tarihi başlangıç tarihinden sonra olmalıdır.")
 
     _dogrula_sorular(soru_idler)
+    atanacak_kullanici_kodlari = _cozumle_atanacak_kisiler(grup_idler, kullanici_kodlari)
 
     return anket_repository.anket_ekle(
         ad=ad_temiz,
@@ -132,6 +145,8 @@ def ekle_anket(
         bitis_tarihi=bitis_tarihi,
         olusturan_kodu=talep_eden.kullanici_kodu,
         soru_idler=soru_idler,
+        atanacak_kullanici_kodlari=atanacak_kullanici_kodlari,
+        son_tarih=bitis_tarihi,
     )
 
 
@@ -177,6 +192,64 @@ def _dogrula_sorular(soru_idler: list[int]) -> None:
     var_olanlar = set(anket_repository.soru_idleri_getir(soru_idler))
     if len(var_olanlar) != len(soru_idler):
         raise ValidationError("Seçilen sorulardan bazıları bulunamadı.")
+
+
+def _cozumle_atanacak_kisiler(
+    grup_idler: list[int], kullanici_kodlari: list[str]
+) -> list[str]:
+    """Seçilen grup ve kullanıcılardan ankete atanacak NİHAİ kişi listesini üretir.
+
+    Atama KİŞİ bazlıdır: grup DB'ye yazılmaz, üyelerine çözülür. İki kaynaktan da
+    gelen kişi TEK atama satırı alsın diye sonuç tekilleştirilir. Hiç seçim
+    yapılmaması geçerlidir: anket ATAMASIZ oluşur (bilinçli karar; "en az bir kişi"
+    kuralı YOKTUR). Üyesi olmayan grup da hata değildir, yalnızca kişi katkısı vermez.
+    """
+    _dogrula_gruplar(grup_idler)
+    _dogrula_kullanicilar(kullanici_kodlari)
+
+    grup_uyeleri = grup_repository.grup_uye_kodlari_getir(grup_idler)
+    return _tekillestir_sirayi_koruyarak(grup_uyeleri + kullanici_kodlari)
+
+
+def _dogrula_gruplar(grup_idler: list[int]) -> None:
+    """Atama için seçilen grupların iş kurallarını doğrular; ihlalde ValidationError.
+
+    Aynı grup iki kez gönderilemez ve gönderilen id'lerin TAMAMI DB'de var olmalıdır
+    (client'tan gelen grup id'sine güvenilmez). Boş seçim geçerlidir.
+    """
+    if not grup_idler:
+        return
+    if len(set(grup_idler)) != len(grup_idler):
+        raise ValidationError("Aynı grup birden fazla kez eklenemez.")
+
+    var_olanlar = set(grup_repository.grup_idleri_getir(grup_idler))
+    if len(var_olanlar) != len(grup_idler):
+        raise ValidationError("Seçilen gruplardan bazıları bulunamadı.")
+
+
+def _dogrula_kullanicilar(kullanici_kodlari: list[str]) -> None:
+    """Atama için tek tek seçilen kullanıcıları doğrular; ihlalde ValidationError.
+
+    Aynı kullanıcı iki kez gönderilemez ve gönderilen sicillerin TAMAMI DB'de var
+    olmalıdır (client'tan gelen sicile güvenilmez). Boş seçim geçerlidir.
+    """
+    if not kullanici_kodlari:
+        return
+    if len(set(kullanici_kodlari)) != len(kullanici_kodlari):
+        raise ValidationError("Aynı kullanıcı birden fazla kez eklenemez.")
+
+    var_olanlar = set(kullanici_repository.kullanici_kodlari_getir(kullanici_kodlari))
+    if len(var_olanlar) != len(kullanici_kodlari):
+        raise ValidationError("Seçilen kullanıcılardan bazıları bulunamadı.")
+
+
+def _tekillestir_sirayi_koruyarak(kullanici_kodlari: list[str]) -> list[str]:
+    """Sicil listesindeki tekrarları, ilk görülme sırasını koruyarak eler.
+
+    Neden set değil: set'in sırası rastgeledir; atama satırlarının sırası (ve
+    dolayısıyla davranış/hata ayıklama) deterministik kalsın diye sıra korunur.
+    """
+    return list(dict.fromkeys(kullanici_kodlari))
 
 
 def _hesapla_baslangic_tarihi(secim: str, tarih_metni: str | None) -> datetime:

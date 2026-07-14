@@ -57,12 +57,15 @@ def ekle_anket(
     bitis_secim: str,
     bitis_tarih: str | None,
     soru_idler: list[int],
+    grup_idler: list[int],
+    kullanici_kodlari: list[str],
 ) -> dict:
-    """Oturumu doğrulanmış admin için yeni bir anket oluşturur.
+    """Oturumu doğrulanmış admin için yeni bir anket oluşturur (atamalarıyla birlikte).
 
     Oturum doğrulanır; girdinin yalnızca tip/şekli bu sınırda doğrulanır (zorunlu
-    metinler str + boş değil; opsiyonel metinler str ya da None; soru_idler pozitif
-    int listesi). İş kuralları, tarih hesabı ve yetki anket_service'e aittir;
+    metinler str + boş değil; opsiyonel metinler str ya da None; soru_idler/grup_idler
+    pozitif int listesi; kullanici_kodlari boş olmayan metin listesi). İş kuralları,
+    tarih hesabı, atanacak kişilerin çözümü ve yetki anket_service'e aittir;
     olusturan_kodu ve erişim grubu Service'te oturumdan çözülür (gövdede yoktur).
     Hata BİR KEZ loglanır ve güvenli yanıt döner.
 
@@ -85,6 +88,8 @@ def ekle_anket(
             bitis_secim,
             bitis_tarih,
             soru_idler,
+            grup_idler,
+            kullanici_kodlari,
         )
         yeni_anket_id = anket_service.ekle_anket(
             sahip,
@@ -100,6 +105,8 @@ def ekle_anket(
             bitis_secim,
             bitis_tarih,
             soru_idler,
+            grup_idler,
+            kullanici_kodlari,
         )
         return {"basari": True, "anket_id": yeni_anket_id}
     except AppError as hata:
@@ -123,12 +130,14 @@ def _dogrula_ekle_girdisi(
     bitis_secim,
     bitis_tarih,
     soru_idler,
+    grup_idler,
+    kullanici_kodlari,
 ) -> None:
     """Anket ekleme girdisinin tip/şeklini sınırda doğrular; ihlalde ValidationError.
 
     Yalnızca ŞEKİL kontrolü yapılır. Değerlerin anlamlı olup olmadığı (durumun/
-    tipin/seviyenin geçerli kümede olması, tarih hesabı, soruların DB'de bulunması)
-    Service'in işidir; sınır ince tutulur.
+    tipin/seviyenin geçerli kümede olması, tarih hesabı, soru/grup/kullanıcıların
+    DB'de bulunması, tekrar ve tekilleştirme) Service'in işidir; sınır ince tutulur.
     """
     _dogrula_zorunlu_metin(ad, "Anket adı")
     _dogrula_zorunlu_metin(durum, "Durum")
@@ -144,6 +153,8 @@ def _dogrula_ekle_girdisi(
     _dogrula_istege_bagli_metin(bitis_tarih, "Bitiş tarihi")
 
     _dogrula_soru_idler(soru_idler)
+    _dogrula_grup_idler(grup_idler)
+    _dogrula_kullanici_kodlari(kullanici_kodlari)
 
 
 def _dogrula_zorunlu_metin(deger, alan_adi: str) -> None:
@@ -172,6 +183,31 @@ def _dogrula_soru_idler(soru_idler) -> None:
         raise ValidationError("Sorular bir liste olmalıdır.")
     for soru_id in soru_idler:
         _dogrula_pozitif_kimlik(soru_id, "Geçersiz soru kimliği.")
+
+
+def _dogrula_grup_idler(grup_idler) -> None:
+    """Ankete atanacak grup id'lerinin liste + pozitif tamsayı olduğunu doğrular.
+
+    Boş liste burada reddedilmez: atama seçimi zorunlu DEĞİLDİR ve "kim atanır"
+    kararı (grubun varlığı, üyelerine çözülmesi, tekrar) Service'e aittir.
+    """
+    if not isinstance(grup_idler, list):
+        raise ValidationError("Gruplar bir liste olmalıdır.")
+    for grup_id in grup_idler:
+        _dogrula_pozitif_kimlik(grup_id, "Geçersiz grup kimliği.")
+
+
+def _dogrula_kullanici_kodlari(kullanici_kodlari) -> None:
+    """Ankete atanacak sicillerin liste + boş olmayan metin olduğunu doğrular.
+
+    Boş liste burada reddedilmez. Sicillerin DB'de var olup olmadığı Service'te
+    doğrulanır; client'tan gelen sicile güvenilmez.
+    """
+    if not isinstance(kullanici_kodlari, list):
+        raise ValidationError("Kullanıcılar bir liste olmalıdır.")
+    for kullanici_kodu in kullanici_kodlari:
+        if not isinstance(kullanici_kodu, str) or not kullanici_kodu.strip():
+            raise ValidationError("Geçersiz kullanıcı sicili.")
 
 
 def _dogrula_pozitif_kimlik(deger, hata_mesaji: str) -> None:

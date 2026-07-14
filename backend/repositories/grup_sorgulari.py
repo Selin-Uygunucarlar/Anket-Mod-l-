@@ -57,6 +57,28 @@ KULLANICI_GRUP_ID_SORGUSU = """
     SELECT grup_id FROM Kullanici WHERE kullanici_kodu = %s
 """
 
+# Verilen grup_id'lerden DB'de GERÇEKTEN var olanları döner (client'tan gelen id'ye
+# güvenilmez; eksikleri Service karşılaştırıp bulur). IN listesinin yer tutucuları
+# Repository'de grup sayısı kadar üretilir; bu şablon tek bir %s taşır ve ", ".join
+# ile çoğaltılır. DEĞERLER ASLA metne gömülmez -- yalnızca %s SAYISI dinamiktir;
+# tüm id'ler execute'a parametre olarak geçer (SQL injection'a kapalı).
+GRUP_IDLERI_VAR_MI_SORGUSU = """
+    SELECT grup_id
+    FROM KullaniciGrubu
+    WHERE grup_id IN ({yer_tutucular})
+"""
+
+# Verilen grupların üyelerinin sicillerini (kullanici_kodu) DISTINCT döner. DISTINCT
+# gerekmez gibi görünse de (bir kullanıcı en fazla bir gruba bağlıdır) sözleşmenin
+# tekilliğini sorgu düzeyinde de garanti eder. Ankete atama KİŞİ bazlıdır: grup DB'ye
+# yazılmaz, üyeleri çözülüp kişi olarak yazılır. Yer tutucular yukarıdaki kalıpla
+# üretilir; DEĞERLER metne gömülmez.
+GRUP_UYE_KODLARI_SORGUSU = """
+    SELECT DISTINCT kullanici_kodu
+    FROM Kullanici
+    WHERE grup_id IN ({yer_tutucular})
+"""
+
 # Bir kullanıcıyı bir gruba atar veya (grup_id NULL geçilirse) gruptan çıkarır.
 # UPDATE Kullanici SET grup_id=%s WHERE kullanici_kodu=%s. Kayıt yoksa UPDATE
 # etkisizdir (rowcount 0); "bulunamadı" kararı Service'e aittir. Parametreli.

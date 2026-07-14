@@ -1,4 +1,5 @@
-"""Kullanıcı grupları (listeleme + ekleme + silme + üyeler + atama) veri erişim katmanı.
+"""Kullanıcı grupları (listeleme + ekleme + silme + üyeler + varlık + atama) veri
+erişim katmanı.
 
 Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
@@ -122,6 +123,60 @@ def grup_uyeleri(grup_id: int) -> list[GrupUyesi]:
         )
         for satir in satirlar
     ]
+
+
+def grup_idleri_getir(grup_idler: list[int]) -> list[int]:
+    """Verilen grup_id'lerden DB'de gerçekten var olanları döner.
+
+    Neden: client'tan gelen grup id'lerine güvenilmez; Service dönen kümeyi
+    isteneni ile karşılaştırıp eksikleri bulur ("hangi id geçersiz" kararı bir iş
+    kararıdır, Service'e aittir). Boş liste gelirse DB'ye HİÇ gidilmez ve boş liste
+    dönülür (SQL'de "IN ()" geçersizdir). IN listesinin yer tutucuları grup SAYISI
+    kadar üretilir; id DEĞERLERİ SQL metnine gömülmez, hepsi parametre olarak geçer.
+    """
+    if not grup_idler:
+        return []
+
+    yer_tutucular = ", ".join(["%s"] * len(grup_idler))
+    sorgu = sorgular.GRUP_IDLERI_VAR_MI_SORGUSU.format(yer_tutucular=yer_tutucular)
+
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgu, tuple(grup_idler))
+                satirlar = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Gruplar okunamadı.") from hata
+
+    return [satir["grup_id"] for satir in satirlar]
+
+
+def grup_uye_kodlari_getir(grup_idler: list[int]) -> list[str]:
+    """Verilen grupların üyelerinin sicillerini (kullanici_kodu) tekil döner.
+
+    Ankete atama KİŞİ bazlıdır: grup DB'ye yazılmaz, üyeleri kişi olarak yazılır;
+    bu fonksiyon o çözümlemenin veri erişim adımıdır. Aynı kişi birden çok kez
+    dönmez (DISTINCT). Üyesi olmayan/var olmayan grup boş katkı verir; "grup boş"
+    kararı Service'e aittir. Boş liste gelirse DB'ye HİÇ gidilmez ("IN ()" geçersiz
+    SQL). Yer tutucular grup SAYISI kadar üretilir; DEĞERLER parametreyle geçer.
+    """
+    if not grup_idler:
+        return []
+
+    yer_tutucular = ", ".join(["%s"] * len(grup_idler))
+    sorgu = sorgular.GRUP_UYE_KODLARI_SORGUSU.format(yer_tutucular=yer_tutucular)
+
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgu, tuple(grup_idler))
+                satirlar = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Grup üyeleri okunamadı.") from hata
+
+    return [satir["kullanici_kodu"] for satir in satirlar]
 
 
 def kullanici_grup_id_getir(kullanici_kodu: str) -> int | None:

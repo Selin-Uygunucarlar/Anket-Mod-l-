@@ -51,10 +51,13 @@ export async function anketleriGetir() {
 // ekleAnket: yeni bir anketi backend'e kaydeder (yalnızca admin; yetki ve asıl
 // doğrulama sunucuda). govde = { ad, on_yazi, son_yazi, aciklama, durum,
 // anket_tipi, erisim_seviyesi, baslangic_secim, baslangic_tarih, bitis_secim,
-// bitis_tarih, soru_idler }. Tarihler SUNUCUDA hesaplanır: UI yalnızca hangi
-// seçeneğin seçildiğini (baslangic_secim/bitis_secim) taşır. olusturan_kodu ve
-// erişim grubu GÖNDERİLMEZ; ikisi de oturumdan alınır. Başarıda { anket_id } döner; başarısız durumlarda
-// backend'in güvenli mesajını taşıyan Error fırlar (ağ/parse'ta güvenli jenerik).
+// bitis_tarih, soru_idler, kullanici_kodlari, grup_idler }. Tarihler SUNUCUDA
+// hesaplanır: UI yalnızca hangi seçeneğin seçildiğini (baslangic_secim/bitis_secim)
+// taşır. kullanici_kodlari / grup_idler ankete KİMİN ATANACAĞIDIR: düz kimlik
+// listesidir, boş liste geçerlidir (anket atamasız oluşur) ve erisim_seviyesi'nden
+// bağımsızdır. olusturan_kodu ve erişim grubu GÖNDERİLMEZ; ikisi de oturumdan
+// alınır. Başarıda { anket_id } döner; başarısız durumlarda backend'in güvenli
+// mesajını taşıyan Error fırlar (ağ/parse'ta güvenli jenerik).
 export async function ekleAnket(govde) {
   let yanit
   try {

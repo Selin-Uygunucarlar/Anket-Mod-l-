@@ -59,8 +59,9 @@ export const KULLANICI_GRUPLARI_ATAMASI = 'kullanici_gruplari'
 
 // "Kullanıcılar" kartı seçenekleri (bu sırayla). Checkbox grubudur: ikisi de
 // aynı anda işaretlenebilir. { deger, etiket } kalıbı; state'te seçili degerler
-// dizisi tutulur. GERÇEK ATAMA/HESAP YAPILMAZ; yalnızca hangi seçeneklerin
-// işaretlendiği state'te tutulur (mevcut tarih seçimi felsefesiyle aynı).
+// dizisi tutulur. Bir kutunun işareti, ilgili seçim listesinin hem ekranda
+// görünmesini hem de sunucuya gönderilmesini belirler; ATAMA/HESAP UI'da YAPILMAZ,
+// sunucu seçilen kimliklerden kişileri çözer.
 export const KULLANICI_ATAMA_SECENEKLERI = [
   { deger: SABIT_LISTE_ATAMASI, etiket: 'Sabit liste' },
   { deger: KULLANICI_GRUPLARI_ATAMASI, etiket: 'Kullanıcı Grupları' },
@@ -112,8 +113,8 @@ export const BOS_ANKET_FORMU = {
   bitis_secim: '', // 'bir_ay' | 'iki_ay' | 'tarih_sec'
   bitis_tarih: '', // yalnızca 'tarih_sec' seçiliyken anlamlı; <input type="date"> değeri
   kullanici_atama: [], // seçili atama seçenekleri: 'sabit_liste' ve/veya 'kullanici_gruplari'; checkbox grubu, ikisi de seçilebilir
-  secili_kullanicilar: [], // "Sabit liste" için seçilen kullanıcılar: [{ kullanici_kodu, ad, soyad, email }]; yeni sekmedeki kullanıcı seçme ekranından gelir, SUNUCUYA GÖNDERİLMEZ
-  secili_gruplar: [], // "Kullanıcı Grupları" için seçilen gruplar: [{ grup_id, ad, uye_sayisi }]; yeni sekmedeki grup seçme ekranından gelir, SUNUCUYA GÖNDERİLMEZ
+  secili_kullanicilar: [], // "Sabit liste" için seçilen kullanıcılar: [{ kullanici_kodu, ad, soyad, email }]; yeni sekmedeki kullanıcı seçme ekranından gelir; sunucuya YALNIZCA kutu işaretliyken kodları gider
+  secili_gruplar: [], // "Kullanıcı Grupları" için seçilen gruplar: [{ grup_id, ad, uye_sayisi }]; yeni sekmedeki grup seçme ekranından gelir; sunucuya YALNIZCA kutu işaretliyken id'leri gider
   mesaj_baslangic_mail: false, // "Başlangıçtan 1 gün önce mail gönderilsin" bağımsız checkbox; gerçek mail GÖNDERİLMEZ
   mesaj_hatirlatma: false, // "Bitişten X gün önce, N günde bir hatırlatma" bağımsız checkbox; aşağıdaki iki alanı aktifleştirir
   hatirlatma_gun_once: '', // yalnızca mesaj_hatirlatma seçiliyken anlamlı; "kaç gün önce" sayı girdisi değeri (min 1)

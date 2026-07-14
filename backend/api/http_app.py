@@ -138,8 +138,10 @@ class AnketEkleIstegi(BaseModel):
     ise) erişim grubu gövdede DEĞİL: sunucu tarafı oturumdan çözülür (client'a
     güvenilmez). Tarihler ham seçim olarak taşınır
     ('bugun'/'yarin'/'bir_ay'/'iki_ay'/'tarih_sec'); gerçek tarihi Service hesaplar.
-    Formun Kullanıcılar/Mesaj Ayarları/İşlemler kartları bu fazın DIŞINDA olduğundan
-    burada alanları YOKTUR (bilinçli kapsam kararı).
+    grup_idler/kullanici_kodlari, Kullanıcılar kartında ankete ATANMAK üzere seçilen
+    gruplar ve kişilerdir (erisim_seviyesi ile ilgisi yoktur); seçim zorunlu değildir,
+    gönderilmezse anket atamasız oluşur. Formun Mesaj Ayarları/İşlemler kartları bu
+    fazın DIŞINDA olduğundan burada alanları YOKTUR (bilinçli kapsam kararı).
     """
 
     ad: str
@@ -154,6 +156,8 @@ class AnketEkleIstegi(BaseModel):
     bitis_secim: str
     bitis_tarih: str | None = None
     soru_idler: list[int]
+    grup_idler: list[int] = []
+    kullanici_kodlari: list[str] = []
 
 
 class GrupEkleIstegi(BaseModel):
@@ -547,6 +551,8 @@ def ekle_anket(
         istek.bitis_secim,
         istek.bitis_tarih,
         istek.soru_idler,
+        istek.grup_idler,
+        istek.kullanici_kodlari,
     )
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)

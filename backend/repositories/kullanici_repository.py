@@ -122,6 +122,35 @@ def kullanici_kodu_var_mi(kullanici_kodu: str) -> bool:
     return satir is not None
 
 
+def kullanici_kodlari_getir(kullanici_kodlari: list[str]) -> list[str]:
+    """Verilen sicillerden (kullanici_kodu) DB'de gerçekten var olanları döner.
+
+    Neden: client'tan gelen sicillere güvenilmez; Service dönen kümeyi isteneni ile
+    karşılaştırıp eksikleri bulur ("hangi sicil geçersiz" kararı bir iş kararıdır,
+    Service'e aittir). Boş liste gelirse DB'ye HİÇ gidilmez ve boş liste dönülür
+    (SQL'de "IN ()" geçersizdir). IN listesinin yer tutucuları sicil SAYISI kadar
+    üretilir; DEĞERLER SQL metnine gömülmez, hepsi parametre olarak geçer.
+    """
+    if not kullanici_kodlari:
+        return []
+
+    yer_tutucular = ", ".join(["%s"] * len(kullanici_kodlari))
+    sorgu = sorgular.KULLANICI_KODLARI_VAR_MI_SORGUSU.format(
+        yer_tutucular=yer_tutucular
+    )
+
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgu, tuple(kullanici_kodlari))
+                satirlar = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Kullanıcılar okunamadı.") from hata
+
+    return [satir["kullanici_kodu"] for satir in satirlar]
+
+
 def email_var_mi(email: str) -> bool:
     """Verilen email sistemde kayıtlı mı döndürür (benzersizlik ön kontrolü).
 

@@ -2,8 +2,11 @@
 // seçenekleri ve seçilmiş kullanıcı/grupları gösterir. "Sabit liste" ve "Kullanıcı
 // Grupları" checkbox'tır; İKİSİ DE aynı anda işaretlenebilir (bağımsız). Zorunlu
 // değildir. Salt gösterimdir: API çağırmaz, iş kuralı/hesap İÇERMEZ; seçme ekranını
-// açma ve kaldırma işlerini üst bileşene (props) bırakır. Bu seçimler SUNUCUYA
-// GÖNDERİLMEZ; yalnızca form state'inde tutulur, ileride atama akışına bağlanacaktır.
+// açma ve kaldırma işlerini üst bileşene (props) bırakır.
+// Bir seçim listesi YALNIZCA kendi checkbox'ı işaretliyken görünür; işaret
+// kalkınca liste gizlenir ama seçim form state'inde KORUNUR (tekrar işaretlenince
+// geri gelir). Ankete atama seçimleri sunucuya GÖNDERİLİR, ancak yalnızca kutusu
+// işaretliyken (gönderim kararı üst bileşendedir: AnketEkleForm).
 // "Excel ile ekle" bağlantısı TAMAMEN GÖRSELDİR; tıklama hiçbir şey yapmaz (bu
 // fazın kapsamı dışında). Görünüm sınıfları anket-ekle.css'ten paylaşılır (DRY).
 
@@ -105,12 +108,17 @@ function AnketKullanicilariKarti({
     altBilgi: `${grup.uye_sayisi} üye`,
   }))
 
+  const sabitListeIsaretli = seciliAtamalar.includes(SABIT_LISTE_ATAMASI)
+  const kullaniciGruplariIsaretli = seciliAtamalar.includes(
+    KULLANICI_GRUPLARI_ATAMASI,
+  )
+
   return (
     <AnketKart baslik="Kullanıcılar">
       <div className="anket-atama-bolum">
         <AtamaSatiri
           etiket={atamaEtiketi(SABIT_LISTE_ATAMASI)}
-          isaretli={seciliAtamalar.includes(SABIT_LISTE_ATAMASI)}
+          isaretli={sabitListeIsaretli}
           onDegis={() => onSecimDegistir(SABIT_LISTE_ATAMASI)}
         >
           {/* "Excel ile ekle": bağlantı görünümlü, tamamen görsel; tıklama hiçbir
@@ -127,8 +135,9 @@ function AnketKullanicilariKarti({
           </button>
         </AtamaSatiri>
 
-        {/* Seçim yoksa liste hiç render edilmez (boş kutu göstermeyiz). */}
-        {kullaniciSatirlari.length > 0 && (
+        {/* Liste yalnızca kutu işaretliyken ve seçim varken görünür; işaret
+            kalkınca gizlenir, seçim state'te kalır (boş kutu göstermeyiz). */}
+        {sabitListeIsaretli && kullaniciSatirlari.length > 0 && (
           <SeciliAtamaListesi
             satirlar={kullaniciSatirlari}
             onKaldir={onKullaniciKaldir}
@@ -137,7 +146,7 @@ function AnketKullanicilariKarti({
 
         <AtamaSatiri
           etiket={atamaEtiketi(KULLANICI_GRUPLARI_ATAMASI)}
-          isaretli={seciliAtamalar.includes(KULLANICI_GRUPLARI_ATAMASI)}
+          isaretli={kullaniciGruplariIsaretli}
           onDegis={() => onSecimDegistir(KULLANICI_GRUPLARI_ATAMASI)}
         >
           <button
@@ -149,7 +158,7 @@ function AnketKullanicilariKarti({
           </button>
         </AtamaSatiri>
 
-        {grupSatirlari.length > 0 && (
+        {kullaniciGruplariIsaretli && grupSatirlari.length > 0 && (
           <SeciliAtamaListesi satirlar={grupSatirlari} onKaldir={onGrupKaldir} />
         )}
       </div>

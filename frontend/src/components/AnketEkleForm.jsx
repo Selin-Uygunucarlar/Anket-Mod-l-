@@ -12,10 +12,13 @@
 // ekranlarından postMessage ile gelir; mesajın origin'i doğrulanır.
 // Her bölüm kendi kart bileşenindedir (SRP): AnketBilgileriKarti,
 // AnketSorulariKarti, AnketTarihleriKarti, AnketKullanicilariKarti,
-// AnketMesajAyarlariKarti, AnketIslemleriKarti. Kullanıcılar / Mesaj Ayarları /
-// İşlemler kartları bu fazın DIŞINDADIR: ekranda dururlar ama SUNUCUYA GÖNDERİLMEZ
-// (bkz. o bileşenlerin dosya başı yorumları). Görünüm sınıfları kullanici-ekle.css
-// ile paylaşılır (DRY); anket-ekle.css yalnızca gereken ek stilleri getirir.
+// AnketMesajAyarlariKarti, AnketIslemleriKarti. Kullanıcılar kartının atama
+// seçimleri (seçilen kullanıcılar/gruplar) SUNUCUYA GÖNDERİLİR, ancak yalnızca
+// ilgili kutu işaretliyken: ekranda görünmeyen seçim gönderilmez. Mesaj Ayarları
+// ve İşlemler kartları HÂLÂ bu fazın DIŞINDADIR: ekranda dururlar ama sunucuya
+// gönderilmez (bkz. o bileşenlerin dosya başı yorumları). Görünüm sınıfları
+// kullanici-ekle.css ile paylaşılır (DRY); anket-ekle.css yalnızca gereken ek
+// stilleri getirir.
 
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -60,10 +63,17 @@ function atamaSecenegiIsaretle(seciliAtamalar, deger) {
 // eşler (salt biçim dönüşümü; iş kuralı değil). Seçilmemiş dropdown'lar formda ''
 // tutulur, sunucu ise "gönderilmedi" için null bekler -> boş değerler null'a
 // çevrilir. Tarihler HESAPLANMAZ: yalnızca seçim kimliği ve (varsa) takvim değeri
-// taşınır; hesabı sunucu yapar. Bu fazın kapsamı dışındaki kartların (Kullanıcılar
-// — seçilen kullanıcı/gruplar dahil, Mesaj Ayarları, İşlemler) seçimleri bilinçli
-// olarak gövdeye KONMAZ.
+// taşınır; hesabı sunucu yapar. Atama listeleri sunucuya düz kimlik listesi olarak
+// gider ve YALNIZCA ilgili kutu işaretliyse doldurulur: kutu boşken liste ekranda
+// gizli olduğundan gönderilmez ([] gider) — ekranda görünmeyen seçim sunucuya
+// gitmez. Mesaj Ayarları ve İşlemler kartlarının seçimleri bu fazın dışında olduğu
+// için bilinçli olarak gövdeye KONMAZ.
 function formuIstekGovdesineCevir(form) {
+  const sabitListeIsaretli = form.kullanici_atama.includes(SABIT_LISTE_ATAMASI)
+  const kullaniciGruplariIsaretli = form.kullanici_atama.includes(
+    KULLANICI_GRUPLARI_ATAMASI,
+  )
+
   return {
     ad: form.adi,
     on_yazi: form.on_yazi,
@@ -77,6 +87,12 @@ function formuIstekGovdesineCevir(form) {
     bitis_secim: form.bitis_secim,
     bitis_tarih: form.bitis_tarih || null,
     soru_idler: form.secili_sorular.map((soru) => soru.soru_id),
+    kullanici_kodlari: sabitListeIsaretli
+      ? form.secili_kullanicilar.map((kullanici) => kullanici.kullanici_kodu)
+      : [],
+    grup_idler: kullaniciGruplariIsaretli
+      ? form.secili_gruplar.map((grup) => grup.grup_id)
+      : [],
   }
 }
 
@@ -279,8 +295,9 @@ function AnketEkleForm({ onGeriDon }) {
         <AnketTarihleriKarti form={form} alanGuncelle={alanGuncelle} />
 
         {/* Kullanıcılar kartı: atama seçenekleri ile "Listeden seç" ekranlarından
-            gelen kullanıcı/grup listeleri. Seçimler yalnızca formda tutulur;
-            sunucuya GÖNDERİLMEZ (bu fazın dışı). */}
+            gelen kullanıcı/grup listeleri. Bir liste yalnızca kutusu işaretliyken
+            görünür ve yalnızca o zaman sunucuya gider; işaret kalkınca seçim
+            formda korunur ama gönderilmez. */}
         <AnketKullanicilariKarti
           seciliAtamalar={form.kullanici_atama}
           onSecimDegistir={(deger) =>

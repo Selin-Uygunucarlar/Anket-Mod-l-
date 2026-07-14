@@ -9,54 +9,11 @@
 // buzlu açık bir perde sayfayı örter (karartmaz). Perdeye veya başlıktaki ok
 // butonuna tıklanınca panel kapanır. Panelin açık/kapalı durumu üst bileşenden
 // (AnaSayfaPage) props ile gelir. Seçenekler şimdilik işlevsiz görsel yer
-// tutuculardır. Yalnızca gösterim sorumluluğundadır.
+// tutuculardır. Çizilen menü ağacı, kırıntı yolu ile ortak tek kaynak olan
+// common/yonetimMenusu.js'ten gelir. Yalnızca gösterim sorumluluğundadır.
 
 import { useState } from 'react'
-
-// Panelde gösterilecek yönetim seçenekleri. altSecenekler taşıyan öğe, açılıp
-// kapanabilen bir grup olarak render edilir. altSecenekler öğeleri ya düz string
-// yapraklardır (işlevsiz yer tutucu) ya da kendi altSecenekler'i olan iç içe
-// gruplardır ya da bir `gorunum` kimliği taşıyan işlevsel yapraklardır. gorunum
-// taşıyan yaprak tıklanınca içerik alanında ilgili görünümü açar.
-const YONETIM_SECENEKLERI = [
-  {
-    baslik: 'Kullanıcı Yönetimi',
-    altSecenekler: [
-      {
-        baslik: 'Kullanıcı Listeleri',
-        altSecenekler: [
-          { baslik: 'Kullanıcı Listesi', gorunum: 'kullanici-listesi' },
-        ],
-      },
-      { baslik: 'Kullanıcı Grupları', gorunum: 'kullanici-gruplari' },
-    ],
-  },
-  {
-    baslik: 'Anketler',
-    altSecenekler: [
-      { baslik: 'Anket Listesi', gorunum: 'anket-listesi' },
-      { baslik: 'Anket Soruları', gorunum: 'anket-sorulari' },
-    ],
-  },
-  {
-    baslik: 'Eğitim Yönetimi',
-    altSecenekler: [
-      'Eğitimler',
-      'Etkinlikler',
-      'Eğitim Kaynakları',
-      'Sertifikaları',
-    ],
-  },
-  { baslik: 'Raporlar' },
-  {
-    baslik: 'Ayarlar',
-    altSecenekler: [
-      { baslik: 'Kullanıcı Seçenek Tanımları', gorunum: 'ayarlar' },
-      { baslik: 'Soru Seçenek Tanımları', gorunum: 'soru-ayarlar' },
-      { baslik: 'Grup Tanımları', gorunum: 'grup-ayarlar' },
-    ],
-  },
-]
+import { YONETIM_SECENEKLERI } from '../common/yonetimMenusu.js'
 
 // SagOkIcon: sağa dönük chevron (ok) simgesini çizer. Kapatma butonunda
 // kullanılır; panelin sağa doğru kapandığını görsel olarak ima eder.

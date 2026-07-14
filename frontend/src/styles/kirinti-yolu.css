@@ -1,0 +1,36 @@
+/*
+  Kırıntı yolu (breadcrumb) stilleri: içerik alanının üstünde duran, sayfa
+  başlıklarından (h2) daha küçük ve silik tek satır. Son öğe bulunulan sayfayı
+  belirttiği için biraz daha koyu/kalın. Anasayfa içinde render edildiğinden
+  global palet (login.css) buradan miras alınır. Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Yol satırı: uzun yollar dar ekranda alt satıra sarabilir. */
+.kirinti-yolu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--renk-metin-soluk);
+}
+
+/* Ara başlıklar: silik ve normal kalınlıkta. */
+.kirinti-yolu-oge {
+  color: var(--renk-metin-soluk);
+}
+
+/* Bulunulan sayfa: yolun sonunda biraz daha belirgin. */
+.kirinti-yolu-son {
+  font-weight: 600;
+  color: var(--renk-lacivert);
+}
+
+/* Ayırıcı (›): başlıklardan daha silik, nefes alması için yanlarda boşluk. */
+.kirinti-yolu-ayirici {
+  margin: 0 6px;
+  color: var(--renk-metin-soluk);
+  opacity: 0.6;
+}

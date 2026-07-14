@@ -7,6 +7,8 @@
 // içermez. Sol yan çubuk oturumu olan HER kullanıcıya gösterilir. Yönetim paneli
 // girişi (hamburger + panel + admin görünümleri) yalnızca kullanıcı türü 'admin'
 // olduğunda gösterilir; bu bir gösterim kararıdır, gerçek yetki kontrolü sunucudadır.
+// İçerik alanının en üstünde, seçili görünümün menüdeki yerini bildiren kırıntı
+// yolu (KirintiYolu) tek bir yerde gösterilir.
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
 import Topbar from '../components/Topbar.jsx'
@@ -22,10 +24,12 @@ import AyarlarSayfasi from '../components/AyarlarSayfasi.jsx'
 import GrupTanimlariAyar from '../components/GrupTanimlariAyar.jsx'
 import KullaniciGruplariSayfasi from '../components/KullaniciGruplariSayfasi.jsx'
 import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
+import KirintiYolu from '../components/KirintiYolu.jsx'
 import {
   SECENEK_KATEGORILERI,
   SORU_SECENEK_KATEGORILERI,
 } from '../common/secenekKategorileri.js'
+import { gorunumYolunuBul } from '../common/yonetimMenusu.js'
 import '../styles/anasayfa.css'
 
 // AnaSayfaPage: üst bar + içerik alanı + admin panelini birleştirir.
@@ -118,6 +122,10 @@ function AnaSayfaPage() {
       <main
         className={`anasayfa-icerik${yanCubukGenis ? ' yan-cubuk-genis' : ''}`}
       >
+        {/* Seçili görünümün menüdeki yeri; boş anasayfada ve admin olmayan
+            kullanıcıda gösterilecek bir yol yoktur. */}
+        {adminMi && <KirintiYolu basliklar={gorunumYolunuBul(secilenGorunum)} />}
+
         {/* Admin görünümleri yalnızca admin'e; savunma derinliği olarak içerik
             de adminMi ile koşullanır, aksi halde boş anasayfa gösterilir. */}
         {adminMi && secilenGorunum === 'kullanici-listesi' && (

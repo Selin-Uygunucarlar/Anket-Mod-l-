@@ -1,20 +1,23 @@
 /*
-  Yeni sekmede açılan soru seçme ekranının (SoruSecPage) yalnızca kendine özgü
-  minimum stilleri. Sayfa bir anasayfa kabuğunun içinde değil, tek başına
-  açıldığından burada bir dış sayfa çerçevesi tanımlanır. Tablo, başlık satırı,
-  durum metinleri ve butonlar mevcut kullanici-listesi.css / kullanici-ekle.css /
-  soru-listesi.css sınıflarından miras alınır (DRY); kopya stil yazılmaz.
+  Anket formundan YENİ SEKMEDE açılan seçme ekranlarının (SoruSecPage,
+  AnketKullaniciSecPage, AnketGrupSecPage) yalnızca kendilerine özgü minimum
+  stilleri; üçü de aynı çerçeveyi paylaşır (DRY). Bu sayfalar anasayfa kabuğunun
+  içinde değil, tek başına açıldığından burada bir dış sayfa çerçevesi tanımlanır.
+  Tablo, başlık satırı, durum metinleri ve butonlar mevcut kullanici-listesi.css /
+  kullanici-ekle.css / soru-listesi.css sınıflarından miras alınır; kopya stil yazılmaz.
+  Renk değişkenleri global paletten (login.css :root) gelir.
   Yalnızca sunum sorumluluğundadır.
 */
 
-/* Sayfa çerçevesi: tek başına açılan sekmede içeriği ortalar ve nefes payı verir. */
+/* Sayfa çerçevesi: tek başına açılan sekmede zemin ve nefes payı anasayfa
+   içerik alanıyla (.anasayfa-icerik) aynı olsun diye tam genişlik + 24px. */
 .soru-sec-sayfa {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 24px 16px;
+  padding: 24px;
+  background: #ffffff;
+  min-height: 100vh;
 }
 
 /* Satır başındaki seçim kutusu: marka mavisiyle uyumlu, rahat tıklanır boyut
@@ -26,9 +29,23 @@
   cursor: pointer;
 }
 
-/* Alt çubuk: "Seçilenleri Ekle" butonunu (ya da açan sekme yoksa bilgilendirme
-   metnini) tablonun altında sola yaslar. */
+/* Alt çubuk: "Seçilenleri Ekle" butonunu tablonun altında sağa yaslar; böylece
+   anasayfadaki ekle butonlarıyla aynı hizada durur. */
 .soru-sec-alt-cubuk {
   display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
+}
+
+/* Buton ölçüsü anasayfadaki ekle butonuyla (.kullanici-ekle-buton) aynı olsun.
+   Kural yalnızca alt çubuğa kapsanır: .birincil-buton paylaşılan bir sınıf,
+   global büyütmek diğer ekranlardaki butonları bozar. */
+.soru-sec-alt-cubuk .birincil-buton {
+  padding: 10px 16px;
+  font-size: 16px;
+}
+
+/* Açan sekme yokken butonun yerini alan bilgilendirme metni, flex-end ile sağa
+   itilmesin; solda kalsın. */
+.soru-sec-alt-cubuk .kullanici-liste-durum {
+  margin-right: auto;
 }

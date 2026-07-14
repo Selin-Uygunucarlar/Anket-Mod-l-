@@ -2,9 +2,8 @@
   Kullanıcı ekleme formunun stilleri: içerik alanında ortalanmış beyaz bir A4
   sayfası (gölgeli kart) içinde başlık, her satırda etiketin girdinin solunda
   durduğu yerleşim, Kaydet/Geri Dön butonları, hata/uyarı metinleri ve başarı
-  sonrası geçici şifre kutusu. Anasayfa içinde render edildiği için yerel
-  --renk-vurgu (anasayfa.css) ile global palet (login.css) buradan miras alınır.
-  Yalnızca sunum sorumluluğundadır.
+  sonrası geçici şifre kutusu. Renk değişkenleri global paletten
+  (login.css :root) miras alınır. Yalnızca sunum sorumluluğundadır.
 */
 
 /* Form sarmalayıcısı: içerik alanında ortalanan, A4 genişliğine yakın beyaz

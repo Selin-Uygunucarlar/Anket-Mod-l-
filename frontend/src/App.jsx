@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage.jsx'
 import AnaSayfaPage from './pages/AnaSayfaPage.jsx'
 import SifreBelirlePage from './pages/SifreBelirlePage.jsx'
 import SoruSecPage from './pages/SoruSecPage.jsx'
+import AnketKullaniciSecPage from './pages/AnketKullaniciSecPage.jsx'
+import AnketGrupSecPage from './pages/AnketGrupSecPage.jsx'
 import GuardliRota from './auth/GuardliRota.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 
@@ -67,6 +69,37 @@ function App() {
               <Navigate to="/sifre-belirle" replace />
             ) : (
               <SoruSecPage />
+            )}
+          </GuardliRota>
+        }
+      />
+
+      {/* Korumalı kullanıcı seçme ekranı: anket formunun "Kullanıcılar" kartından
+          YENİ SEKMEDE açılır (soru seçme ekranıyla aynı gerekçe: yeni sekme
+          gerçek bir URL ister). Şifre belirleme bayrağı aynı şekilde gözetilir. */}
+      <Route
+        path="/anket-kullanicilari-sec"
+        element={
+          <GuardliRota>
+            {sifreBelirlemeGerek ? (
+              <Navigate to="/sifre-belirle" replace />
+            ) : (
+              <AnketKullaniciSecPage />
+            )}
+          </GuardliRota>
+        }
+      />
+
+      {/* Korumalı grup seçme ekranı: anket formunun "Kullanıcılar" kartından YENİ
+          SEKMEDE açılır. Kalıp diğer seçme ekranlarıyla birebir aynıdır. */}
+      <Route
+        path="/anket-gruplari-sec"
+        element={
+          <GuardliRota>
+            {sifreBelirlemeGerek ? (
+              <Navigate to="/sifre-belirle" replace />
+            ) : (
+              <AnketGrupSecPage />
             )}
           </GuardliRota>
         }

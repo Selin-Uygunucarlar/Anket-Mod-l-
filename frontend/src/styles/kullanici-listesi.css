@@ -1,9 +1,8 @@
 /*
   Kullanıcı listesi görünümünün stilleri: liste sarmalayıcı, durum metinleri
   (yükleniyor / boş / hata), kullanıcı tablosu, tıklanabilir isim butonları ve
-  İşlemler sütunundaki üç nokta butonu. Anasayfa içinde render edildiği için
-  yerel --renk-vurgu (anasayfa.css'te .anasayfa üzerinde tanımlı) ile global
-  palet (login.css) buradan miras alınır. Yalnızca sunum sorumluluğundadır.
+  İşlemler sütunundaki üç nokta butonu. Renk değişkenleri global paletten
+  (login.css :root) miras alınır. Yalnızca sunum sorumluluğundadır.
 */
 
 /* Kullanıcı listesi görünümü sarmalayıcısı. */

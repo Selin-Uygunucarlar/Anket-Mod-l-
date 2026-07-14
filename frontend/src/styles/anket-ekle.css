@@ -187,6 +187,45 @@
   opacity: 0.75;
 }
 
+/* Kullanıcılar kartı atama bölümü: her atama satırı ve (varsa) altındaki seçili
+   liste alt alta dizilir. Radyo/checkbox gruplarının yatay yerleşimini kullanmaz;
+   bu kartın satırları tam genişliktir (etiket solda, aksiyonlar sağda). */
+.anket-atama-bolum {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Atama satırı: solda checkbox + etiket, sağda aksiyon bağlantıları. Dar ekranda
+   aksiyonlar alt satıra sarar. */
+.anket-atama-satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+/* Aksiyon bağlantıları kutusu: satırın sağ ucunda yan yana duran bağlantı
+   görünümlü butonlar (.baglanti-buton). */
+.anket-atama-aksiyonlar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Seçili kullanıcı/grup listesi: satır görünümünü seçili soru listesiyle
+   (.anket-secili-soru) paylaşır (DRY). Numara/girinti istenmediğinden burada
+   yalnızca listenin kendi süsleri sıfırlanır. */
+.anket-secili-atama-listesi {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 /* Tarih seçici: "Tarih seç" işaretlendiğinde o seçeneğin YANINDA (aynı satırda,
    sağında) görünen takvim girdisi. Radyo grubu bir flex satırı olduğundan takvim,
    "Tarih seç" etiketinin kardeşi olarak yan yana dizilir. Diğer kutularla tutarlı

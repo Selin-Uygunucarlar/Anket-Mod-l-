@@ -8,8 +8,9 @@
 // HESAPLANMAZ: yalnızca seçim kimliği sunucuya taşınır, tarihi anket servisi hesaplar.
 // Erişim seviyesi "grup" seçilse de grup sorulmaz/gönderilmez: sunucu oturum
 // sahibinin kendi grubunu kullanır.
-// Sorular YENİ SEKMEDE açılan soru seçme ekranından postMessage ile gelir; mesajın
-// origin'i doğrulanır. Her bölüm kendi kart bileşenindedir (SRP): AnketBilgileriKarti,
+// Sorular, ankete atanacak kullanıcılar ve gruplar YENİ SEKMEDE açılan seçme
+// ekranlarından postMessage ile gelir; mesajın origin'i doğrulanır.
+// Her bölüm kendi kart bileşenindedir (SRP): AnketBilgileriKarti,
 // AnketSorulariKarti, AnketTarihleriKarti, AnketKullanicilariKarti,
 // AnketMesajAyarlariKarti, AnketIslemleriKarti. Kullanıcılar / Mesaj Ayarları /
 // İşlemler kartları bu fazın DIŞINDADIR: ekranda dururlar ama SUNUCUYA GÖNDERİLMEZ
@@ -27,33 +28,41 @@ import AnketMesajAyarlariKarti from './AnketMesajAyarlariKarti.jsx'
 import AnketIslemleriKarti from './AnketIslemleriKarti.jsx'
 import {
   BOS_ANKET_FORMU,
+  SABIT_LISTE_ATAMASI,
+  KULLANICI_GRUPLARI_ATAMASI,
+  secimleriBirlestir,
   tarihAlaniGecersiz,
 } from '../common/anketFormAlanlari.js'
+import {
+  SORU_SECIM_MESAJ_TIPI,
+  KULLANICI_SECIM_MESAJ_TIPI,
+  GRUP_SECIM_MESAJ_TIPI,
+} from '../common/secimSekmesi.js'
 import '../styles/kullanici-ekle.css'
 import '../styles/anket-ekle.css'
 
-// Soru seçme ekranının rota adresi (yeni sekmede açılır) ve o ekranın geri
-// gönderdiği mesajın tipi. İkisi de SoruSecPage ile birebir aynı olmalıdır.
+// Yeni sekmede açılan seçme ekranlarının rota adresleri; App.jsx'teki rotalarla
+// birebir aynı olmalıdır.
 const SORU_SEC_YOLU = '/anket-sorulari-sec'
-const SECIM_MESAJ_TIPI = 'anket-sorulari-secildi'
+const KULLANICI_SEC_YOLU = '/anket-kullanicilari-sec'
+const GRUP_SEC_YOLU = '/anket-gruplari-sec'
 
-// sorulariBirlestir: soru seçme ekranından gelen soruları mevcut listenin sonuna
-// ekler; formda zaten bulunan sorular tekrar EKLENMEZ (aynı soru listede iki kez
-// görünmesin). Gelen sıra korunur. Salt liste birleştirmesidir; iş kuralı değildir.
-function sorulariBirlestir(mevcutSorular, gelenSorular) {
-  const mevcutKimlikler = new Set(mevcutSorular.map((soru) => soru.soru_id))
-  const yeniler = gelenSorular.filter(
-    (soru) => !mevcutKimlikler.has(soru.soru_id),
-  )
-  return [...mevcutSorular, ...yeniler]
+// atamaSecenegiIsaretle: verilen atama seçeneğini işaretli hale getirir; zaten
+// işaretliyse liste olduğu gibi döner (aynı seçenek iki kez eklenmez). Seçme
+// ekranından liste dönünce ilgili kutu boş kalmasın diye kullanılır.
+function atamaSecenegiIsaretle(seciliAtamalar, deger) {
+  return seciliAtamalar.includes(deger)
+    ? seciliAtamalar
+    : [...seciliAtamalar, deger]
 }
 
 // formuIstekGovdesineCevir: form state'ini backend'in beklediği gövde şekline
 // eşler (salt biçim dönüşümü; iş kuralı değil). Seçilmemiş dropdown'lar formda ''
 // tutulur, sunucu ise "gönderilmedi" için null bekler -> boş değerler null'a
 // çevrilir. Tarihler HESAPLANMAZ: yalnızca seçim kimliği ve (varsa) takvim değeri
-// taşınır; hesabı sunucu yapar. Bu fazın kapsamı dışındaki kartların (Kullanıcılar,
-// Mesaj Ayarları, İşlemler) seçimleri bilinçli olarak gövdeye KONMAZ.
+// taşınır; hesabı sunucu yapar. Bu fazın kapsamı dışındaki kartların (Kullanıcılar
+// — seçilen kullanıcı/gruplar dahil, Mesaj Ayarları, İşlemler) seçimleri bilinçli
+// olarak gövdeye KONMAZ.
 function formuIstekGovdesineCevir(form) {
   return {
     ad: form.adi,
@@ -91,25 +100,66 @@ function AnketEkleForm({ onGeriDon }) {
     },
   })
 
-  // Yeni sekmedeki soru seçme ekranından gelen seçim mesajını dinler ve seçilen
-  // soruları forma yazar. GÜVENLİK: mesaj yalnızca KENDİ origin'imizden geliyorsa
-  // kabul edilir; aksi halde herhangi bir site forma soru enjekte edebilirdi.
-  // Dinleyici unmount'ta kaldırılır.
+  // Yeni sekmedeki seçme ekranlarından (soru / kullanıcı / grup) gelen seçim
+  // mesajlarını dinler ve gelenleri forma yazar. GÜVENLİK: mesaj yalnızca KENDİ
+  // origin'imizden geliyorsa kabul edilir; aksi halde herhangi bir site forma
+  // kayıt enjekte edebilirdi. Dinleyici unmount'ta kaldırılır.
   useEffect(() => {
     function secimMesajiniAl(olay) {
       if (olay.origin !== window.location.origin) {
         return
       }
-      if (olay.data?.tip !== SECIM_MESAJ_TIPI) {
+      const mesaj = olay.data
+
+      if (mesaj?.tip === SORU_SECIM_MESAJ_TIPI) {
+        const gelenSorular = Array.isArray(mesaj.sorular) ? mesaj.sorular : []
+        setForm((oncekiler) => ({
+          ...oncekiler,
+          secili_sorular: secimleriBirlestir(
+            oncekiler.secili_sorular,
+            gelenSorular,
+            (soru) => soru.soru_id,
+          ),
+        }))
         return
       }
-      const gelenSorular = Array.isArray(olay.data.sorular)
-        ? olay.data.sorular
-        : []
-      setForm((oncekiler) => ({
-        ...oncekiler,
-        secili_sorular: sorulariBirlestir(oncekiler.secili_sorular, gelenSorular),
-      }))
+
+      // Kullanıcı/grup seçimi geldiğinde ilgili checkbox da işaretlenir: kullanıcı
+      // seçim yapmışken kutunun boş kalması yanıltıcı olurdu (salt UX).
+      if (mesaj?.tip === KULLANICI_SECIM_MESAJ_TIPI) {
+        const gelenKullanicilar = Array.isArray(mesaj.kullanicilar)
+          ? mesaj.kullanicilar
+          : []
+        setForm((oncekiler) => ({
+          ...oncekiler,
+          secili_kullanicilar: secimleriBirlestir(
+            oncekiler.secili_kullanicilar,
+            gelenKullanicilar,
+            (kullanici) => kullanici.kullanici_kodu,
+          ),
+          kullanici_atama: atamaSecenegiIsaretle(
+            oncekiler.kullanici_atama,
+            SABIT_LISTE_ATAMASI,
+          ),
+        }))
+        return
+      }
+
+      if (mesaj?.tip === GRUP_SECIM_MESAJ_TIPI) {
+        const gelenGruplar = Array.isArray(mesaj.gruplar) ? mesaj.gruplar : []
+        setForm((oncekiler) => ({
+          ...oncekiler,
+          secili_gruplar: secimleriBirlestir(
+            oncekiler.secili_gruplar,
+            gelenGruplar,
+            (grup) => grup.grup_id,
+          ),
+          kullanici_atama: atamaSecenegiIsaretle(
+            oncekiler.kullanici_atama,
+            KULLANICI_GRUPLARI_ATAMASI,
+          ),
+        }))
+      }
     }
     window.addEventListener('message', secimMesajiniAl)
     return () => window.removeEventListener('message', secimMesajiniAl)
@@ -139,12 +189,43 @@ function AnketEkleForm({ onGeriDon }) {
     window.open(SORU_SEC_YOLU, '_blank')
   }
 
+  // kullaniciSecmeyiAc: kullanıcı seçme ekranını yeni sekmede açar (soru seçmeyle
+  // aynı gerekçe: 'noopener' kullanılmaz, dönen mesajın origin'i doğrulanır).
+  function kullaniciSecmeyiAc() {
+    window.open(KULLANICI_SEC_YOLU, '_blank')
+  }
+
+  // grupSecmeyiAc: grup seçme ekranını yeni sekmede açar (aynı kalıp).
+  function grupSecmeyiAc() {
+    window.open(GRUP_SEC_YOLU, '_blank')
+  }
+
   // soruKaldir: ankete eklenmiş bir soruyu listeden çıkarır.
   function soruKaldir(soruId) {
     setForm((oncekiler) => ({
       ...oncekiler,
       secili_sorular: oncekiler.secili_sorular.filter(
         (soru) => soru.soru_id !== soruId,
+      ),
+    }))
+  }
+
+  // kullaniciKaldir: sabit listeye eklenmiş bir kullanıcıyı listeden çıkarır.
+  function kullaniciKaldir(kullaniciKodu) {
+    setForm((oncekiler) => ({
+      ...oncekiler,
+      secili_kullanicilar: oncekiler.secili_kullanicilar.filter(
+        (kullanici) => kullanici.kullanici_kodu !== kullaniciKodu,
+      ),
+    }))
+  }
+
+  // grupKaldir: eklenmiş bir kullanıcı grubunu listeden çıkarır.
+  function grupKaldir(grupId) {
+    setForm((oncekiler) => ({
+      ...oncekiler,
+      secili_gruplar: oncekiler.secili_gruplar.filter(
+        (grup) => grup.grup_id !== grupId,
       ),
     }))
   }
@@ -197,11 +278,20 @@ function AnketEkleForm({ onGeriDon }) {
 
         <AnketTarihleriKarti form={form} alanGuncelle={alanGuncelle} />
 
+        {/* Kullanıcılar kartı: atama seçenekleri ile "Listeden seç" ekranlarından
+            gelen kullanıcı/grup listeleri. Seçimler yalnızca formda tutulur;
+            sunucuya GÖNDERİLMEZ (bu fazın dışı). */}
         <AnketKullanicilariKarti
           seciliAtamalar={form.kullanici_atama}
           onSecimDegistir={(deger) =>
             cokluSeciminiDegistir('kullanici_atama', deger)
           }
+          secilenKullanicilar={form.secili_kullanicilar}
+          secilenGruplar={form.secili_gruplar}
+          onKullaniciSecmeyiAc={kullaniciSecmeyiAc}
+          onGrupSecmeyiAc={grupSecmeyiAc}
+          onKullaniciKaldir={kullaniciKaldir}
+          onGrupKaldir={grupKaldir}
         />
 
         <AnketMesajAyarlariKarti

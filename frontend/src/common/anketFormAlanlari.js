@@ -51,13 +51,19 @@ export const BITIS_TARIHI_SECENEKLERI = [
   { deger: 'tarih_sec', etiket: 'Tarih seç' },
 ]
 
+// "Kullanıcılar" kartındaki atama seçeneklerinin degerleri. Sabit olarak
+// tanımlanır çünkü hem seçenek listesi hem de seçim geri geldiğinde ilgili kutuyu
+// işaretleyen form mantığı aynı degeri kullanır (metin iki yerde tekrarlanmasın).
+export const SABIT_LISTE_ATAMASI = 'sabit_liste'
+export const KULLANICI_GRUPLARI_ATAMASI = 'kullanici_gruplari'
+
 // "Kullanıcılar" kartı seçenekleri (bu sırayla). Checkbox grubudur: ikisi de
 // aynı anda işaretlenebilir. { deger, etiket } kalıbı; state'te seçili degerler
 // dizisi tutulur. GERÇEK ATAMA/HESAP YAPILMAZ; yalnızca hangi seçeneklerin
 // işaretlendiği state'te tutulur (mevcut tarih seçimi felsefesiyle aynı).
 export const KULLANICI_ATAMA_SECENEKLERI = [
-  { deger: 'sabit_liste', etiket: 'Sabit liste' },
-  { deger: 'kullanici_gruplari', etiket: 'Kullanıcı Grupları' },
+  { deger: SABIT_LISTE_ATAMASI, etiket: 'Sabit liste' },
+  { deger: KULLANICI_GRUPLARI_ATAMASI, etiket: 'Kullanıcı Grupları' },
 ]
 
 // "İşlemler" kartı seçenekleri (bu sırayla). Checkbox grubudur: birden çok seçenek
@@ -106,6 +112,8 @@ export const BOS_ANKET_FORMU = {
   bitis_secim: '', // 'bir_ay' | 'iki_ay' | 'tarih_sec'
   bitis_tarih: '', // yalnızca 'tarih_sec' seçiliyken anlamlı; <input type="date"> değeri
   kullanici_atama: [], // seçili atama seçenekleri: 'sabit_liste' ve/veya 'kullanici_gruplari'; checkbox grubu, ikisi de seçilebilir
+  secili_kullanicilar: [], // "Sabit liste" için seçilen kullanıcılar: [{ kullanici_kodu, ad, soyad, email }]; yeni sekmedeki kullanıcı seçme ekranından gelir, SUNUCUYA GÖNDERİLMEZ
+  secili_gruplar: [], // "Kullanıcı Grupları" için seçilen gruplar: [{ grup_id, ad, uye_sayisi }]; yeni sekmedeki grup seçme ekranından gelir, SUNUCUYA GÖNDERİLMEZ
   mesaj_baslangic_mail: false, // "Başlangıçtan 1 gün önce mail gönderilsin" bağımsız checkbox; gerçek mail GÖNDERİLMEZ
   mesaj_hatirlatma: false, // "Bitişten X gün önce, N günde bir hatırlatma" bağımsız checkbox; aşağıdaki iki alanı aktifleştirir
   hatirlatma_gun_once: '', // yalnızca mesaj_hatirlatma seçiliyken anlamlı; "kaç gün önce" sayı girdisi değeri (min 1)
@@ -113,6 +121,19 @@ export const BOS_ANKET_FORMU = {
   mesaj_stil_sablonu: false, // "Mesajlar Stil şablonu ile gönderilsin" bağımsız checkbox; gerçek gönderim YAPILMAZ
   islem_secenekleri: ['anket_zorunlu'], // İşlemler kartı checkbox grubu; varsayılan "Anketi almak zorunlu olsun" işaretli
   soru_gosterim: 'tek_sayfa_tum', // Soru gösterim biçimi radyo grubu; varsayılan "Tek sayfada tüm sorular çıksın"
+}
+
+// secimleriBirlestir: yeni sekmedeki seçme ekranından gelen öğeleri mevcut
+// listenin sonuna ekler; listede zaten bulunan öğe tekrar EKLENMEZ (aynı öğe iki
+// kez görünmesin). Gelen sıra korunur. kimlikAl, bir öğenin kimliğini döndürür
+// (soru_id / kullanici_kodu / grup_id). Salt liste birleştirmesidir; sorular,
+// kullanıcılar ve gruplar için aynı davranış gerektiğinden tek yerdedir (DRY).
+export function secimleriBirlestir(mevcutOgeler, gelenOgeler, kimlikAl) {
+  const mevcutKimlikler = new Set(mevcutOgeler.map(kimlikAl))
+  const yeniler = gelenOgeler.filter(
+    (oge) => !mevcutKimlikler.has(kimlikAl(oge)),
+  )
+  return [...mevcutOgeler, ...yeniler]
 }
 
 // tarihAlaniGecersiz: bir zorunlu tarih alanının Kaydet için "eksik" olup olmadığını

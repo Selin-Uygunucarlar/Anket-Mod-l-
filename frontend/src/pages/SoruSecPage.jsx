@@ -13,14 +13,15 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { sorulariGetir } from '../api/soruApi.js'
 import { soruTipiEtiketi } from '../common/soruTipleri.js'
+import {
+  SORU_SECIM_MESAJ_TIPI,
+  acanSekmeVarMi,
+  secimiAcanSekmeyeGonder,
+} from '../common/secimSekmesi.js'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
 import '../styles/kullanici-ekle.css'
 import '../styles/soru-sec.css'
-
-// Açan sekmeye gönderilen mesajın tipi. Anket formu dinleyicisi mesajları bu
-// etikete göre ayırt eder (origin doğrulaması ayrıca yapılır).
-const SECIM_MESAJ_TIPI = 'anket-sorulari-secildi'
 
 // Tablo kolon başlıkları (bu sırayla). İlk kolon seçim kutusudur.
 const SECIM_KOLON_BASLIKLARI = ['Seç', 'Soru Metni', 'Soru Tipi']
@@ -43,7 +44,7 @@ function SoruSecPage() {
 
   // Açan sekme var mı? Yoksa (kullanıcı bu adresi doğrudan açtıysa) seçim
   // aktarılacak bir hedef yoktur; buton yerine bilgilendirme gösterilir.
-  const acanSekmeVar = Boolean(window.opener) && !window.opener.closed
+  const acanSekmeVar = acanSekmeVarMi()
 
   // secimiDegistir: bir sorunun işaretini açar/kapatır (işaretliyse çıkarır).
   function secimiDegistir(soruId) {
@@ -55,8 +56,7 @@ function SoruSecPage() {
   }
 
   // secilenleriAktar: işaretli soruları açan sekmeye (anket formuna) gönderir ve
-  // sekmeyi kapatır. Hedef origin KENDİ ORIGIN'imizdir ('*' değil): mesaj yalnızca
-  // aynı origin'deki sayfaya teslim edilir, başka sitelere sızmaz.
+  // sekmeyi kapatır (gönderim ayrıntısı secimSekmesi yardımcısındadır).
   function secilenleriAktar() {
     const secilenSorular = (sorular ?? [])
       .filter((soru) => secililer.includes(soru.soru_id))
@@ -65,11 +65,10 @@ function SoruSecPage() {
         soru_metni: soru.soru_metni,
         soru_tipi: soru.soru_tipi,
       }))
-    window.opener.postMessage(
-      { tip: SECIM_MESAJ_TIPI, sorular: secilenSorular },
-      window.location.origin,
-    )
-    window.close()
+    secimiAcanSekmeyeGonder({
+      tip: SORU_SECIM_MESAJ_TIPI,
+      sorular: secilenSorular,
+    })
   }
 
   if (isPending) {

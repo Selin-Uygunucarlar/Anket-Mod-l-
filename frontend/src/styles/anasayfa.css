@@ -4,28 +4,22 @@
   göstergesi ile açılır kişi menüsü ve sağdan kayan admin paneli (drawer).
   Admin paneli üst barın altında konumlanır; açıkken arkasında beyaza yakın,
   hafif buzlu bir perde belirir (sayfayı karartmaz) ve bu perdeye tıklamak
-  paneli kapatır. Renk değişkenleri global olarak login.css'te tanımlıdır;
-  marka mavisi ise burada .anasayfa üzerinde tek kaynak olarak tanımlanır ve
-  alt bileşenlere (yan çubuk, admin paneli) miras kalır. Yalnızca sunum
-  (görsel) sorumluluğundadır.
+  paneli kapatır. Marka mavisi dahil tüm renk değişkenleri global palette
+  (login.css :root) tanımlıdır. Yalnızca sunum (görsel) sorumluluğundadır.
 */
 
 /* Sayfa sarmalayıcı: üst bar + altında içerik alanı için tam yükseklik.
    Zemin komple beyazdır; üst bar da beyazdır ve alttaki içerikten ince mavi
-   üst çizgi ile gölge sayesinde ayrışır. Yerel --renk-vurgu (tıklanabilir
-   isimler ve ince vurgular) burada tanımlanır; global palet (login.css)
-   değiştirilmez. */
+   üst çizgi ile gölge sayesinde ayrışır. */
 .anasayfa {
-  --renk-vurgu: #0080ff;
-  --renk-marka-mavi: #0072CE;
   min-height: 100vh;
   background: #ffffff;
 }
 
 /* Üst bar: belirgin yükseklik, beyaz zemin, içeriği sağa yaslar. Yalnızca en
    üst kenarında ince bir marka mavisi aksan çizgi taşır; altındaki gölge,
-   beyaz içerik alanından net ayrışmasını sağlar. Marka mavisi --renk-marka-mavi
-   değişkeninden (tek kaynak) okunur. Metin/ikonlar beyaz zemin üzerinde okunur
+   beyaz içerik alanından net ayrışmasını sağlar. Marka mavisi global paletten
+   (--renk-marka-mavi) okunur. Metin/ikonlar beyaz zemin üzerinde okunur
    kalması için lacivertdir. */
 .ust-bar {
   height: 72px;

@@ -3,8 +3,8 @@
   beyaz bir A4 sayfası (gölgeli kart) içinde başlık + tıklamayla açılan bilgi
   baloncuğu (açıklama), kategori seçimi +
   değer girişi + Ekle satırı, hata metni ve kategoriye göre gruplu mevcut seçenek
-  listesi (değerler silinebilir). Anasayfa içinde render edilir; yerel
-  --renk-vurgu (anasayfa.css) ve global palet (login.css) miras alınır.
+  listesi (değerler silinebilir). Renk değişkenleri global paletten
+  (login.css :root) miras alınır.
   Birincil/ikincil buton stilleri kullanici-ekle.css'te tanımlıdır (aynı anasayfa
   modül grafında daima yüklenir) ve burada yeniden kullanılır. Yalnızca sunum
   sorumluluğundadır.

@@ -15,6 +15,10 @@
   --renk-metin-soluk: #6b7385;
   --renk-hata: #c0392b;
   --renk-beyaz: #ffffff;
+  /* Vurgu ve marka mavisi: anasayfa kabuğu dışında tek başına açılan
+     sayfalarda da geçerli olsun diye global palette tutulur. */
+  --renk-vurgu: #0080ff;
+  --renk-marka-mavi: #0072CE;
 }
 
 * {

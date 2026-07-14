@@ -1,0 +1,34 @@
+/*
+  Yeni sekmede açılan soru seçme ekranının (SoruSecPage) yalnızca kendine özgü
+  minimum stilleri. Sayfa bir anasayfa kabuğunun içinde değil, tek başına
+  açıldığından burada bir dış sayfa çerçevesi tanımlanır. Tablo, başlık satırı,
+  durum metinleri ve butonlar mevcut kullanici-listesi.css / kullanici-ekle.css /
+  soru-listesi.css sınıflarından miras alınır (DRY); kopya stil yazılmaz.
+  Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Sayfa çerçevesi: tek başına açılan sekmede içeriği ortalar ve nefes payı verir. */
+.soru-sec-sayfa {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* Satır başındaki seçim kutusu: marka mavisiyle uyumlu, rahat tıklanır boyut
+   (anket formundaki checkbox ölçüleriyle tutarlı). */
+.soru-sec-kutu {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--renk-mavi);
+  cursor: pointer;
+}
+
+/* Alt çubuk: "Seçilenleri Ekle" butonunu (ya da açan sekme yoksa bilgilendirme
+   metnini) tablonun altında sola yaslar. */
+.soru-sec-alt-cubuk {
+  display: flex;
+  justify-content: flex-start;
+}

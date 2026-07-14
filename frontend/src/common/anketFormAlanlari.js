@@ -19,17 +19,23 @@ export const ANKET_TIPI_SECENEKLERI = [
 export const DURUM_SECENEKLERI = ['Aktif', 'Pasif']
 
 // Erişim seviyesi dropdown seçenekleri (bu sırayla). İlk seçenek placeholder
-// "Seçiniz"dir (boş değer) ve bu dizide yer almaz.
+// "Seçiniz"dir (boş değer) ve bu dizide yer almaz. { deger, etiket } kalıbı:
+// deger SUNUCUYA GİDEN koddur (DB'de saklanan kısa değer), etiket ise yalnızca
+// ekranda görünen cümledir ve frontend'de kalır.
 export const ERISIM_SEVIYESI_SECENEKLERI = [
-  'Çalışma grubumdakiler ve ben görebilir ve yönetebiliriz',
-  'Sadece ben görebilir ve yönetebilirim',
-  'Herkes görebilir ve yönetebilir',
+  {
+    deger: 'grup',
+    etiket: 'Çalışma grubumdakiler ve ben görebilir ve yönetebiliriz',
+  },
+  { deger: 'ben', etiket: 'Sadece ben görebilir ve yönetebilirim' },
+  { deger: 'herkes', etiket: 'Herkes görebilir ve yönetebilir' },
 ]
 
 // Başlangıç Tarihi radyo seçenekleri (bu sırayla). Görünen metin (etiket) ile
 // state'te tutulan değer (deger) FARKLI olduğundan { deger, etiket } nesne dizisi
 // kullanılır; zorunlu gruptur, varsayılan seçili yoktur. "bugun"/"yarin" için
-// gerçek tarih HESAPLANMAZ; hesap ileride servis katmanına bırakılır.
+// gerçek tarih UI'da HESAPLANMAZ: sunucuya yalnızca seçim kimliği (deger)
+// gönderilir, tarihi anket servisi hesaplar (hesaplama sunum katmanının işi değil).
 export const BASLANGIC_TARIHI_SECENEKLERI = [
   { deger: 'bugun', etiket: 'Bugün' },
   { deger: 'yarin', etiket: 'Yarın' },
@@ -37,7 +43,8 @@ export const BASLANGIC_TARIHI_SECENEKLERI = [
 ]
 
 // Bitiş Tarihi radyo seçenekleri (bu sırayla). Aynı { deger, etiket } kalıbı; "bir_ay"
-// /"iki_ay" için gerçek tarih HESAPLANMAZ, seçim yalnızca state'te tutulur.
+// /"iki_ay" için gerçek tarih UI'da HESAPLANMAZ: seçim kimliği sunucuya gönderilir,
+// başlangıca göre ay ekleme hesabını anket servisi yapar.
 export const BITIS_TARIHI_SECENEKLERI = [
   { deger: 'bir_ay', etiket: 'Bir Ay' },
   { deger: 'iki_ay', etiket: 'İki Ay' },
@@ -83,7 +90,8 @@ export const UYARI_SURESI_MS = 2800
 export const HATIRLATMA_SIKLIGI_SECENEKLERI = ['1', '2']
 
 // Formun başlangıç değerleri: metin alanları boş, Durum "Aktif", Anket Tipi ve
-// Erişim Seviyesi seçilmemiş (boş), tarih seçimleri yapılmamış (boş).
+// Erişim Seviyesi seçilmemiş (boş), tarih seçimleri yapılmamış (boş), ankete
+// eklenmiş soru yok (boş liste).
 export const BOS_ANKET_FORMU = {
   adi: '',
   on_yazi: '',
@@ -91,7 +99,8 @@ export const BOS_ANKET_FORMU = {
   aciklama: '',
   durum: 'Aktif',
   anket_tipi: '',
-  erisim_seviyesi: '',
+  erisim_seviyesi: '', // '' (seçilmedi) | 'grup' | 'ben' | 'herkes'; sunucuya kod gider. 'grup' seçilse de grup UI'da sorulmaz: sunucu oturum sahibinin kendi grubunu kullanır
+  secili_sorular: [], // ankete eklenen sorular: [{ soru_id, soru_metni, soru_tipi }]; yeni sekmedeki soru seçme ekranından gelir, sıra korunur
   baslangic_secim: '', // 'bugun' | 'yarin' | 'tarih_sec'
   baslangic_tarih: '', // yalnızca 'tarih_sec' seçiliyken anlamlı; <input type="date"> değeri
   bitis_secim: '', // 'bir_ay' | 'iki_ay' | 'tarih_sec'

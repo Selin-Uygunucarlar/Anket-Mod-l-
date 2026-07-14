@@ -138,8 +138,8 @@
 }
 
 /* Bağlantı görünümlü buton: kenarlık/zemin taşımaz, metin akışının içinde bir
-   link gibi görünür (marka mavisi, altı çizili). İşlevi UI'de değil ileride
-   eklenecektir; burada yalnızca görünümü tanımlar. */
+   link gibi görünür (marka mavisi, altı çizili). Yalnızca görünüm tanımıdır;
+   davranışı kullanan bileşene aittir. */
 .baglanti-buton {
   padding: 0;
   border: none;
@@ -148,6 +148,43 @@
   color: var(--renk-mavi);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Ankete eklenmiş soruların listesi: numaralı liste (sıra no ankete eklenme
+   sırasıdır); satırlar alt alta, kartın kendi boşluğundan ayrı nefes payıyla. */
+.anket-secili-soru-listesi {
+  margin: 0;
+  padding: 0 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Tek soru satırı: solda soru gövdesi, sağda "Kaldır" bağlantısı. */
+.anket-secili-soru {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  background: var(--renk-zemin-acik);
+}
+
+/* Soru gövdesi: metin ve tipin alt alta durduğu esnek sütun. */
+.anket-secili-soru-govde {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Soru tipi: metnin altında ikincil, küçük bilgi satırı. */
+.anket-secili-soru-tip {
+  font-size: 13px;
+  color: var(--renk-lacivert);
+  opacity: 0.75;
 }
 
 /* Tarih seçici: "Tarih seç" işaretlendiğinde o seçeneğin YANINDA (aynı satırda,

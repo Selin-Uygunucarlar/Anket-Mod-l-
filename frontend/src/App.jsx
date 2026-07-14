@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage.jsx'
 import AnaSayfaPage from './pages/AnaSayfaPage.jsx'
 import SifreBelirlePage from './pages/SifreBelirlePage.jsx'
+import SoruSecPage from './pages/SoruSecPage.jsx'
 import GuardliRota from './auth/GuardliRota.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 
@@ -49,6 +50,23 @@ function App() {
               <Navigate to="/sifre-belirle" replace />
             ) : (
               <AnaSayfaPage />
+            )}
+          </GuardliRota>
+        }
+      />
+
+      {/* Korumalı soru seçme ekranı: anket formundan YENİ SEKMEDE açılır. Ayrı bir
+          rotadır çünkü anasayfa görünümleri state ile değişir, yeni sekme ise
+          gerçek bir URL ister. Şifre belirleme bayrağı diğer korumalı yollarla
+          aynı şekilde gözetilir. */}
+      <Route
+        path="/anket-sorulari-sec"
+        element={
+          <GuardliRota>
+            {sifreBelirlemeGerek ? (
+              <Navigate to="/sifre-belirle" replace />
+            ) : (
+              <SoruSecPage />
             )}
           </GuardliRota>
         }

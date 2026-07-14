@@ -49,6 +49,14 @@ GRUP_UYELERI_SORGUSU = """
     ORDER BY k.ad, k.soyad
 """
 
+# Tek bir kullanıcının ilişkisel grup kimliğini okur. kullanici_kodu PK olduğundan
+# en fazla bir satır döner. Sonuç iki türlü "boş" olabilir: satır hiç yoktur
+# (kullanıcı kaydı yok) ya da grup_id NULL'dur (kullanıcı grupsuz); ikisini de
+# Repository None'a çevirir. Parametreli (%s); string birleştirme yok.
+KULLANICI_GRUP_ID_SORGUSU = """
+    SELECT grup_id FROM Kullanici WHERE kullanici_kodu = %s
+"""
+
 # Bir kullanıcıyı bir gruba atar veya (grup_id NULL geçilirse) gruptan çıkarır.
 # UPDATE Kullanici SET grup_id=%s WHERE kullanici_kodu=%s. Kayıt yoksa UPDATE
 # etkisizdir (rowcount 0); "bulunamadı" kararı Service'e aittir. Parametreli.

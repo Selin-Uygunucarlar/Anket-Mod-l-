@@ -183,6 +183,11 @@ KULLANICI_GUNCELLE_ALANLARI = (
 # yöndedir (Kullanici.grup_id -> KullaniciGrubu.grup_id). Yani bu tablo sicil
 # değişimini/silmeyi hiç görmez ve bu sorguya EKLENMESİ GEREKMEZ (bağımlılık ters
 # yönde olduğundan; bilinçli olarak dahil edilmedi).
+# İSTİSNA: Anket.olusturan_kodu FK'si (migration 011) ON DELETE SET NULL + ON UPDATE
+# CASCADE olduğundan sicil değişimini kırmaz/yetim bırakmaz (kullanıcı silinince anket
+# kalır, yalnızca oluşturanı bilinmez olur); bu sorguya BİLİNÇLİ olarak EXISTS satırı
+# EKLENMEZ (unutulmadı, gerekmediği için hariç tutuldu) -- Soru.hazirlayan_kodu ile aynı
+# istisna. Aynı migration'daki AnketSoru ise kullanici_kodu'ya FK VERMEZ; ilgisizdir.
 KULLANICI_BAGIMLILIK_SORGUSU = """
     SELECT 1
     WHERE EXISTS (SELECT 1 FROM Kullanici WHERE ilgili_yonetici_kodu = %s)

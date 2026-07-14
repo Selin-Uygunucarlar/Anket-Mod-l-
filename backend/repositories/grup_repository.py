@@ -124,6 +124,32 @@ def grup_uyeleri(grup_id: int) -> list[GrupUyesi]:
     ]
 
 
+def kullanici_grup_id_getir(kullanici_kodu: str) -> int | None:
+    """Bir kullanıcının ilişkisel grup kimliğini (Kullanici.grup_id) döner.
+
+    İki durumda da None döner: kullanıcı grupsuzsa (grup_id NULL) ya da kullanıcı
+    kaydı hiç yoksa. Yani Repository NotFound FIRLATMAZ — çağıran Service zaten
+    doğrulanmış oturum sahibinin kodunu geçtiğinden "kayıt yok" ayrı bir iş
+    durumu olarak ele alınmaz; varlık kararı gerekiyorsa Service'e aittir.
+    Yetki/sahiplik kontrolü burada DEĞİL, Service/Controller'dadır. Teknik DB
+    hatası DataAccessError'a sarmalanıp yukarı fırlatılır; ham DB mesajı/tablo
+    adı sızmaz.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.KULLANICI_GRUP_ID_SORGUSU, (kullanici_kodu,))
+                satir = imlec.fetchone()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Kullanıcının grubu okunamadı.") from hata
+
+    if satir is None or satir["grup_id"] is None:
+        return None
+
+    return int(satir["grup_id"])
+
+
 def gruba_ata(kullanici_kodu: str, grup_id: int | None) -> None:
     """Bir kullanıcıyı bir gruba atar; grup_id None ise gruptan çıkarır (NULL yapar).
 

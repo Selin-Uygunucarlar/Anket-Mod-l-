@@ -1,23 +1,25 @@
 // Anket listesi bileşeni. Admin panelinden "Anket Listesi" seçilince anasayfa
-// içerik alanında render edilir. ŞİMDİLİK yalnızca UI iskeletidir: gerçek anket
-// verisi, API/servis/repository yoktur; yalnızca gösterim sorumluluğundadır.
+// içerik alanında render edilir. Yalnızca sunum sorumluluğundadır: veriyi anketApi
+// üzerinden ister ve tabloda gösterir; iş kuralı, yetki kontrolü veya hesaplama
+// İÇERMEZ (yetki sunucuda uygulanır). Yükleniyor, hata ve boş durumları kullanıcı
+// listesi üslubunda ele alınır; kullanıcıya yalnızca güvenli mesaj gösterilir.
 // Tasarımı kişi (kullanıcı) listesiyle BİREBİR aynı olsun ve tek kaynaktan
 // gelsin diye kullanici-listesi.css içeri alınır ve MEVCUT liste düzeni sınıfları
 // (kullanici-liste, kullanici-liste-baslik-satiri, kullanici-liste-baslik-grup,
 // kullanici-liste-baslik, kullanici-arama-*, kullanici-ekle-buton,
 // kullanici-liste-durum) paylaşılır. Sınıflardaki "kullanici-" öneki bu paylaşım
 // yüzünden burada da kullanılır; kopya CSS yazılmaz (DRY) ve kullanıcı listesi
-// tasarımı hiç değişmez. Kişi listesindeki tablo çerçevesi (kolon başlıklarıyla
-// dolu) burada da görünsün diye aynı tablo yapısı (kullanici-tablo-sarmalayici >
-// kullanici-tablo > thead) kullanılır; ancak gerçek veri olmadığından gövdede
-// satır yerine TEK bir boş-durum satırı ("Kayıtlı anket bulunamadı.") gösterilir.
-// "Anket Ekle" butonu üst bileşene (onAnketEkle) haber vererek içerik alanında
-// anket oluşturma formunu açar; kişi listesindeki "Kullanıcı Ekle" ile aynı
-// kalıptadır. Formun kaydı ise backend adımında bağlanacaktır.
-// Arama satırının hemen altında, tablonun üstünde BAŞLIKSIZ bir filtre kartı
-// (AnketFiltre) render edilir; o da salt sunumdur (gerçek filtreleme/API yoktur).
+// tasarımı hiç değişmez. "Anket Ekle" butonu üst bileşene (onAnketEkle) haber
+// vererek içerik alanında anket oluşturma formunu açar; kişi listesindeki
+// "Kullanıcı Ekle" ile aynı kalıptadır. Arama kutusu ve filtre kartı (AnketFiltre)
+// bu fazın kapsamı DIŞINDADIR: tasarım paritesi için dururlar, gerçek
+// filtreleme/arama YAPMAZLAR (ileride bağlanacaktır). Satır işlemleri (güncelle/sil)
+// de sonraki fazdır; "İşlem" sütunu şimdilik tire gösterir.
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { anketleriGetir } from '../api/anketApi.js'
+import { tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
 import AnketFiltre from './AnketFiltre'
 import '../styles/kullanici-listesi.css'
 
@@ -64,7 +66,7 @@ function BuyutecIcon() {
 // Tablo kolon başlıkları (bu sırayla). Kişi listesindeki tablo çerçevesiyle
 // birebir aynı görünsün diye tanımlanır; "İşlem" sütunu kişi listesindeki
 // "İşlemler" karşılığıdır ve ileride satır işlem menüsü (Güncelle + Pasif yap)
-// taşıyacaktır. Şimdilik veri/satır olmadığından yalnızca başlık olarak durur.
+// taşıyacaktır.
 const ANKET_KOLON_BASLIKLARI = [
   'Anket Adı',
   'Durum',
@@ -75,14 +77,46 @@ const ANKET_KOLON_BASLIKLARI = [
   'İşlem',
 ]
 
-// AnketListesi: kişi listesiyle aynı başlık satırını (başlık + arama kutusu +
-// "Anket Ekle") ve aynı tablo çerçevesini (kolon başlıklarıyla) kurar. Saf
-// sunumdur; iş kuralı/veri çekimi içermez. Arama kutusu tasarım paritesi için
-// durur; süzülecek veri olmadığından state yalnızca metni tutar, işlev görseldir.
+// olusturanAdiBicimlendir: anketi oluşturanın ad ve soyadını tek okunur metinde
+// birleştirir. İkisi de yoksa (ör. kullanıcı silinmişse) tire ('-') döner.
+// Saf gösterim formatlamasıdır.
+function olusturanAdiBicimlendir(anket) {
+  const tamAd = `${anket.olusturan_ad ?? ''} ${anket.olusturan_soyad ?? ''}`.trim()
+  return tamAd === '' ? '-' : tamAd
+}
+
+// AnketListesi: anketleri React Query ile çeker ve durumuna göre yükleniyor /
+// hata / boş / tablo gösterir. Veri kaynağı yalnızca anketApi'dir.
 // props: onAnketEkle() -> "Anket Ekle" butonuna tıklanınca çağrılır (üst bileşen
 // anket ekleme görünümünü açar).
 function AnketListesi({ onAnketEkle }) {
   const [aramaMetni, setAramaMetni] = useState('')
+
+  const {
+    data: anketler,
+    isPending,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ['anketler'],
+    queryFn: anketleriGetir,
+  })
+
+  if (isPending) {
+    return <p className="kullanici-liste-durum">Yükleniyor...</p>
+  }
+
+  if (isError) {
+    // error.message backend'in güvenli mesajıdır (ör. 403 yetki mesajı);
+    // teknik detay sızmaz.
+    return (
+      <p className="kullanici-liste-durum kullanici-liste-hata">
+        {error.message}
+      </p>
+    )
+  }
+
+  const anketListesi = anketler ?? []
 
   return (
     <section className="kullanici-liste">
@@ -104,8 +138,7 @@ function AnketListesi({ onAnketEkle }) {
           </div>
         </div>
         {/* "Anket Ekle": kişi listesindeki "Kullanıcı Ekle" kalıbıyla üst bileşene
-            haber verir ve içerik alanında anket oluşturma formunu açar. Formun
-            kaydı backend adımında bağlanacaktır. */}
+            haber verir ve içerik alanında anket oluşturma formunu açar. */}
         <button
           type="button"
           className="kullanici-ekle-buton"
@@ -118,10 +151,9 @@ function AnketListesi({ onAnketEkle }) {
       {/* Başlıksız filtre kartı: arama satırının hemen altında, tablonun üstünde.
           Salt sunumdur; kendi state'ini tutar, gerçek filtreleme/API yoktur. */}
       <AnketFiltre />
-      {/* Tablo çerçevesi kişi listesiyle birebir aynı sınıflarla kurulur. Gerçek
-          veri kaynağı olmadığından gövdeye satır basılmaz; başlıklı çerçeve boş
-          görünmesin diye tek satırlık bir boş-durum hücresi konur. colSpan tüm
-          kolonları kaplar (liste-bos-hucre ile ortalanır). */}
+      {/* Tablo çerçevesi kişi listesiyle birebir aynı sınıflarla kurulur. Anket
+          yoksa başlıklı çerçeve boş görünmesin diye tek satırlık bir boş-durum
+          hücresi konur; colSpan tüm kolonları kaplar (liste-bos-hucre ile ortalanır). */}
       <div className="kullanici-tablo-sarmalayici">
         <table className="kullanici-tablo">
           <thead>
@@ -132,14 +164,29 @@ function AnketListesi({ onAnketEkle }) {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td
-                colSpan={ANKET_KOLON_BASLIKLARI.length}
-                className="kullanici-liste-durum liste-bos-hucre"
-              >
-                Kayıtlı anket bulunamadı.
-              </td>
-            </tr>
+            {anketListesi.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={ANKET_KOLON_BASLIKLARI.length}
+                  className="kullanici-liste-durum liste-bos-hucre"
+                >
+                  Kayıtlı anket bulunamadı.
+                </td>
+              </tr>
+            ) : (
+              anketListesi.map((anket) => (
+                <tr key={anket.anket_id}>
+                  <td>{anket.ad}</td>
+                  <td>{anket.durum}</td>
+                  <td>{olusturanAdiBicimlendir(anket)}</td>
+                  <td>{tarihSaatBicimlendir(anket.olusturma_tarihi)}</td>
+                  <td>{anket.atanan_sayisi}</td>
+                  <td>{anket.yanitlayan_sayisi}</td>
+                  {/* Satır işlemleri (güncelle/sil) sonraki fazdır. */}
+                  <td>-</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

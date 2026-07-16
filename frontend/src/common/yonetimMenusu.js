@@ -1,8 +1,11 @@
-// Yönetim menüsünün ağaç tanımı ve bu ağaçtan bir görünümün kırıntı yolunu
-// (breadcrumb) çözen yardımcı. Hem admin panelinin menüyü çizmesi hem de içerik
-// alanının "nereden geldim" yolunu göstermesi aynı tek kaynaktan beslensin diye
-// burada toplanmıştır. Salt UI verisi/gezinmesidir; iş kuralı veya veri erişimi
-// içermez.
+// Yönetim menüsünün ağaç tanımı, bu ağaçtan bir görünümün kırıntı yolunu
+// (breadcrumb) çözen yardımcı ve görünüm kimliği ile gerçek URL yolu arasındaki
+// TEK KAYNAK eşleme. Hem admin panelinin menüyü çizmesi/URL'ye gezinmesi hem de
+// içerik alanının aktif URL'den "nereden geldim" yolunu göstermesi aynı tek
+// kaynaktan beslensin diye burada toplanmıştır. Salt UI verisi/gezinmesidir; iş
+// kuralı veya veri erişimi içermez.
+
+import { matchPath } from 'react-router-dom'
 
 // Panelde gösterilecek yönetim seçenekleri. altSecenekler taşıyan öğe, açılıp
 // kapanabilen bir grup olarak render edilir. altSecenekler öğeleri ya düz string
@@ -127,4 +130,46 @@ export function gorunumYolunuBul(gorunumKimligi) {
   }
 
   return [...ustYol, menuDisiGorunum.etiket]
+}
+
+// GORUNUM_ROTA_ESLEMESI: her yönetim görünümü kimliğini gerçek URL yol kalıbıyla
+// eşleyen TEK kaynak. Düzenleme ekranlarının kalıbı :param taşır (ör. :sicil);
+// gezinme için gorunumUrl, aktif URL'den kimlik çözmek için yoldanGorunumBul
+// buradan beslenir. Yeni bir yönetim ekranı = buraya tek bir satır eklemek.
+export const GORUNUM_ROTA_ESLEMESI = [
+  { gorunum: 'kullanici-listesi', yol: '/yonetim/kullanicilar' },
+  { gorunum: 'kullanici-ekle', yol: '/yonetim/kullanicilar/ekle' },
+  { gorunum: 'kullanici-duzenle', yol: '/yonetim/kullanicilar/:sicil/duzenle' },
+  { gorunum: 'kullanici-gruplari', yol: '/yonetim/kullanici-gruplari' },
+  { gorunum: 'anket-listesi', yol: '/yonetim/anketler' },
+  { gorunum: 'anket-ekle', yol: '/yonetim/anketler/ekle' },
+  { gorunum: 'anket-duzenle', yol: '/yonetim/anketler/:anketId/duzenle' },
+  { gorunum: 'anket-sorulari', yol: '/yonetim/sorular' },
+  { gorunum: 'soru-ekle', yol: '/yonetim/sorular/ekle' },
+  { gorunum: 'soru-duzenle', yol: '/yonetim/sorular/:soruId/duzenle' },
+  { gorunum: 'ayarlar', yol: '/yonetim/ayarlar/kullanici-secenekleri' },
+  { gorunum: 'soru-ayarlar', yol: '/yonetim/ayarlar/soru-secenekleri' },
+  { gorunum: 'grup-ayarlar', yol: '/yonetim/ayarlar/grup-tanimlari' },
+]
+
+// gorunumUrl: bir görünüm kimliğinin (ör. 'kullanici-listesi') gerçek URL yolunu
+// döner. Admin paneli bir menü yaprağı seçildiğinde bu yola gezinmek için kullanır.
+// Panel yaprakları parametresiz ekranlardır; eşleme bulunamazsa güvenli varsayılan
+// olarak ana ekran ('/') döner (sessiz kayıp yerine bilinen bir hedef).
+export function gorunumUrl(gorunumKimligi) {
+  const eslesme = GORUNUM_ROTA_ESLEMESI.find(
+    (kayit) => kayit.gorunum === gorunumKimligi,
+  )
+  return eslesme ? eslesme.yol : '/'
+}
+
+// yoldanGorunumBul: aktif URL yolundan (ör. '/yonetim/kullanicilar/42/duzenle')
+// eşleşen görünüm kimliğini çözer. Parametrik yollar da eşleşsin diye react-router
+// matchPath kullanılır. Kırıntı yolu, aktif URL'yi tek başlık dizisine çevirmek
+// için bu kimliği gorunumYolunuBul'a verir. Eşleşme yoksa (ör. ana ekran) null döner.
+export function yoldanGorunumBul(aktifYol) {
+  const eslesme = GORUNUM_ROTA_ESLEMESI.find((kayit) =>
+    matchPath(kayit.yol, aktifYol),
+  )
+  return eslesme ? eslesme.gorunum : null
 }

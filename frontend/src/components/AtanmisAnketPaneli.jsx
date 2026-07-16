@@ -8,13 +8,13 @@
 
 import { useEffect, useState } from 'react'
 import { atanmisAnketleriGetir } from '../api/anketApi.js'
-import loginBg from '../assets/login-bg.png'
+import anketGorseli from '../assets/anket.png'
 import '../styles/atanmis-anket-paneli.css'
 
-// KUTU_GORSELI: her anket kutusunun üstünde gösterilecek görsel. Şimdilik mevcut
-// bir yer tutucu (login-bg.png) kullanılır.
-// TODO: kullanıcı görsel yolunu verecek; kutu görseli yalnızca buradan değiştirilecek.
-const KUTU_GORSELI = loginBg
+// KUTU_GORSELI: her anket kutusunun üstünde gösterilen görsel; tüm kutular ortak
+// anket görselini (anket.png) gösterir. Görseli değiştirmek için yalnızca burası
+// güncellenir.
+const KUTU_GORSELI = anketGorseli
 
 // AtanmisAnketPaneli: mount olunca atanmış anketleri çeker ve durumuna göre
 // yükleniyor / hata / boş / kutu ızgarası gösterir. Veri kaynağı yalnızca

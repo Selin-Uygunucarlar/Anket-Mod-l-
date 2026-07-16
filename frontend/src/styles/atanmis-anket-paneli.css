@@ -46,7 +46,7 @@
    sığar; daralınca daha az sığar. İçinde görsel üstte, ad altta. Salt gösterim. */
 .atanmis-anket-kutu {
   flex: 0 0 calc((100% - 4 * 16px) / 5);
-  min-width: 160px;
+  min-width: 120px;
   display: flex;
   flex-direction: column;
   background: var(--renk-beyaz);
@@ -56,20 +56,19 @@
   box-shadow: 0 4px 12px rgba(31, 37, 48, 0.08);
 }
 
-/* Kutu görseli: üstte, kutu genişliğini kaplar, oranı korunur. */
+/* Kutu görseli: üstte, kutu genişliğini tam kaplar; yükseklik görselin doğal
+   oranına göre belirlenir. Kırpma veya kenar boşluğu oluşmaz. */
 .atanmis-anket-gorsel {
   width: 100%;
-  height: 120px;
-  object-fit: cover;
+  height: auto;
   display: block;
-  background: var(--renk-zemin-acik);
 }
 
-/* Anket adı: görselin altında, okunur ve taşmayan biçimde. */
+/* Anket adı: görselin altında, büyük ve belirgin; okunur ve taşmayan biçimde. */
 .atanmis-anket-ad {
   padding: 12px 14px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--renk-lacivert);
   word-break: break-word;
 }

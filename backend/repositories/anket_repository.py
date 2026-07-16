@@ -25,17 +25,33 @@ from models.anket import AnketOzeti
 from repositories import anket_sorgulari as sorgular
 
 
-def anketleri_getir() -> list[AnketOzeti]:
-    """Tüm anketleri, oluşturan bilgisi ve atama/yanıt sayılarıyla döner.
+def anketleri_getir(
+    gorunur_kullanici_kodu: str, gorunur_grup_id: int | None
+) -> list[AnketOzeti]:
+    """Verilen görünürlük parametrelerine uyan anketleri, oluşturan bilgisi ve
+    atama/yanıt sayılarıyla döner.
+
+    Repository yetki/rol BİLMEZ: "kim neyi görür" bir iş kararıdır ve Service'e
+    aittir. Burada yalnızca gelen iki değerle süzme yapılır -- anketin erişim
+    seviyesi 'herkes' ise, 'grup' olup erisim_grup_id `gorunur_grup_id` ile
+    eşleşiyorsa, ya da 'ben'/NULL olup olusturan_kodu `gorunur_kullanici_kodu`
+    ise satır döner (kural ve NULL seviyenin neden 'ben' sayıldığı sorgu
+    yorumunda). Grubu olmayan için `gorunur_grup_id` None geçilir; 'grup'
+    seviyeli hiçbir anket eşleşmez (beklenen davranış).
 
     Sıra: en yeni anket üstte (anket_id DESC). Atama/yanıt sayıları AnketAtama
     üzerinden hesaplanır (anket oluşturulurken yazılan atamalar buraya yansır;
-    kimseye atanmamış anket 0 alır). Yetki kontrolü burada DEĞİL, Service'tedir.
+    kimseye atanmamış anket 0 alır).
     """
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                imlec.execute(sorgular.ANKETLER_LISTE_SORGUSU)
+                # Parametre sırası WHERE'deki %s sırasıyla eşleşir: önce grup_id,
+                # sonra sicil.
+                imlec.execute(
+                    sorgular.ANKETLER_LISTE_SORGUSU,
+                    (gorunur_grup_id, gorunur_kullanici_kodu),
+                )
                 satirlar = imlec.fetchall()
     except pymysql.MySQLError as hata:
         # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.

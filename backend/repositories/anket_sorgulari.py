@@ -19,6 +19,21 @@ olarak taşınır. SORU_IDLERI_VAR_MI_SORGUSU tek istisna değildir: orada da ya
 # 'tamamlandı' olanlar (bu Anket.durum DEĞİL, kişiye özel atama durumudur).
 # Sıralama: en son eklenen üstte (anket_id DESC; auto-increment olduğundan en yeni
 # kayıt en büyük id'dir -- soru_sorgulari ile aynı üslup).
+#
+# Görünürlük süzgeci (WHERE): anket, yalnızca aşağıdaki seviye kurallarından biri
+# tutuyorsa satır olarak döner:
+#   'herkes' -> herkese görünür (parametre gerekmez)
+#   'grup'   -> erisim_grup_id, talep edenin grup_id'sine eşitse (1. %s)
+#   'ben'    -> olusturan_kodu, talep edenin sicili ise (2. %s)
+# erisim_seviyesi NULL (alan seçilmemiş ya da bu kolondan önceki eski kayıt)
+# COALESCE ile 'ben' sayılır: seviyesi bilinmeyen anketin en dar kapsamda, yalnızca
+# oluşturanına görünmesi güvenli varsayılandır.
+# NOT: Grubu olmayan talep eden için 1. parametre None gelir; `erisim_grup_id = NULL`
+# SQL'de hiçbir satırla eşleşmez ve bu DOĞRU davranıştır (grupsuz kullanıcı zaten
+# 'grup' seviyeli anket oluşturamaz) -- bug değildir.
+# Seviye KODLARI ('herkes'/'grup'/'ben') DB kolon değerleridir, kullanıcı girdisi
+# değil; alt sorgudaki 'tamamlandı' gibi sorgu metninde durur. Kullanıcıdan gelen
+# değerler (grup_id, sicil) yalnızca %s ile geçer.
 ANKETLER_LISTE_SORGUSU = """
     SELECT a.anket_id,
            a.ad,
@@ -33,6 +48,9 @@ ANKETLER_LISTE_SORGUSU = """
                AND atama.durum = 'tamamlandı') AS yanitlayan_sayisi
     FROM Anket a
     LEFT JOIN Kullanici k ON k.kullanici_kodu = a.olusturan_kodu
+    WHERE a.erisim_seviyesi = 'herkes'
+       OR (a.erisim_seviyesi = 'grup' AND a.erisim_grup_id = %s)
+       OR (COALESCE(a.erisim_seviyesi, 'ben') = 'ben' AND a.olusturan_kodu = %s)
     ORDER BY a.anket_id DESC
 """
 

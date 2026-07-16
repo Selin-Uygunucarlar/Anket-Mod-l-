@@ -17,6 +17,11 @@ ve oturum sahibinin kendi grubundan çözülür. Ankete ATANACAK kişiler ise ay
 kavramdır: client'ın seçtiği grup_idler'in ÜYELERİ + tek tek seçilen kullanici_kodlari
 birleştirilir. İkisi arasında bağ yoktur.
 
+Listeleme, oluşturmanın simetriğidir: erisim_seviyesi yalnızca kayıt anında yazılan
+bir etiket değil, okumada UYGULANAN bir kuraldır. Admin bile TÜM anketleri görmez;
+'herkes' herkese, 'grup' yalnızca aynı gruba, 'ben' (ve seviyesi NULL olan) yalnızca
+oluşturana görünür. Süzme değerleri client'tan değil oturumdan çözülür.
+
 Sanitizasyon notu: on_yazi/son_yazi/aciklama DÜZ METİN girdileridir
 (<input type="text">), zengin metin DEĞİL -> nh3 sanitizasyonu GEREKMEZ, yalnızca
 trim edilir (unutulmuş değil, bilinçli). Biçimli HTML tutan soru metinleri zaten
@@ -76,14 +81,31 @@ _BIR_GUN = timedelta(days=1)
 
 
 def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
-    """Tüm anketleri liste özeti olarak döner; yalnızca admin çağırabilir.
+    """Talep edenin GÖREBİLDİĞİ anketleri liste özeti olarak döner; yalnızca admin
+    çağırabilir.
 
     Yetki talep edenin (doğrulanmış oturum sahibi) kullanici_turu'ne göre belirlenir;
-    admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır.
+    admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. Admin olmak tüm
+    anketleri görmeye yetmez: görünürlük ayrıca anketin erisim_seviyesi'ne bağlıdır.
+    'herkes' -> herkese görünür; 'grup' -> yalnızca anketin erisim_grup_id'si talep
+    edenin KENDİ grubuyla aynıysa; 'ben' -> yalnızca anketi kendisi oluşturduysa.
+    Seviyesi NULL olan anket (alan zorunlu değildir) en dar kural olan 'ben' gibi
+    ele alınır: belirtilmemiş erişim, açık erişim sayılmaz.
+
+    Grupsuzluk hata DEĞİLDİR (anket OLUŞTURMA'daki kuralla karıştırılmaz): grubu
+    olmayan admin için yalnızca 'grup' seviyeli anketler eşleşmez, 'herkes' ve kendi
+    anketlerini görmeye devam eder. Süzme değerleri client'tan ALINMAZ; doğrulanmış
+    oturum sahibinin kendi sicilinden ve kendi grubundan çözülür. Hata loglanmaz,
+    YUKARI FIRLAR.
     """
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
-    return anket_repository.anketleri_getir()
+
+    gorunur_grup_id = grup_repository.kullanici_grup_id_getir(talep_eden.kullanici_kodu)
+    return anket_repository.anketleri_getir(
+        gorunur_kullanici_kodu=talep_eden.kullanici_kodu,
+        gorunur_grup_id=gorunur_grup_id,
+    )
 
 
 def ekle_anket(

@@ -1,10 +1,13 @@
-"""Anket (oluşturma + listeleme, admin) Controller katmanı — ince sınır.
+"""Anket (oluşturma + listeleme + detay + güncelleme, admin) Controller — ince sınır.
 
 Neden: Oturum doğrulaması, girdinin tip/biçim doğrulaması, Service çağrısı ve
 response dönüşümü burada orkestre edilir. İŞ KURALI BURADA YOK: geçerli durum/
-anket tipi/erişim seviyesi kümeleri, tarih hesabı, soruların DB'de var olması ve
-yetki kararı anket_service'te; oturum mantığı oturum_service'te. Bu katman SQL/DB
-detayı bilmez ve Repository'yi çağırmaz.
+anket tipi/erişim seviyesi kümeleri, tarih hesabı, soruların DB'de var olması,
+"görebilen güncelleyebilir" görünürlük/yetki kararı anket_service'te; oturum mantığı
+oturum_service'te. Bu katman SQL/DB detayı bilmez ve Repository'yi çağırmaz.
+
+Ekleme ile güncelleme AYNI gövdeyi paylaşır; tip/şekil doğrulaması tek yerde
+(_dogrula_ekle_girdisi) yapılır ve iki uç da onu kullanır (DRY).
 
 Sınır (boundary) sorumluluğu: Bu katman error pipeline'ın giriş noktasıdır. Hata
 burada BİR KEZ loglanır ve kullanıcıya güvenli yanıt döner. Stack trace, ham DB
@@ -13,7 +16,7 @@ hatası veya tablo adı ASLA yanıta konmaz.
 
 from common.errors import AppError, ValidationError
 from common.logger import logla_sinir_hatasi
-from models.anket import AnketOzeti
+from models.anket import AnketDetay, AnketOzeti
 from services import anket_service, oturum_service
 
 
@@ -35,6 +38,32 @@ def list_anketler(ham_jeton: str) -> dict:
             "basari": True,
             "anketler": [_anket_to_dict(anket) for anket in anketler],
         }
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def get_anket_detay(ham_jeton: str, anket_id: int) -> dict:
+    """Oturumu doğrulanmış admin için tek bir anketin düzenleme detayını döndürür.
+
+    Oturum doğrulanır; anket_id pozitif tamsayı olmalı (_dogrula_pozitif_kimlik).
+    Yetki (yalnızca admin) ve "görebilen görebilir/güncelleyebilir" görünürlük kararı
+    anket_service'e bırakılır (admin değil -> YetkiYokError; görünmüyor/yok ->
+    NotFoundError). Dönen anketin bağlı soru metinleri Service'te sanitize edilmiştir.
+    Hata BİR KEZ loglanır ve güvenli yanıt döner; teknik detay sızmaz.
+
+    Başarılı: {"basari": True, "anket": {anket alanları...}}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "anket_detay", "anket_id": anket_id}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        _dogrula_pozitif_kimlik(anket_id, "Geçersiz anket kimliği.")
+        anket = anket_service.get_anket(sahip, anket_id)
+        return {"basari": True, "anket": _detay_to_dict(anket)}
     except AppError as hata:
         logla_sinir_hatasi(hata, baglam=baglam)
         return _hata_yaniti(hata.kod, hata.mesaj)
@@ -109,6 +138,84 @@ def ekle_anket(
             kullanici_kodlari,
         )
         return {"basari": True, "anket_id": yeni_anket_id}
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def guncelle_anket(
+    ham_jeton: str,
+    anket_id: int,
+    ad: str,
+    on_yazi: str | None,
+    son_yazi: str | None,
+    aciklama: str | None,
+    durum: str,
+    anket_tipi: str,
+    erisim_seviyesi: str | None,
+    baslangic_secim: str,
+    baslangic_tarih: str | None,
+    bitis_secim: str,
+    bitis_tarih: str | None,
+    soru_idler: list[int],
+    grup_idler: list[int],
+    kullanici_kodlari: list[str],
+) -> dict:
+    """Oturumu doğrulanmış admin için var olan bir anketi günceller (atamalarıyla).
+
+    Oturum doğrulanır; anket_id pozitif tamsayı olmalı ve gövdenin tip/şekli EKLEME
+    ile AYNI sınırda doğrulanır (_dogrula_ekle_girdisi yeniden kullanılır; ikinci bir
+    doğrulama fonksiyonu yazılmaz). İş kuralları, tarih hesabı, atama farkı ve
+    "görebilen güncelleyebilir" görünürlük/yetki kararı anket_service'e aittir
+    (admin değil -> YetkiYokError; görünmüyor/yok -> NotFoundError); olusturan_kodu
+    ve erişim grubu Service'te oturumdan çözülür. Hata BİR KEZ loglanır ve güvenli
+    yanıt döner.
+
+    Başarılı: {"basari": True}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "anket_guncelle", "anket_id": anket_id}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        _dogrula_pozitif_kimlik(anket_id, "Geçersiz anket kimliği.")
+        _dogrula_ekle_girdisi(
+            ad,
+            on_yazi,
+            son_yazi,
+            aciklama,
+            durum,
+            anket_tipi,
+            erisim_seviyesi,
+            baslangic_secim,
+            baslangic_tarih,
+            bitis_secim,
+            bitis_tarih,
+            soru_idler,
+            grup_idler,
+            kullanici_kodlari,
+        )
+        anket_service.guncelle_anket(
+            sahip,
+            anket_id,
+            ad,
+            on_yazi,
+            son_yazi,
+            aciklama,
+            durum,
+            anket_tipi,
+            erisim_seviyesi,
+            baslangic_secim,
+            baslangic_tarih,
+            bitis_secim,
+            bitis_tarih,
+            soru_idler,
+            grup_idler,
+            kullanici_kodlari,
+        )
+        return {"basari": True}
     except AppError as hata:
         logla_sinir_hatasi(hata, baglam=baglam)
         return _hata_yaniti(hata.kod, hata.mesaj)
@@ -236,6 +343,53 @@ def _anket_to_dict(anket: AnketOzeti) -> dict:
         "atanan_sayisi": anket.atanan_sayisi,
         "yanitlayan_sayisi": anket.yanitlayan_sayisi,
     }
+
+
+def _detay_to_dict(anket: AnketDetay) -> dict:
+    """Tek bir AnketDetay'i düzenleme formunun beklediği JSON-güvenli sözlüğe çevirir.
+
+    baslangic_tarihi/bitis_tarihi ISO 8601 string'e (ya da None) çevrilir. Bağlı
+    sorular {soru_id, soru_metni, soru_tipi} (soru_metni Service'te sanitize edilmiş
+    HTML), atanan kullanıcılar {kullanici_kodu, ad, soyad, email} olarak listelenir
+    (isim birleştirme/format frontend'in işidir). erisim_seviyesi/erisim_grup_id/
+    olusturan_kodu aynen taşınır; hassas alan yoktur.
+    """
+    return {
+        "anket_id": anket.anket_id,
+        "ad": anket.ad,
+        "on_yazi": anket.on_yazi,
+        "son_yazi": anket.son_yazi,
+        "aciklama": anket.aciklama,
+        "durum": anket.durum,
+        "anket_tipi": anket.anket_tipi,
+        "erisim_seviyesi": anket.erisim_seviyesi,
+        "erisim_grup_id": anket.erisim_grup_id,
+        "baslangic_tarihi": _iso_ya_da_none(anket.baslangic_tarihi),
+        "bitis_tarihi": _iso_ya_da_none(anket.bitis_tarihi),
+        "olusturan_kodu": anket.olusturan_kodu,
+        "bagli_sorular": [
+            {
+                "soru_id": soru.soru_id,
+                "soru_metni": soru.soru_metni,
+                "soru_tipi": soru.soru_tipi,
+            }
+            for soru in anket.bagli_sorular
+        ],
+        "atanan_kullanicilar": [
+            {
+                "kullanici_kodu": kullanici.kullanici_kodu,
+                "ad": kullanici.ad,
+                "soyad": kullanici.soyad,
+                "email": kullanici.email,
+            }
+            for kullanici in anket.atanan_kullanicilar
+        ],
+    }
+
+
+def _iso_ya_da_none(deger):
+    """Bir date/datetime değerini ISO 8601 string'e çevirir; None ise None döner."""
+    return deger.isoformat() if deger is not None else None
 
 
 def _hata_yaniti(kod: str, mesaj: str) -> dict:

@@ -145,3 +145,65 @@ export function tarihAlaniGecersiz(secim, tarih) {
   if (secim === 'tarih_sec' && tarih.trim() === '') return true
   return false
 }
+
+// isoTarihiTakvimeCevir: backend'in ISO 8601 datetime metnini (ör.
+// "2026-07-16T00:00:00") <input type="date"> için gereken YYYY-MM-DD biçimine
+// kırpar. ISO metninin ilk 10 karakteri zaten tarih kısmıdır; null/boş gelirse
+// boş metin döner. Salt gösterim biçimlemesidir (tarih HESAPLANMAZ, yalnız kırpılır).
+function isoTarihiTakvimeCevir(isoMetin) {
+  if (!isoMetin || typeof isoMetin !== 'string') return ''
+  return isoMetin.slice(0, 10)
+}
+
+// tarihSecimAlanlari: bir anketin (hesaplanmış) gerçek tarihini form state'inin
+// beklediği { secim, tarih } çiftine çevirir. NEDEN 'tarih_sec': detay yalnızca
+// hesaplanmış gerçek tarihi döndürür; kullanıcının başta hangi SEÇENEĞİ (bugün/
+// yarın/bir ay/iki ay) işaretlediği DB'de saklanmaz. Bu yüzden en dürüst ve
+// sürprizsiz ön-doldurma, gerçek tarihi 'tarih_sec' seçeneğiyle takvimde göstermektir:
+// kullanıcı anketin var olan baş/bitiş tarihini ekranda görür ve isterse değiştirir;
+// kaydederken sunucu bunu 'tarih_sec' olarak yeniden hesaplar, değer korunur.
+// Tarih yoksa (eski/eksik kayıt) seçim boş bırakılır (kullanıcı seçer). İş kuralı
+// değil, taşıma/gösterim uyarlamasıdır.
+function tarihSecimAlanlari(isoMetin) {
+  const takvim = isoTarihiTakvimeCevir(isoMetin)
+  if (takvim === '') return { secim: '', tarih: '' }
+  return { secim: 'tarih_sec', tarih: takvim }
+}
+
+// anketDetayindanForm: backend'den gelen anket detayını AnketEkleForm'un form
+// state'i şekline çevirir (düzenleme modu ön-doldurması). Salt biçim/taşıma
+// dönüşümüdür; iş kuralı veya hesaplama içermez. BOS_ANKET_FORMU tabanı üzerine
+// detay değerleri yazılır; böylece bu fazın kapsamı dışındaki alanlar (Mesaj
+// Ayarları / İşlemler) varsayılanlarında kalır. Boş/None metinler '' olur.
+// Atamalar: DB atamayı yalnızca KİŞİ olarak tutar; seçilen grup bilgisi geri
+// gelmez. Bu yüzden atanan kullanıcılar "Sabit liste"ye konur (kişi varsa kutu
+// işaretlenir), gruplar ise BOŞ açılır (Kullanıcı Grupları kutusu işaretsiz);
+// kullanıcı yeni grup seçerse üyeleri sunucuda eklenir. Grup "hatırlatma" numarası
+// YAPILMAZ.
+export function anketDetayindanForm(anket) {
+  const baslangic = tarihSecimAlanlari(anket.baslangic_tarihi)
+  const bitis = tarihSecimAlanlari(anket.bitis_tarihi)
+  const atananKullanicilar = anket.atanan_kullanicilar ?? []
+
+  return {
+    ...BOS_ANKET_FORMU,
+    adi: anket.ad ?? '',
+    on_yazi: anket.on_yazi ?? '',
+    son_yazi: anket.son_yazi ?? '',
+    aciklama: anket.aciklama ?? '',
+    durum: anket.durum ?? 'Aktif',
+    anket_tipi: anket.anket_tipi ?? '',
+    erisim_seviyesi: anket.erisim_seviyesi ?? '',
+    secili_sorular: anket.bagli_sorular ?? [],
+    baslangic_secim: baslangic.secim,
+    baslangic_tarih: baslangic.tarih,
+    bitis_secim: bitis.secim,
+    bitis_tarih: bitis.tarih,
+    // Atanan kişi varsa "Sabit liste" kutusu işaretli açılır; yoksa hiç atama
+    // seçeneği işaretlenmez. Gruplar geri gelmediğinden secili_gruplar boş kalır.
+    kullanici_atama:
+      atananKullanicilar.length > 0 ? [SABIT_LISTE_ATAMASI] : [],
+    secili_kullanicilar: atananKullanicilar,
+    secili_gruplar: [],
+  }
+}

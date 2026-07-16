@@ -1,50 +1,47 @@
-"""Anket (oluşturma + listeleme) iş katmanı.
+"""Anket (oluşturma + listeleme + detay + güncelleme) iş katmanı.
 
-Neden: Anket oluşturma/listeleme bir YÖNETİM ucudur; yalnızca admin çağırabilir.
-Yetki, client'tan gelen role/id'ye değil, sunucu tarafı oturumun sahibine
-(OturumSahibi) göre belirlenir. Formun "ne zaman başlar/biter" seçimleri (bugün /
-yarın / bir ay / iki ay) birer İŞ KURALIDIR: gerçek tarihe burada, sunucuda
-çevrilir (frontend yalnızca seçimi taşır).
+Neden: Anket oluşturma/listeleme/detay/güncelleme birer YÖNETİM ucudur; yalnızca
+admin çağırabilir. Yetki, client'tan gelen role/id'ye değil, sunucu tarafı oturumun
+sahibine (OturumSahibi) göre belirlenir. Formun "ne zaman başlar/biter" seçimleri
+birer İŞ KURALIDIR ve gerçek tarihe sunucuda çevrilir (bkz. anket_tarih).
 
-Güvenlik: client'a güvenilmez. olusturan_kodu OTURUMDAN alınır; erişim grubu
-client'tan ALINMAZ, erisim_seviyesi 'grup' iken oturum sahibinin KENDİ grubundan
-(Kullanici.grup_id) çözülür; gönderilen soru id'lerinin, grup id'lerinin ve
-kullanıcı sicillerinin tamamının DB'de var olduğu doğrulanır (aksi halde
-ValidationError).
+Görebilen güncelleyebilir: Güncelleme yetkisi listeleme GÖRÜNÜRLÜĞÜYLE BİREBİR aynı
+kuraldır (ek kısıt yok). Bu yüzden hem detay okuma hem güncelleme, önce anketi OTURUM
+SAHİBİNİN sicili + grubuyla çeker; görünmüyorsa NotFoundError verilir (403/404 ayrımı
+anketin VARLIĞINI sızdırır -- bu yüzden görünmeyen anket "yok" gibi ele alınır, IDOR'a
+kapalı; client'tan gelen anket_id'ye körlemesine güvenilmez).
 
-Kavram ayrımı (KARIŞTIRILMAZ): erisim_seviyesi 'grup', anketi KİMİN GÖREBİLECEĞİdir
-ve oturum sahibinin kendi grubundan çözülür. Ankete ATANACAK kişiler ise ayrı bir
-kavramdır: client'ın seçtiği grup_idler'in ÜYELERİ + tek tek seçilen kullanici_kodlari
-birleştirilir. İkisi arasında bağ yoktur.
+Güvenlik: client'a güvenilmez. olusturan_kodu OTURUMDAN alınır (güncellemede
+DEĞİŞMEZ); erişim grubu client'tan ALINMAZ, erisim_seviyesi 'grup' iken oturum
+sahibinin KENDİ grubundan (Kullanici.grup_id) çözülür; gönderilen soru id'lerinin,
+grup id'lerinin ve kullanıcı sicillerinin tamamının DB'de var olduğu doğrulanır.
 
-Listeleme, oluşturmanın simetriğidir: erisim_seviyesi yalnızca kayıt anında yazılan
-bir etiket değil, okumada UYGULANAN bir kuraldır. Admin bile TÜM anketleri görmez;
-'herkes' herkese, 'grup' yalnızca aynı gruba, 'ben' (ve seviyesi NULL olan) yalnızca
-oluşturana görünür. Süzme değerleri client'tan değil oturumdan çözülür.
+Kavram ayrımı (KARIŞTIRILMAZ): erisim_seviyesi 'grup', anketi KİMİN GÖREBİLECEĞİdir.
+Ankete ATANACAK kişiler ise ayrı bir kavramdır. Güncellemede atamalara FARK uygulanır:
+mevcut ile istenen karşılaştırılır, yalnız eklenecek/çıkarılacak kişilere dokunulur;
+listede kalanın atama satırı (durum/tarihler/cevapları) korunur.
 
-Sanitizasyon notu: on_yazi/son_yazi/aciklama DÜZ METİN girdileridir
-(<input type="text">), zengin metin DEĞİL -> nh3 sanitizasyonu GEREKMEZ, yalnızca
-trim edilir (unutulmuş değil, bilinçli). Biçimli HTML tutan soru metinleri zaten
-soru_service'te sanitize edilir.
-
-Kapsam notu: Formun "Kullanıcılar" kartının ATAMA kısmı (seçilen gruplar + seçilen
-kullanıcılar) artık KAPSAMDADIR ve AnketAtama'ya kişi olarak yazılır. "Mesaj
-Ayarları" ve "İşlemler" kartları hâlâ kapsam DIŞINDADIR; sunucuya gönderilmez ve
-yazılmaz. Bu yüzden Anket.almak_zorunda / ana_sayfada_goster / sira_no_goster DB
-varsayılanında kalır, soru_gosterim_tipi NULL kalır. Bu bilinçli bir kapsam
-kararıdır, eksik/unutulmuş değildir.
+Oluşturma ile güncelleme AYNI iş kurallarına uyar; bu ortak kurallar İKİNCİ KEZ
+YAZILMAZ: _hazirla_anket_alanlari'nda toplanır ve iki akış da onu çağırır (DRY).
+Serbest metin alanları (on_yazi/son_yazi/aciklama) düz metindir -> yalnız trim edilir;
+biçimli HTML tutan soru metinleri okuma sınırında (detay dönerken)
+common.html_temizle.temizle_html ile sanitize edilir (defense-in-depth). Formun Mesaj
+Ayarları/İşlemler kartları hâlâ kapsam DIŞINDADIR (sunucuya gönderilmez/yazılmaz).
 
 Bu katman HTTP ve SQL bilmez; veriye Repository üzerinden erişir. Hatalar burada
 LOGLANMAZ, yukarı fırlatılır; loglama yalnızca sınır katmanında bir kez yapılır.
 """
 
-import calendar
-from datetime import date, datetime, time, timedelta
+import dataclasses
+from dataclasses import dataclass
+from datetime import datetime
 
-from common.errors import ValidationError, YetkiYokError
-from models.anket import AnketOzeti
+from common.errors import NotFoundError, ValidationError, YetkiYokError
+from common.html_temizle import temizle_html
+from models.anket import AnketDetay, AnketOzeti
 from models.oturum import OturumSahibi
 from repositories import anket_repository, grup_repository, kullanici_repository
+from services import anket_tarih
 
 _ADMIN_TURU = "admin"
 
@@ -69,15 +66,24 @@ _GECERLI_ANKET_TIPLERI = frozenset(
 _ERISIM_GRUP = "grup"
 _GECERLI_ERISIM_SEVIYELERI = frozenset({_ERISIM_GRUP, "ben", "herkes"})
 
-# Tarih seçim kimlikleri (frontend BASLANGIC/BITIS_TARIHI_SECENEKLERI ile birebir).
-_TARIH_SEC = "tarih_sec"
-_BASLANGIC_BUGUN = "bugun"
-_BASLANGIC_YARIN = "yarin"
-_BITIS_BIR_AY = "bir_ay"
-_BITIS_IKI_AY = "iki_ay"
 
-# "Yarın" hesabındaki tek günlük fark (magic number koda gömülmesin diye sabit).
-_BIR_GUN = timedelta(days=1)
+@dataclass
+class _HazirAnketAlanlari:
+    """Oluşturma/güncelleme öncesi doğrulanıp normalize edilmiş anket alanları.
+
+    _hazirla_anket_alanlari'nın çıktısı; ekle_anket ve guncelle_anket bu tek pakete
+    dayanır (DRY). durum/anket_tipi burada YOKTUR: değişmeden geçtiklerinden çağıran
+    orijinal değeri Repository'ye taşır (yalnızca doğrulaması ortak helper'da yapılır).
+    """
+
+    ad: str
+    on_yazi: str | None
+    son_yazi: str | None
+    aciklama: str | None
+    erisim_grup_id: int | None
+    baslangic_tarihi: datetime
+    bitis_tarihi: datetime
+    atanacak_kullanici_kodlari: list[str]
 
 
 def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
@@ -88,15 +94,9 @@ def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
     admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. Admin olmak tüm
     anketleri görmeye yetmez: görünürlük ayrıca anketin erisim_seviyesi'ne bağlıdır.
     'herkes' -> herkese görünür; 'grup' -> yalnızca anketin erisim_grup_id'si talep
-    edenin KENDİ grubuyla aynıysa; 'ben' -> yalnızca anketi kendisi oluşturduysa.
-    Seviyesi NULL olan anket (alan zorunlu değildir) en dar kural olan 'ben' gibi
-    ele alınır: belirtilmemiş erişim, açık erişim sayılmaz.
-
-    Grupsuzluk hata DEĞİLDİR (anket OLUŞTURMA'daki kuralla karıştırılmaz): grubu
-    olmayan admin için yalnızca 'grup' seviyeli anketler eşleşmez, 'herkes' ve kendi
-    anketlerini görmeye devam eder. Süzme değerleri client'tan ALINMAZ; doğrulanmış
-    oturum sahibinin kendi sicilinden ve kendi grubundan çözülür. Hata loglanmaz,
-    YUKARI FIRLAR.
+    edenin KENDİ grubuyla aynıysa; 'ben'/NULL -> yalnızca anketi kendisi oluşturduysa.
+    Süzme değerleri client'tan ALINMAZ; doğrulanmış oturum sahibinin kendi sicilinden
+    ve kendi grubundan çözülür. Hata loglanmaz, YUKARI FIRLAR.
     """
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
@@ -106,6 +106,22 @@ def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
         gorunur_kullanici_kodu=talep_eden.kullanici_kodu,
         gorunur_grup_id=gorunur_grup_id,
     )
+
+
+def get_anket(talep_eden: OturumSahibi, anket_id: int) -> AnketDetay:
+    """Tek anketi düzenleme formunu ön-doldurmaya yeten tam görünümüyle döner.
+
+    Yalnızca admin çağırabilir; admin değilse veri erişimine geçilmeden YetkiYokError.
+    "Görebilen güncelleyebilir/görebilir": anket OTURUM SAHİBİNİN sicili + grubuyla
+    çekilir; görünmüyorsa NotFoundError (varlık/içerik sızmaz). Dönen anketin bağlı
+    soru metinleri okuma sınırında sanitize edilir (defense-in-depth; frontend HTML
+    olarak render eder). Hata loglanmaz, YUKARI FIRLAR.
+    """
+    if talep_eden.kullanici_turu != _ADMIN_TURU:
+        raise YetkiYokError()
+
+    anket = _getir_gorunur_anket(talep_eden, anket_id)
+    return _sanitize_anket_detay(anket)
 
 
 def ekle_anket(
@@ -127,16 +143,187 @@ def ekle_anket(
 ) -> int:
     """Yeni anketi soru bağları ve kullanıcı atamalarıyla oluşturur; anket_id döner.
 
-    Yalnızca admin çağırabilir. Tüm iş kuralları burada uygulanır: zorunlu ad,
-    geçerli durum/anket_tipi, erişim seviyesi, tarih hesabı ve bitiş > başlangıç,
-    soruların/grupların/kullanıcıların varlığı. Ankete atanacak kişiler, seçilen
-    grupların üyeleri ile tek tek seçilen kullanıcıların tekilleştirilmiş
-    birleşimidir. olusturan_kodu ve (seviye 'grup' ise) erişim grubu OTURUMDAN
-    çözülür; client gönderse bile dikkate alınmaz. Hata loglanmaz, YUKARI FIRLAR.
+    Yalnızca admin çağırabilir. Tüm ortak iş kuralları _hazirla_anket_alanlari'nda
+    (guncelle_anket ile paylaşılan) uygulanır: zorunlu ad, geçerli durum/anket_tipi,
+    erişim seviyesi, tarih hesabı ve bitiş > başlangıç, soruların/grupların/
+    kullanıcıların varlığı, atanacak kişilerin çözümü. olusturan_kodu ve (seviye
+    'grup' ise) erişim grubu OTURUMDAN çözülür. Hata loglanmaz, YUKARI FIRLAR.
     """
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
 
+    hazir = _hazirla_anket_alanlari(
+        talep_eden,
+        ad,
+        on_yazi,
+        son_yazi,
+        aciklama,
+        durum,
+        anket_tipi,
+        erisim_seviyesi,
+        baslangic_secim,
+        baslangic_tarih,
+        bitis_secim,
+        bitis_tarih,
+        soru_idler,
+        grup_idler,
+        kullanici_kodlari,
+    )
+
+    return anket_repository.anket_ekle(
+        ad=hazir.ad,
+        on_yazi=hazir.on_yazi,
+        son_yazi=hazir.son_yazi,
+        aciklama=hazir.aciklama,
+        durum=durum,
+        anket_tipi=anket_tipi,
+        erisim_seviyesi=erisim_seviyesi,
+        erisim_grup_id=hazir.erisim_grup_id,
+        baslangic_tarihi=hazir.baslangic_tarihi,
+        bitis_tarihi=hazir.bitis_tarihi,
+        olusturan_kodu=talep_eden.kullanici_kodu,
+        soru_idler=soru_idler,
+        atanacak_kullanici_kodlari=hazir.atanacak_kullanici_kodlari,
+        son_tarih=hazir.bitis_tarihi,
+    )
+
+
+def guncelle_anket(
+    talep_eden: OturumSahibi,
+    anket_id: int,
+    ad: str,
+    on_yazi: str | None,
+    son_yazi: str | None,
+    aciklama: str | None,
+    durum: str,
+    anket_tipi: str,
+    erisim_seviyesi: str | None,
+    baslangic_secim: str,
+    baslangic_tarih: str | None,
+    bitis_secim: str,
+    bitis_tarih: str | None,
+    soru_idler: list[int],
+    grup_idler: list[int],
+    kullanici_kodlari: list[str],
+) -> None:
+    """Var olan bir anketi (alanlar + soru bağları + atamalar) günceller.
+
+    Yalnızca admin çağırabilir. "Görebilen güncelleyebilir": önce anket OTURUM
+    SAHİBİNİN sicili + grubuyla çekilir; görünmüyorsa NotFoundError (varlık sızmaz).
+    Ortak iş kuralları ekle_anket ile AYNI _hazirla_anket_alanlari'ndan geçer.
+    Atamalara FARK uygulanır: mevcut atananlarla istenen liste karşılaştırılıp yalnız
+    eklenecek/çıkarılacak kişiler belirlenir (kalan kişiye dokunulmaz). son_tarih
+    anketin YENİ bitiş tarihidir; olusturan_kodu DEĞİŞMEZ. Hata loglanmaz, YUKARI FIRLAR.
+    """
+    if talep_eden.kullanici_turu != _ADMIN_TURU:
+        raise YetkiYokError()
+
+    # Varlık + görünürlük ("görebilen güncelleyebilir"); None -> NotFoundError.
+    _getir_gorunur_anket(talep_eden, anket_id)
+
+    hazir = _hazirla_anket_alanlari(
+        talep_eden,
+        ad,
+        on_yazi,
+        son_yazi,
+        aciklama,
+        durum,
+        anket_tipi,
+        erisim_seviyesi,
+        baslangic_secim,
+        baslangic_tarih,
+        bitis_secim,
+        bitis_tarih,
+        soru_idler,
+        grup_idler,
+        kullanici_kodlari,
+    )
+
+    mevcut_kodlar = anket_repository.anket_atanan_kodlari_getir(anket_id)
+    eklenecek, cikarilacak = _atama_farki(
+        mevcut_kodlar, hazir.atanacak_kullanici_kodlari
+    )
+
+    anket_repository.anket_guncelle(
+        anket_id=anket_id,
+        ad=hazir.ad,
+        on_yazi=hazir.on_yazi,
+        son_yazi=hazir.son_yazi,
+        aciklama=hazir.aciklama,
+        durum=durum,
+        anket_tipi=anket_tipi,
+        erisim_seviyesi=erisim_seviyesi,
+        erisim_grup_id=hazir.erisim_grup_id,
+        baslangic_tarihi=hazir.baslangic_tarihi,
+        bitis_tarihi=hazir.bitis_tarihi,
+        soru_idler=soru_idler,
+        eklenecek_kullanici_kodlari=eklenecek,
+        cikarilacak_kullanici_kodlari=cikarilacak,
+        son_tarih=hazir.bitis_tarihi,
+    )
+
+
+def _getir_gorunur_anket(talep_eden: OturumSahibi, anket_id: int) -> AnketDetay:
+    """Anketi OTURUM SAHİBİNİN görünürlüğüyle çeker; görünmüyorsa NotFoundError.
+
+    "Görebilen güncelleyebilir" kuralının tek kaynağı: görünürlük parametreleri
+    (sicil + kendi grup_id'si) client'tan değil oturumdan çözülür ve Repository'ye
+    geçirilir. Anket görünmüyorsa (erişimi yok ya da gerçekten yoksa) None döner;
+    bu durumda anketin varlığını sızdırmamak için NotFoundError verilir (403/404
+    ayrımı yapılmaz). Detay okuma ve güncelleme bu tek yeri paylaşır (DRY).
+    """
+    gorunur_grup_id = grup_repository.kullanici_grup_id_getir(talep_eden.kullanici_kodu)
+    anket = anket_repository.anket_detay_getir(
+        anket_id, talep_eden.kullanici_kodu, gorunur_grup_id
+    )
+    if anket is None:
+        raise NotFoundError("Anket bulunamadı.")
+    return anket
+
+
+def _sanitize_anket_detay(anket: AnketDetay) -> AnketDetay:
+    """Anket detayının bağlı soru metinlerini okuma sınırında XSS'e karşı temizler.
+
+    soru_metni biçimli HAM HTML'dir ve frontend onu HTML olarak render eder; okuma
+    yolunda da sanitize edilir (defense-in-depth; eski/güvenilmez satırlar da kapsanır).
+    Serbest metin alanları (on_yazi/son_yazi/aciklama) ve atanan kullanıcı bilgileri
+    düz metindir -> sanitize gerekmez, dokunulmaz.
+    """
+    temiz_sorular = [
+        dataclasses.replace(soru, soru_metni=temizle_html(soru.soru_metni))
+        for soru in anket.bagli_sorular
+    ]
+    return dataclasses.replace(anket, bagli_sorular=temiz_sorular)
+
+
+def _hazirla_anket_alanlari(
+    talep_eden: OturumSahibi,
+    ad: str,
+    on_yazi: str | None,
+    son_yazi: str | None,
+    aciklama: str | None,
+    durum: str,
+    anket_tipi: str,
+    erisim_seviyesi: str | None,
+    baslangic_secim: str,
+    baslangic_tarih: str | None,
+    bitis_secim: str,
+    bitis_tarih: str | None,
+    soru_idler: list[int],
+    grup_idler: list[int],
+    kullanici_kodlari: list[str],
+) -> _HazirAnketAlanlari:
+    """Oluşturma/güncelleme için ortak iş kuralı doğrulaması + normalizasyon.
+
+    Neden: ekle_anket ve guncelle_anket AYNI kurallara uyar; bu gerçek tekrar tek
+    yerde toplanır (DRY, soru_service._hazirla_soru_alanlari kalıbı). Uygulanan
+    kurallar: ad trim sonrası boş olamaz; durum/anket_tipi geçerli kümede olmalı;
+    erişim seviyesi doğrulanır ve grup bağı OTURUMDAN çözülür (_dogrula_erisim);
+    tarihler hesaplanır ve bitiş > başlangıç olmalı; soruların varlığı/tekrarı ve
+    atanacak kişilerin çözümü+doğrulaması yapılır. Serbest metinler trim'lenir, boş
+    ise None olur. Yetki kontrolü BURADA DEĞİL, çağıran public fonksiyondadır. İhlalde
+    ValidationError fırlatılır (loglanmaz, yukarı çıkar).
+    """
     ad_temiz = _zorunlu_alan(ad, "Anket adı")
 
     if durum not in _GECERLI_DURUMLAR:
@@ -146,30 +333,45 @@ def ekle_anket(
 
     gecerli_grup_id = _dogrula_erisim(erisim_seviyesi, talep_eden)
 
-    baslangic_tarihi = _hesapla_baslangic_tarihi(baslangic_secim, baslangic_tarih)
-    bitis_tarihi = _hesapla_bitis_tarihi(bitis_secim, bitis_tarih, baslangic_tarihi)
+    baslangic_tarihi = anket_tarih.hesapla_baslangic_tarihi(
+        baslangic_secim, baslangic_tarih
+    )
+    bitis_tarihi = anket_tarih.hesapla_bitis_tarihi(
+        bitis_secim, bitis_tarih, baslangic_tarihi
+    )
     if bitis_tarihi <= baslangic_tarihi:
         raise ValidationError("Bitiş tarihi başlangıç tarihinden sonra olmalıdır.")
 
     _dogrula_sorular(soru_idler)
     atanacak_kullanici_kodlari = _cozumle_atanacak_kisiler(grup_idler, kullanici_kodlari)
 
-    return anket_repository.anket_ekle(
+    return _HazirAnketAlanlari(
         ad=ad_temiz,
         on_yazi=_bos_ise_none(on_yazi),
         son_yazi=_bos_ise_none(son_yazi),
         aciklama=_bos_ise_none(aciklama),
-        durum=durum,
-        anket_tipi=anket_tipi,
-        erisim_seviyesi=erisim_seviyesi,
         erisim_grup_id=gecerli_grup_id,
         baslangic_tarihi=baslangic_tarihi,
         bitis_tarihi=bitis_tarihi,
-        olusturan_kodu=talep_eden.kullanici_kodu,
-        soru_idler=soru_idler,
         atanacak_kullanici_kodlari=atanacak_kullanici_kodlari,
-        son_tarih=bitis_tarihi,
     )
+
+
+def _atama_farki(
+    mevcut_kodlar: list[str], istenen_kodlar: list[str]
+) -> tuple[list[str], list[str]]:
+    """Mevcut ve istenen atama listelerinden eklenecek/çıkarılacak kişileri hesaplar.
+
+    Neden fark: güncellemede listede KALAN kişinin atama satırına (durum/tarihler/
+    cevapları) dokunulmaz. eklenecek = istenen - mevcut, cikarilacak = mevcut - istenen.
+    Sıra korunur (deterministik davranış): eklenecek istenen sırasında, çıkarılacak
+    mevcut sırasında üretilir.
+    """
+    mevcut_kumesi = set(mevcut_kodlar)
+    istenen_kumesi = set(istenen_kodlar)
+    eklenecek = [kod for kod in istenen_kodlar if kod not in mevcut_kumesi]
+    cikarilacak = [kod for kod in mevcut_kodlar if kod not in istenen_kumesi]
+    return eklenecek, cikarilacak
 
 
 def _dogrula_erisim(erisim_seviyesi: str | None, talep_eden: OturumSahibi) -> int | None:
@@ -177,7 +379,7 @@ def _dogrula_erisim(erisim_seviyesi: str | None, talep_eden: OturumSahibi) -> in
 
     Seviye zorunlu değildir (None kabul); dolu ise geçerli kod kümesinde olmalıdır.
     Grup bağı yalnızca 'grup' seviyesinde doludur ve CLIENT'TAN ALINMAZ: anketi
-    oluşturan oturum sahibinin kendi grubundan (Kullanici.grup_id) çözülür. Grupsuz
+    düzenleyen oturum sahibinin kendi grubundan (Kullanici.grup_id) çözülür. Grupsuz
     bir kullanıcı bu seviyeyi seçemez; kayıt NULL grupla bırakılmaz, anlamlı iş
     hatası verilir. İhlalde ValidationError (loglanmaz, yukarı çıkar).
     """
@@ -204,7 +406,7 @@ def _dogrula_sorular(soru_idler: list[int]) -> None:
     En az bir soru seçilmiş olmalı (form'da Sorular zorunlu), aynı soru iki kez
     eklenemez (DB PK'si de bunu reddederdi; kullanıcıya anlamlı mesaj için önce
     burada elenir) ve gönderilen id'lerin TAMAMI DB'de var olmalıdır (client'tan
-    gelen id'ye güvenilmez; var olmayan id'yle anket yaratılamaz).
+    gelen id'ye güvenilmez; var olmayan id'yle anket yaratılamaz/güncellenemez).
     """
     if not soru_idler:
         raise ValidationError("En az bir soru seçilmelidir.")
@@ -223,8 +425,8 @@ def _cozumle_atanacak_kisiler(
 
     Atama KİŞİ bazlıdır: grup DB'ye yazılmaz, üyelerine çözülür. İki kaynaktan da
     gelen kişi TEK atama satırı alsın diye sonuç tekilleştirilir. Hiç seçim
-    yapılmaması geçerlidir: anket ATAMASIZ oluşur (bilinçli karar; "en az bir kişi"
-    kuralı YOKTUR). Üyesi olmayan grup da hata değildir, yalnızca kişi katkısı vermez.
+    yapılmaması geçerlidir: anket ATAMASIZ kalabilir ("en az bir kişi" kuralı
+    YOKTUR). Üyesi olmayan grup da hata değildir, yalnızca kişi katkısı vermez.
     """
     _dogrula_gruplar(grup_idler)
     _dogrula_kullanicilar(kullanici_kodlari)
@@ -272,78 +474,6 @@ def _tekillestir_sirayi_koruyarak(kullanici_kodlari: list[str]) -> list[str]:
     dolayısıyla davranış/hata ayıklama) deterministik kalsın diye sıra korunur.
     """
     return list(dict.fromkeys(kullanici_kodlari))
-
-
-def _hesapla_baslangic_tarihi(secim: str, tarih_metni: str | None) -> datetime:
-    """Başlangıç seçimini gerçek tarihe çevirir; geçersiz seçimde ValidationError.
-
-    'bugun' -> bugün, 'yarin' -> bugün+1 gün, 'tarih_sec' -> kullanıcının seçtiği
-    ISO tarih (zorunlu). Bu hesap bir İŞ KURALIDIR; frontend yalnızca seçimi taşır.
-    """
-    if secim == _BASLANGIC_BUGUN:
-        return _gun_basi(date.today())
-    if secim == _BASLANGIC_YARIN:
-        return _gun_basi(date.today()) + _BIR_GUN
-    if secim == _TARIH_SEC:
-        return _cozumle_iso_tarih(tarih_metni, "Başlangıç tarihi")
-    raise ValidationError("Geçersiz başlangıç tarihi seçimi.")
-
-
-def _hesapla_bitis_tarihi(
-    secim: str, tarih_metni: str | None, baslangic_tarihi: datetime
-) -> datetime:
-    """Bitiş seçimini gerçek tarihe çevirir; geçersiz seçimde ValidationError.
-
-    'bir_ay'/'iki_ay' başlangıç tarihine göre hesaplanır (bu yüzden başlangıç
-    parametre olarak alınır), 'tarih_sec' ise kullanıcının seçtiği ISO tarihtir
-    (zorunlu). Bitiş > başlangıç kuralı çağıran ekle_anket'te uygulanır.
-    """
-    if secim == _BITIS_BIR_AY:
-        return _ay_ekle(baslangic_tarihi, 1)
-    if secim == _BITIS_IKI_AY:
-        return _ay_ekle(baslangic_tarihi, 2)
-    if secim == _TARIH_SEC:
-        return _cozumle_iso_tarih(tarih_metni, "Bitiş tarihi")
-    raise ValidationError("Geçersiz bitiş tarihi seçimi.")
-
-
-def _ay_ekle(tarih: datetime, ay_sayisi: int) -> datetime:
-    """Bir tarihe ay ekler; hedef ayda karşılığı olmayan günü ayın son gününe kırpar.
-
-    Neden elle: dateutil (relativedelta) bir bağımlılık olarak kurulu değildir ve
-    yalnızca bu hesap için yeni bağımlılık eklenmez. Kural: ay taşırılır (Aralık ->
-    Ocak yıl artar) ve gün hedef ayın son gününü aşarsa son güne çekilir
-    (31 Ocak + 1 ay -> 28/29 Şubat). Saat bileşeni korunur.
-    """
-    toplam_ay = tarih.month - 1 + ay_sayisi
-    yil = tarih.year + toplam_ay // 12
-    ay = toplam_ay % 12 + 1
-    ayin_son_gunu = calendar.monthrange(yil, ay)[1]
-    return tarih.replace(year=yil, month=ay, day=min(tarih.day, ayin_son_gunu))
-
-
-def _cozumle_iso_tarih(tarih_metni: str | None, alan_adi: str) -> datetime:
-    """'YYYY-MM-DD' biçimli tarih metnini gün başı datetime'a çevirir.
-
-    Takvimden seçilen tarih zorunludur ve ISO biçiminde olmalıdır; boş ya da
-    biçimsiz değer ValidationError ile reddedilir (ham parse hatası kullanıcıya
-    sızdırılmaz, `from` ile zincirlenir).
-    """
-    if not tarih_metni or not tarih_metni.strip():
-        raise ValidationError(f"{alan_adi} seçilmelidir.")
-    try:
-        return _gun_basi(date.fromisoformat(tarih_metni.strip()))
-    except ValueError as hata:
-        raise ValidationError(f"{alan_adi} geçersiz.") from hata
-
-
-def _gun_basi(gun: date) -> datetime:
-    """Bir günü, o günün başlangıcını (00:00) gösteren datetime'a çevirir.
-
-    Anket.baslangic_tarihi/bitis_tarihi DATETIME'dır; gün seçimlerinin saat
-    bileşeni olmadığından tüm tarihler gün başına sabitlenir (tutarlı kıyas).
-    """
-    return datetime.combine(gun, time.min)
 
 
 def _bos_ise_none(deger: str | None) -> str | None:

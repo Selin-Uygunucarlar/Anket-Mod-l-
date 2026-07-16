@@ -67,6 +67,10 @@ const MENU_DISI_GORUNUMLER = {
     ustGorunum: 'anket-listesi',
     etiket: 'Anket Oluşturma - Güncelleme',
   },
+  'anket-duzenle': {
+    ustGorunum: 'anket-listesi',
+    etiket: 'Anket Güncelle',
+  },
 }
 
 // araMenuYolunu: menü ağacında `gorunum` kimliği eşleşen yaprağı özyinelemeli

@@ -13,8 +13,11 @@
 // vererek içerik alanında anket oluşturma formunu açar; kişi listesindeki
 // "Kullanıcı Ekle" ile aynı kalıptadır. Arama kutusu ve filtre kartı (AnketFiltre)
 // bu fazın kapsamı DIŞINDADIR: tasarım paritesi için dururlar, gerçek
-// filtreleme/arama YAPMAZLAR (ileride bağlanacaktır). Satır işlemleri (güncelle/sil)
-// de sonraki fazdır; "İşlem" sütunu şimdilik tire gösterir.
+// filtreleme/arama YAPMAZLAR (ileride bağlanacaktır). "İşlem" sütunundaki "Güncelle"
+// butonu, üst bileşene (onAnketDuzenle) haber vererek içerik alanında anket
+// güncelleme görünümünü açar (satır özetini taşır; form detayı backend'den kendisi
+// çeker). Buton stili SoruListesi'nin İşlem butonlarıyla paylaşılır (soru-listesi.css,
+// DRY); yeni CSS yazılmaz.
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -22,6 +25,7 @@ import { anketleriGetir } from '../api/anketApi.js'
 import { tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
 import AnketFiltre from './AnketFiltre'
 import '../styles/kullanici-listesi.css'
+import '../styles/soru-listesi.css'
 
 // ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Anket Ekle" butonunda
 // kullanılır (kişi listesindeki "Kullanıcı Ekle" ile aynı görünüm).
@@ -65,8 +69,7 @@ function BuyutecIcon() {
 
 // Tablo kolon başlıkları (bu sırayla). Kişi listesindeki tablo çerçevesiyle
 // birebir aynı görünsün diye tanımlanır; "İşlem" sütunu kişi listesindeki
-// "İşlemler" karşılığıdır ve ileride satır işlem menüsü (Güncelle + Pasif yap)
-// taşıyacaktır.
+// "İşlemler" karşılığıdır ve satır başına "Güncelle" butonu taşır.
 const ANKET_KOLON_BASLIKLARI = [
   'Anket Adı',
   'Durum',
@@ -88,8 +91,9 @@ function olusturanAdiBicimlendir(anket) {
 // AnketListesi: anketleri React Query ile çeker ve durumuna göre yükleniyor /
 // hata / boş / tablo gösterir. Veri kaynağı yalnızca anketApi'dir.
 // props: onAnketEkle() -> "Anket Ekle" butonuna tıklanınca çağrılır (üst bileşen
-// anket ekleme görünümünü açar).
-function AnketListesi({ onAnketEkle }) {
+// anket ekleme görünümünü açar); onAnketDuzenle(anket) -> bir satırın "Güncelle"
+// butonu tıklanınca çağrılır (üst bileşen o anket için güncelleme görünümünü açar).
+function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
   const [aramaMetni, setAramaMetni] = useState('')
 
   const {
@@ -182,8 +186,20 @@ function AnketListesi({ onAnketEkle }) {
                   <td>{tarihSaatBicimlendir(anket.olusturma_tarihi)}</td>
                   <td>{anket.atanan_sayisi}</td>
                   <td>{anket.yanitlayan_sayisi}</td>
-                  {/* Satır işlemleri (güncelle/sil) sonraki fazdır. */}
-                  <td>-</td>
+                  <td>
+                    <div className="soru-islem-hucre">
+                      {/* Güncelle: üst bileşene haber vererek bu anket için güncelleme
+                          görünümünü açar (form alanları backend'den çekilir). Stil
+                          SoruListesi'nin İşlem butonlarıyla paylaşılır (DRY). */}
+                      <button
+                        type="button"
+                        className="soru-islem-buton soru-guncelle-buton"
+                        onClick={() => onAnketDuzenle(anket)}
+                      >
+                        Güncelle
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}

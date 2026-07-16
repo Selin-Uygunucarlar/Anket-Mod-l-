@@ -1,8 +1,12 @@
 // Anket oluşturma/güncelleme ekranının kapsayıcısı. Anket listesindeki "Anket Ekle"
-// butonuyla anasayfa içerik alanında render edilir. Yalnızca sunum sorumluluğundadır:
-// form state'ini tutar, kartları (bölümleri) dizer ve kaydı anketApi.ekleAnket
-// üzerinden backend'e iletir; iş kuralı, yetki veya hesaplama İÇERMEZ (yetki ve
-// asıl doğrulama sunucuda). Zorunlu alanların (Adı, Anket Tipi, Sorular, Başlangıç
+// butonuyla (oluşturma modu) veya bir satırın "Güncelle" butonuyla (düzenleme modu)
+// anasayfa içerik alanında render edilir. Yalnızca sunum sorumluluğundadır: form
+// state'ini tutar, kartları (bölümleri) dizer ve kaydı oluşturmada anketApi.ekleAnket,
+// düzenlemede anketApi.guncelleAnket üzerinden backend'e iletir; iş kuralı, yetki
+// veya hesaplama İÇERMEZ (yetki ve asıl doğrulama sunucuda). Düzenleme modunda mevcut
+// anket anketApi.anketDetayGetir ile çekilip anketDetayindanForm ile ön-doldurulur;
+// atamalarda FARK (kim eklenecek/çıkarılacak) SUNUCUDA hesaplanır (UI yalnızca istenen
+// nihai listeleri taşır). Gruplar geri gelmez: düzenlemede grup listesi boş açılır. Zorunlu alanların (Adı, Anket Tipi, Sorular, Başlangıç
 // ve Bitiş Tarihi) boşluğu yalnızca UX için (Kaydet'i pasifleştirmek) kontrol edilir;
 // sunucu doğrulaması bunlara güvenilerek atlanmaz. Tarihler için UI'da TARİH
 // HESAPLANMAZ: yalnızca seçim kimliği sunucuya taşınır, tarihi anket servisi hesaplar.
@@ -21,8 +25,8 @@
 // stilleri getirir.
 
 import { useEffect, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ekleAnket } from '../api/anketApi.js'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ekleAnket, anketDetayGetir, guncelleAnket } from '../api/anketApi.js'
 import AnketBilgileriKarti from './AnketBilgileriKarti.jsx'
 import AnketSorulariKarti from './AnketSorulariKarti.jsx'
 import AnketTarihleriKarti from './AnketTarihleriKarti.jsx'
@@ -35,6 +39,7 @@ import {
   KULLANICI_GRUPLARI_ATAMASI,
   secimleriBirlestir,
   tarihAlaniGecersiz,
+  anketDetayindanForm,
 } from '../common/anketFormAlanlari.js'
 import {
   SORU_SECIM_MESAJ_TIPI,
@@ -96,22 +101,57 @@ function formuIstekGovdesineCevir(form) {
   }
 }
 
-// AnketEkleForm: anket oluşturma formunu yönetir (girdi toplama + gönderim).
+// AnketEkleForm: anket oluşturma/güncelleme formunu yönetir (girdi toplama + gönderim).
 // props: onGeriDon() -> "Geri Dön" tıklanınca ve kayıt başarısında çağrılır (üst
-// bileşen listeye döner).
-function AnketEkleForm({ onGeriDon }) {
+// bileşen listeye döner); duzenlenecekAnketId -> verilirse düzenleme modu (anketin
+// anket_id'si); verilmezse oluşturma modu (davranış aynen korunur).
+function AnketEkleForm({ onGeriDon, duzenlenecekAnketId }) {
+  const duzenlemeModu = Boolean(duzenlenecekAnketId)
   const [form, setForm] = useState(BOS_ANKET_FORMU)
   // Kaydet'e en az bir kez basıldı mı? Mesaj Ayarları kartındaki boş "gün önce"
   // uyarısı yalnızca basıldıktan sonra görünsün diye tutulur (anında değil).
   const [kaydetDenendi, setKaydetDenendi] = useState(false)
   const queryClient = useQueryClient()
 
-  // Kaydet isteği: başarıda anket listesini tazeler ve listeye döner. Hata
-  // gösteriminde yalnızca backend'in güvenli mesajı kullanılır (teknik detay sızmaz).
+  // Düzenleme modunda mevcut anketin tüm alanlarını backend'den çeker (yalnızca
+  // düzenleme modunda aktiftir). SoruEkleForm düzenleme kalıbıyla aynıdır.
+  const {
+    data: anketDetayi,
+    isPending: detayYukleniyor,
+    isError: detayHatasi,
+    error: detayHataObjesi,
+  } = useQuery({
+    queryKey: ['anket-detay', duzenlenecekAnketId],
+    queryFn: () => anketDetayGetir(duzenlenecekAnketId),
+    enabled: duzenlemeModu,
+  })
+
+  // Detay geldiğinde formu bir kez mevcut değerlerle doldurur (düzenleme modu).
+  // anketDetayindanForm salt biçim dönüşümüdür; tarihler 'tarih_sec' + gerçek
+  // takvim değeriyle, atanan kişiler "Sabit liste"yle önceden doldurulur.
+  useEffect(() => {
+    if (!anketDetayi) {
+      return
+    }
+    setForm(anketDetayindanForm(anketDetayi))
+  }, [anketDetayi])
+
+  // Kaydet isteği: başarıda anket listesini (ve düzenlemede detay sorgularını)
+  // tazeler ve listeye döner. mutationFn moda göre dallanır — düzenlemede
+  // guncelleAnket(anket_id, govde), oluşturmada ekleAnket(govde). Hata gösteriminde
+  // yalnızca backend'in güvenli mesajı kullanılır (teknik detay sızmaz).
   const kaydetMutation = useMutation({
-    mutationFn: (guncelForm) => ekleAnket(formuIstekGovdesineCevir(guncelForm)),
+    mutationFn: (guncelForm) => {
+      const govde = formuIstekGovdesineCevir(guncelForm)
+      return duzenlemeModu
+        ? guncelleAnket(duzenlenecekAnketId, govde)
+        : ekleAnket(govde)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['anketler'] })
+      if (duzenlemeModu) {
+        queryClient.invalidateQueries({ queryKey: ['anket-detay'] })
+      }
       onGeriDon()
     },
   })
@@ -266,12 +306,49 @@ function AnketEkleForm({ onGeriDon }) {
     tarihAlaniGecersiz(form.bitis_secim, form.bitis_tarih) ||
     kaydetMutation.isPending
 
+  // Düzenleme modunda mevcut anket çekilirken / çekilemezse uygun durum gösterilir
+  // (SoruEkleForm düzenleme kalıbıyla aynı). Oluşturma modunda bu guard'lar atlanır.
+  if (duzenlemeModu && detayYukleniyor) {
+    return (
+      <section className="kullanici-ekle">
+        <p className="kullanici-liste-durum">Yükleniyor...</p>
+      </section>
+    )
+  }
+  if (duzenlemeModu && detayHatasi) {
+    // detayHataObjesi.message backend'in güvenli mesajıdır; teknik detay sızmaz.
+    return (
+      <section className="kullanici-ekle">
+        <div className="kullanici-ekle-hata" role="alert">
+          {detayHataObjesi?.message ||
+            'Anket bilgileri yüklenemedi. Lütfen tekrar deneyin.'}
+        </div>
+        <div className="kullanici-ekle-butonlar">
+          <button type="button" className="ikincil-buton" onClick={onGeriDon}>
+            Geri Dön
+          </button>
+        </div>
+      </section>
+    )
+  }
+
   // Kayıt başarısızsa gösterilecek mesaj: yalnızca backend'in güvenli mesajı
-  // (yoksa jenerik). Teknik detay/stack ekrana yansıtılmaz.
+  // (yoksa moda uygun jenerik). Teknik detay/stack ekrana yansıtılmaz.
   const kayitHataMesaji = kaydetMutation.isError
     ? kaydetMutation.error?.message ||
-      'Anket kaydedilemedi. Lütfen tekrar deneyin.'
+      (duzenlemeModu
+        ? 'Anket güncellenemedi. Lütfen tekrar deneyin.'
+        : 'Anket kaydedilemedi. Lütfen tekrar deneyin.')
     : ''
+
+  // Kaydet butonunun metni moda ve istek durumuna göre belirlenir (salt gösterim).
+  const kaydetButonMetni = duzenlemeModu
+    ? kaydetMutation.isPending
+      ? 'Güncelleniyor...'
+      : 'Güncelle'
+    : kaydetMutation.isPending
+      ? 'Kaydediliyor...'
+      : 'Kaydet'
 
   return (
     <section className="kullanici-ekle">
@@ -348,7 +425,7 @@ function AnketEkleForm({ onGeriDon }) {
               className="birincil-buton"
               disabled={kaydetPasif}
             >
-              {kaydetMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+              {kaydetButonMetni}
             </button>
           </span>
           <button type="button" className="ikincil-buton" onClick={onGeriDon}>

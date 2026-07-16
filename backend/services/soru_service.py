@@ -5,7 +5,9 @@ Neden: Soru ekleme/listeleme/silme bir YÖNETİM ucudur; yalnızca admin
 (OturumSahibi) göre belirlenir. soru_metni biçimli HAM HTML olduğundan XSS'e karşı
 SUNUCU TARAFI sanitizasyon (migration 007/009) burada, kayda/gösterime çıkmadan
 önce yapılır. Ekleme akışında şık metinleri (secenek_metni) de artık BİÇİMLİ HTML
-olduğundan (migration 009) aynı allowlist ile sanitize edilir.
+olduğundan (migration 009) aynı allowlist ile sanitize edilir. Sanitize allowlist'i
+ve temizleme yardımcısı (temizle_html) Common katmanında ortaktır (common.html_temizle);
+anket_service ile paylaşılır (DRY). Şık kuralları ve boş-içerik reddi bu Service'e özeldir.
 
 Şık listesinin ANLAMI soru tipine göre değişir (kablo sözleşmesi list[str] aynı
 kalır): evet_hayir'de client şıkları YOK SAYILIR, sunucu kanonik ["Evet","Hayır"]
@@ -21,9 +23,8 @@ import dataclasses
 import html
 import re
 
-import nh3
-
 from common.errors import NotFoundError, ValidationError, YetkiYokError
+from common.html_temizle import temizle_html
 from models.oturum import OturumSahibi
 from models.soru import SoruKaydi
 from repositories import soru_repository
@@ -59,61 +60,6 @@ _EVET_HAYIR_SECENEKLERI = ["Evet", "Hayır"]
 # sabitleridir ve sanitize gerektirmez.
 _SKALA_ARA_NOKTALAR = ["2", "3", "4"]
 
-# soru_metni sanitizasyonunun izinli etiket kümesi. Editör (SoruMetniKart) yalnızca
-# document.execCommand ile biçim üretir: kalın/italik/altı çizili (b,strong,i,em,u),
-# madde/numaralı liste (ul,ol,li), bağlantı (a), font boyutu/rengi (font),
-# hizalama/renk (span/div/p üzerinde style) ve Enter'la oluşan blok/satır sonu
-# (p,div,span,br). Bu kümenin DIŞINDA kalan her şey (script/style etiketi, img,
-# iframe vb.) içerik korunarak etiketi sıyrılır; script gibi tehlikeli etiketlerin
-# metni de zaten çalıştırılamaz hale gelir.
-_IZINLI_ETIKETLER = {
-    "b", "strong", "i", "em", "u",
-    "ul", "ol", "li",
-    "a",
-    "p", "div", "span", "br",
-    "font",
-}
-
-# Etiket bazında izinli nitelikler. Bunlar dışındaki tüm nitelikler (özellikle
-# onerror/onclick gibi olay yakalayıcılar) düşürülür. style niteliği yalnızca
-# _IZINLI_STIL_OZELLIKLERI ile CSS düzeyinde süzülür (aşağıya bakınız).
-_IZINLI_NITELIKLER = {
-    "a": {"href", "title"},
-    "font": {"color", "size"},
-    "span": {"style"},
-    "div": {"style", "align"},
-    "p": {"style", "align"},
-    "li": {"style"},
-    "ul": {"style"},
-    "ol": {"style"},
-}
-
-# style niteliğinde İZİN VERİLEN CSS özellikleri. Editör yalnızca hizalama
-# (text-align) ve yazı rengi (color) üretir; bunun dışındaki bildirimler (ör.
-# position, background, url(...) içeren değerler) nh3 tarafından atılır. Böylece
-# style niteliği tamamen yasaklanmadan güvenli tutulur.
-_IZINLI_STIL_OZELLIKLERI = {"color", "text-align"}
-
-# Bağlantılarda izinli URL şemaları. javascript: / data: gibi tehlikeli şemalar
-# bu kümede olmadığından href'ten düşürülür (link protokolü güvenli kalır).
-_IZINLI_URL_SEMALARI = {"http", "https", "mailto"}
-
-
-def _sanitize_soru_metni(ham_html: str) -> str:
-    """Bir sorunun HAM HTML metnini XSS'e karşı temizler (allowlist tabanlı).
-
-    Yalnızca izinli etiket/nitelikler korunur; script/style etiketi, olay
-    yakalayıcı nitelikler ve javascript: şemalı bağlantılar temizlenir. Editörün
-    ürettiği biçimlendirme (kalın, liste, hizalama, renk, bağlantı) korunur.
-    """
-    return nh3.clean(
-        ham_html,
-        tags=_IZINLI_ETIKETLER,
-        attributes=_IZINLI_NITELIKLER,
-        filter_style_properties=_IZINLI_STIL_OZELLIKLERI,
-        url_schemes=_IZINLI_URL_SEMALARI,
-    )
-
 
 def _sanitize_edilmis_bos_mu(sanitize_edilmis: str) -> bool:
     """Sanitize edilmiş HTML'in görünür metin taşıyıp taşımadığını doğrular.
@@ -138,7 +84,7 @@ def _sanitize_serbest_secenekler(secenek_metinleri: list[str]) -> list[str]:
     """
     temiz_secenekler: list[str] = []
     for ham_secenek in secenek_metinleri:
-        temiz_secenek = _sanitize_soru_metni(ham_secenek)
+        temiz_secenek = temizle_html(ham_secenek)
         if _sanitize_edilmis_bos_mu(temiz_secenek):
             raise ValidationError("Seçenek metni boş olamaz.")
         temiz_secenekler.append(temiz_secenek)
@@ -158,7 +104,7 @@ def _hazirla_skala_secenekleri(secenek_metinleri: list[str]) -> list[str]:
 
     temiz_uclar: list[str] = []
     for ham_uc in secenek_metinleri:
-        temiz_uc = _sanitize_soru_metni(ham_uc)
+        temiz_uc = temizle_html(ham_uc)
         if _sanitize_edilmis_bos_mu(temiz_uc):
             raise ValidationError("Skala uç ifadeleri boş olamaz.")
         temiz_uclar.append(temiz_uc)
@@ -214,7 +160,7 @@ def _hazirla_soru_alanlari(
     if not amac_temiz:
         raise ValidationError("Amaç zorunludur.")
 
-    soru_metni = _sanitize_soru_metni(soru_metni_ham)
+    soru_metni = temizle_html(soru_metni_ham)
     if _sanitize_edilmis_bos_mu(soru_metni):
         raise ValidationError("Soru metni boş olamaz.")
 
@@ -270,13 +216,13 @@ def _sanitize_soru_kaydi(soru: SoruKaydi) -> SoruKaydi:
     """
     temiz_secenekler = [
         dataclasses.replace(
-            secenek, secenek_metni=_sanitize_soru_metni(secenek.secenek_metni)
+            secenek, secenek_metni=temizle_html(secenek.secenek_metni)
         )
         for secenek in soru.secenekler
     ]
     return dataclasses.replace(
         soru,
-        soru_metni=_sanitize_soru_metni(soru.soru_metni),
+        soru_metni=temizle_html(soru.soru_metni),
         secenekler=temiz_secenekler,
     )
 

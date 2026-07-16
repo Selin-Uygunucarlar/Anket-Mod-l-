@@ -1,4 +1,4 @@
-"""Anket (oluşturma + kullanıcı atama + listeleme) veri erişim katmanı.
+"""Anket (oluşturma + kullanıcı atama + listeleme + detay + güncelleme) veri erişim katmanı.
 
 Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
@@ -9,6 +9,8 @@ sonuç dönüşümü ve hata sarmalama sorumluluğunu taşır.
 Güvenlik: Repository yetki/rol/sahiplik BİLMEZ (admin kontrolü, erişim seviyesi
 kuralları, tarih hesabı ve soru id doğrulaması Service'tedir). olusturan_kodu
 buraya oturumdan gelir; client'tan alınmaz -- bunu garanti etmek Service'in işidir.
+Okuma sorgularının aldığı görünürlük parametreleri de bir yetki kararı değil, bir
+SÜZME girdisidir: kararı Service verir, burada yalnızca sorguya geçirilir.
 
 Hata yönetimi: Teknik DB istisnaları DataAccessError'a sarmalanıp YUKARI
 FIRLATILIR; burada loglanmaz/yutulmaz. Ham DB mesajı, tablo adı veya stack trace
@@ -21,7 +23,7 @@ import pymysql
 
 from common.db import veritabani_baglantisi
 from common.errors import DataAccessError
-from models.anket import AnketOzeti
+from models.anket import AnketDetay, AnketOzeti, AtananKullanici, BagliSoru
 from repositories import anket_sorgulari as sorgular
 
 
@@ -183,3 +185,203 @@ def soru_idleri_getir(soru_idler: list[int]) -> list[int]:
         raise DataAccessError("Sorular okunamadı.") from hata
 
     return [satir["soru_id"] for satir in satirlar]
+
+
+def anket_detay_getir(
+    anket_id: int, gorunur_kullanici_kodu: str, gorunur_grup_id: int | None
+) -> AnketDetay | None:
+    """Tek anketi bağlı soruları ve atanan kullanıcılarıyla döner; görünmüyorsa None.
+
+    Görünürlük parametreleri anketleri_getir ile AYNI koşula (anket_sorgulari.
+    GORUNURLUK_KOSULU) girer; yani listede görünmeyen bir anket burada da satır
+    döndürmez ve fonksiyon None verir. Böylece erişimi olmayan için anket "yok" gibi
+    davranır: ne varlığı ne içeriği sızar (client'tan gelen anket_id'ye körlemesine
+    güvenilmez -- IDOR'a kapalı). "Bulunamadı"nın nasıl yorumlanacağı (NotFound) bir
+    iş kararıdır ve Service'e aittir; burada NotFound FIRLATILMAZ.
+
+    Soru bağları ve atamalar, anket satırı bulunduktan sonra aynı bağlantıda iki ek
+    sorguyla çekilip tek AnketDetay'e monte edilir (montaj veri dönüşümüdür, iş
+    kuralı değil). soru_metni HAM döner (sanitizasyon Service'in işi).
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                # Parametre sırası sorgudaki %s sırasıyla eşleşir: anket_id, sonra
+                # görünürlük koşulunun grup_id ve sicil'i.
+                imlec.execute(
+                    sorgular.ANKET_DETAY_SORGUSU,
+                    (anket_id, gorunur_grup_id, gorunur_kullanici_kodu),
+                )
+                anket_satiri = imlec.fetchone()
+                if anket_satiri is None:
+                    return None
+
+                imlec.execute(sorgular.ANKET_SORULARI_SORGUSU, (anket_id,))
+                soru_satirlari = imlec.fetchall()
+                imlec.execute(
+                    sorgular.ANKET_ATANAN_KULLANICILAR_SORGUSU, (anket_id,)
+                )
+                atanan_satirlari = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Anket okunamadı.") from hata
+
+    return AnketDetay(
+        anket_id=anket_satiri["anket_id"],
+        ad=anket_satiri["ad"],
+        on_yazi=anket_satiri["on_yazi"],
+        son_yazi=anket_satiri["son_yazi"],
+        aciklama=anket_satiri["aciklama"],
+        durum=anket_satiri["durum"],
+        anket_tipi=anket_satiri["anket_tipi"],
+        erisim_seviyesi=anket_satiri["erisim_seviyesi"],
+        erisim_grup_id=anket_satiri["erisim_grup_id"],
+        baslangic_tarihi=anket_satiri["baslangic_tarihi"],
+        bitis_tarihi=anket_satiri["bitis_tarihi"],
+        olusturan_kodu=anket_satiri["olusturan_kodu"],
+        bagli_sorular=[
+            BagliSoru(
+                soru_id=satir["soru_id"],
+                soru_metni=satir["soru_metni"],
+                soru_tipi=satir["soru_tipi"],
+            )
+            for satir in soru_satirlari
+        ],
+        atanan_kullanicilar=[
+            AtananKullanici(
+                kullanici_kodu=satir["kullanici_kodu"],
+                ad=satir["ad"],
+                soyad=satir["soyad"],
+                email=satir["email"],
+            )
+            for satir in atanan_satirlari
+        ],
+    )
+
+
+def anket_atanan_kodlari_getir(anket_id: int) -> list[str]:
+    """Ankete şu an atanmış kişilerin sicillerini döner (atama yoksa boş liste).
+
+    Neden ayrı okuma: güncellemede atamalara FARK uygulanır ve "kim eklenecek / kim
+    çıkarılacak" karşılaştırmasını Service yapar (iş kararı). Repository fark
+    HESAPLAMAZ; yalnızca mevcut durumu bildirir.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(sorgular.ANKET_ATANAN_KODLARI_SORGUSU, (anket_id,))
+                satirlar = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Anket atamaları okunamadı.") from hata
+
+    return [satir["kullanici_kodu"] for satir in satirlar]
+
+
+def anket_guncelle(
+    anket_id: int,
+    ad: str,
+    on_yazi: str | None,
+    son_yazi: str | None,
+    aciklama: str | None,
+    durum: str,
+    anket_tipi: str | None,
+    erisim_seviyesi: str | None,
+    erisim_grup_id: int | None,
+    baslangic_tarihi: datetime,
+    bitis_tarihi: datetime,
+    soru_idler: list[int],
+    eklenecek_kullanici_kodlari: list[str],
+    cikarilacak_kullanici_kodlari: list[str],
+    son_tarih: datetime,
+) -> None:
+    """Anketi, soru bağlarını ve atama farkını TEK transaction'da günceller.
+
+    Sıra: (1) ANKET_GUNCELLE_SORGUSU ile anketin düzenlenebilir alanları yazılır
+    (olusturan_kodu/olusturma_tarihi DEĞİŞMEZ); (2) ANKETSORU_BAGLARINI_SIL_SORGUSU
+    ile eski soru bağları silinip `soru_idler` gelen sıraya göre (sira_no = index+1)
+    yeniden yazılır -- bağ satırında korunacak durum bilgisi olmadığından "sil +
+    yeniden yaz" güvenlidir; (3) `eklenecek_kullanici_kodlari` için yeni AnketAtama
+    satırları (atama_tarihi = yazma anı, son_tarih = anketin yeni bitişi, durum =
+    ATAMA_BASLANGIC_DURUMU) eklenir; (4) `cikarilacak_kullanici_kodlari`nın atama
+    satırları silinir.
+
+    ATAMALARDA FARK UYGULANIR, hepsi silinip yeniden yazılmaz: listede KALAN kişinin
+    satırına DOKUNULMAZ, böylece durum/baslama_tarihi/tamamlanma_tarihi ve (Cevap FK'si
+    CASCADE olduğundan) verdiği cevaplar korunur. Ekle/çıkar listeleri Service'ten
+    PARAMETRE gelir; farkı Repository HESAPLAMAZ (iş kararı). Her iki liste de boş
+    olabilir (o adım atlanır).
+
+    İşlem bütünlüğü veritabani_baglantisi context manager'ına aittir: blok sorunsuz
+    biterse commit, herhangi bir adımda istisna olursa ROLLBACK -- kısmi güncelleme
+    kalmaz. Kayıt yoksa/görünmüyorsa UPDATE etkisizdir (rowcount 0) ve sessizce
+    geçilir: varlık + görünürlük ("görebilen güncelleyebilir") doğrulamasını Service
+    ÖNCE anket_detay_getir ile yapar. Tüm sorgular parametreli (%s); serbest metinler
+    (ad/on_yazi/son_yazi/aciklama) SQL metnine gömülmez, HAM yazılır (sanitizasyon
+    Service'in işi).
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                imlec.execute(
+                    sorgular.ANKET_GUNCELLE_SORGUSU,
+                    (
+                        ad,
+                        on_yazi,
+                        son_yazi,
+                        aciklama,
+                        durum,
+                        anket_tipi,
+                        erisim_seviyesi,
+                        erisim_grup_id,
+                        baslangic_tarihi,
+                        bitis_tarihi,
+                        anket_id,
+                    ),
+                )
+
+                imlec.execute(
+                    sorgular.ANKETSORU_BAGLARINI_SIL_SORGUSU, (anket_id,)
+                )
+                if soru_idler:
+                    # Sorular gelen sıraya göre 1'den başlayan sira_no ile bağlanır.
+                    bag_parametreleri = [
+                        (anket_id, soru_id, indeks + 1)
+                        for indeks, soru_id in enumerate(soru_idler)
+                    ]
+                    imlec.executemany(
+                        sorgular.ANKETSORU_EKLE_SORGUSU, bag_parametreleri
+                    )
+
+                if eklenecek_kullanici_kodlari:
+                    # Yeni atamalar tek anda yazıldığından hepsi aynı atama_tarihi'ni taşır.
+                    atama_tarihi = datetime.now()
+                    atama_parametreleri = [
+                        (
+                            anket_id,
+                            kullanici_kodu,
+                            atama_tarihi,
+                            son_tarih,
+                            sorgular.ATAMA_BASLANGIC_DURUMU,
+                        )
+                        for kullanici_kodu in eklenecek_kullanici_kodlari
+                    ]
+                    imlec.executemany(
+                        sorgular.ANKETATAMA_EKLE_SORGUSU, atama_parametreleri
+                    )
+
+                if cikarilacak_kullanici_kodlari:
+                    # Yer tutucular sicil SAYISI kadar üretilir; DEĞERLER parametre geçer.
+                    yer_tutucular = ", ".join(
+                        ["%s"] * len(cikarilacak_kullanici_kodlari)
+                    )
+                    silme_sorgusu = sorgular.ANKETATAMA_SIL_SORGUSU.format(
+                        yer_tutucular=yer_tutucular
+                    )
+                    imlec.execute(
+                        silme_sorgusu,
+                        (anket_id, *cikarilacak_kullanici_kodlari),
+                    )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Anket güncellenemedi.") from hata

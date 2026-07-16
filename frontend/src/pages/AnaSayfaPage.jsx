@@ -58,6 +58,10 @@ function AnaSayfaPage() {
   // null iken soru düzenleme görünümü açık değildir; form mevcut alanları soru_id
   // ile backend'den kendisi çeker (kullanıcı düzenleme kalıbıyla aynı).
   const [duzenlenecekSoru, setDuzenlenecekSoru] = useState(null)
+  // Düzenleme görünümünde düzenlenecek anketin liste özetini tutan saf UI state'i.
+  // null iken anket düzenleme görünümü açık değildir; form mevcut alanları anket_id
+  // ile backend'den kendisi çeker (soru/kullanıcı düzenleme kalıbıyla aynı).
+  const [duzenlenecekAnket, setDuzenlenecekAnket] = useState(null)
 
   // toggleAdminPaneli: hamburger tıklanınca paneli açar/kapatır.
   function toggleAdminPaneli() {
@@ -109,6 +113,20 @@ function AnaSayfaPage() {
     secGorunum('anket-sorulari')
   }
 
+  // anketDuzenlemeyiAc: anket listesindeki bir satırın "Güncelle" butonu tıklanınca
+  // çağrılır; düzenlenecek anketi belirler ve anket düzenleme görünümünü açar.
+  function anketDuzenlemeyiAc(anket) {
+    setDuzenlenecekAnket(anket)
+    setSecilenGorunum('anket-duzenle')
+  }
+
+  // anketListesineDon: anket ekleme/düzenleme ekranından listeye döner ve düzenleme
+  // hedefini temizler (bir sonraki açılış temiz başlasın).
+  function anketListesineDon() {
+    setDuzenlenecekAnket(null)
+    secGorunum('anket-listesi')
+  }
+
   return (
     <div className="anasayfa">
       <Topbar
@@ -145,10 +163,19 @@ function AnaSayfaPage() {
           />
         )}
         {adminMi && secilenGorunum === 'anket-listesi' && (
-          <AnketListesi onAnketEkle={() => secGorunum('anket-ekle')} />
+          <AnketListesi
+            onAnketEkle={() => secGorunum('anket-ekle')}
+            onAnketDuzenle={anketDuzenlemeyiAc}
+          />
         )}
         {adminMi && secilenGorunum === 'anket-ekle' && (
           <AnketEkleForm onGeriDon={() => secGorunum('anket-listesi')} />
+        )}
+        {adminMi && secilenGorunum === 'anket-duzenle' && duzenlenecekAnket && (
+          <AnketEkleForm
+            duzenlenecekAnketId={duzenlenecekAnket.anket_id}
+            onGeriDon={anketListesineDon}
+          />
         )}
         {adminMi && secilenGorunum === 'anket-sorulari' && (
           <SoruListesi

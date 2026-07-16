@@ -131,16 +131,19 @@ class SoruEkleIstegi(BaseModel):
 
 
 class AnketEkleIstegi(BaseModel):
-    """Anket oluşturma istek gövdesi (form alanları).
+    """Anket oluşturma/güncelleme istek gövdesi (form alanları).
 
-    Tip/şekil doğrulaması Controller'da, iş kuralı (geçerli durum/tip/seviye, tarih
-    hesabı, soruların varlığı) Service'te. olusturan_kodu ve (erisim_seviyesi 'grup'
-    ise) erişim grubu gövdede DEĞİL: sunucu tarafı oturumdan çözülür (client'a
-    güvenilmez). Tarihler ham seçim olarak taşınır
+    Aynı alan kümesi hem POST (ekle) hem PUT (güncelle) için kullanılır (DRY, tıpkı
+    KullaniciEkleIstegi/SoruEkleIstegi gibi). Tip/şekil doğrulaması Controller'da, iş
+    kuralı (geçerli durum/tip/seviye, tarih hesabı, soruların varlığı, güncellemede
+    "görebilen güncelleyebilir" görünürlük) Service'te. olusturan_kodu ve
+    (erisim_seviyesi 'grup' ise) erişim grubu gövdede DEĞİL: sunucu tarafı oturumdan
+    çözülür (client'a güvenilmez). Güncellemede kaydın anket_id'si path'ten gelir.
+    Tarihler ham seçim olarak taşınır
     ('bugun'/'yarin'/'bir_ay'/'iki_ay'/'tarih_sec'); gerçek tarihi Service hesaplar.
     grup_idler/kullanici_kodlari, Kullanıcılar kartında ankete ATANMAK üzere seçilen
     gruplar ve kişilerdir (erisim_seviyesi ile ilgisi yoktur); seçim zorunlu değildir,
-    gönderilmezse anket atamasız oluşur. Formun Mesaj Ayarları/İşlemler kartları bu
+    gönderilmezse anket atamasız kalır. Formun Mesaj Ayarları/İşlemler kartları bu
     fazın DIŞINDA olduğundan burada alanları YOKTUR (bilinçli kapsam kararı).
     """
 
@@ -539,6 +542,67 @@ def ekle_anket(
     """
     sonuc = anket_controller.ekle_anket(
         oturum,
+        istek.ad,
+        istek.on_yazi,
+        istek.son_yazi,
+        istek.aciklama,
+        istek.durum,
+        istek.anket_tipi,
+        istek.erisim_seviyesi,
+        istek.baslangic_secim,
+        istek.baslangic_tarih,
+        istek.bitis_secim,
+        istek.bitis_tarih,
+        istek.soru_idler,
+        istek.grup_idler,
+        istek.kullanici_kodlari,
+    )
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/anketler/{anket_id}")
+def get_anket_detay(
+    anket_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için tek bir anketin düzenleme detayını döndürür (yalnızca protokol).
+
+    anket_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
+    Controller oturumu doğrular, yetkiyi (yalnızca admin) ve "görebilen görebilir"
+    görünürlüğünü uygular; görünmüyor/yok -> 404. Bağlı soru metinleri Service'te
+    sanitize edilmiş HTML'dir (düzenleme ön-doldurma). Sabit `GET /api/anketler`
+    (liste) ile çakışmaz; PUT aynı path'te method ile ayrışır. Başarılı yanıtta kayan
+    pencere için cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = anket_controller.get_anket_detay(oturum, anket_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.put("/api/anketler/{anket_id}")
+def guncelle_anket(
+    anket_id: int,
+    istek: AnketEkleIstegi,
+    oturum: str | None = Cookie(default=None),
+) -> JSONResponse:
+    """Oturumdaki admin için var olan bir anketi günceller (yalnızca protokol adaptasyonu).
+
+    anket_id path segment'inden alınır (int); gövde AnketEkleIstegi (ekleme ile aynı
+    model). Oturum/yetki/doğrulama/tarih hesabı/atama farkı ve "görebilen
+    güncelleyebilir" görünürlük kontrolü Controller/Service'te. olusturan_kodu ve
+    erişim grubu gövdede yoktur, oturumdan çözülür. Görünmüyor/yok -> NOT_FOUND -> 404.
+    GET/PUT aynı path'te method ile ayrışır. Başarılı yanıtta kayan pencere için
+    cookie yenilenir.
+    """
+    sonuc = anket_controller.guncelle_anket(
+        oturum,
+        anket_id,
         istek.ad,
         istek.on_yazi,
         istek.son_yazi,

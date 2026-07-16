@@ -5,6 +5,8 @@ tablo/şema/SQL detayı bilmeden çalışır.
 
 Kapsam: anket OLUŞTUR + LİSTELE (AnketOzeti) ve anket GÜNCELLE'nin düzenleme
 formunu ön-doldurma ihtiyacı (AnketDetay + taşıdığı BagliSoru / AtananKullanici).
+Ayrıca ana ekranın "bana atanmış, aktif, henüz çözülmemiş anketler" paneli için
+dar bir liste satırı (AtanmisAnketKarti).
 Liste ile detay AYRI DTO'lardır: liste satırı sayaç gösterir, detay formu doldurur.
 
 Güvenlik: AtananKullanici yalnızca formda gösterilmesi güvenli kimlik alanlarını
@@ -27,6 +29,20 @@ class AnketOzeti:
     olusturma_tarihi: datetime
     atanan_sayisi: int            # bu ankete atanan kullanıcı sayısı
     yanitlayan_sayisi: int        # atamasını 'tamamlandı' işaretleyen kullanıcı sayısı
+
+
+@dataclass
+class AtanmisAnketKarti:
+    """Ana ekran panelinin bir satırı: kullanıcıya atanmış, çözülmeyi bekleyen anket.
+
+    AnketOzeti yeniden kullanılmaz: o, admin liste ekranının sayaç/JOIN alanlarını
+    (oluşturan ad-soyad, atanan/yanıtlayan sayısı) taşır ve bu panel için gereksiz
+    JOIN/hesaplama getirirdi. Burada yalnızca panelde gösterip ankete gitmeye yeten
+    en dar kimlik alanları tutulur.
+    """
+
+    anket_id: int
+    ad: str
 
 
 @dataclass

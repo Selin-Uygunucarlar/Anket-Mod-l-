@@ -16,7 +16,7 @@ hatası veya tablo adı ASLA yanıta konmaz.
 
 from common.errors import AppError, ValidationError
 from common.logger import logla_sinir_hatasi
-from models.anket import AnketDetay, AnketOzeti
+from models.anket import AnketDetay, AnketOzeti, AtanmisAnketKarti
 from services import anket_service, oturum_service
 
 
@@ -37,6 +37,33 @@ def list_anketler(ham_jeton: str) -> dict:
         return {
             "basari": True,
             "anketler": [_anket_to_dict(anket) for anket in anketler],
+        }
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def list_atanmis_anketler(ham_jeton: str) -> dict:
+    """Oturumu doğrulanmış kullanıcının ana ekran bekleyen anket listesini döndürür.
+
+    Kişiye özel panel: admin/user ayrımı YOKTUR, oturum doğrulama yeterlidir. Yetki
+    değil KİMLİK önemlidir; hangi anketlerin listeleneceği (ve sicilin oturumdan
+    çözülmesi -> IDOR koruması) anket_service'e aittir. Hata BİR KEZ loglanır ve
+    güvenli yanıt döner.
+
+    Başarılı: {"basari": True, "anketler": [ {anket_id, ad}, ... ]}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "anketlerim_liste"}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        anketler = anket_service.list_atanmis_anketler(sahip)
+        return {
+            "basari": True,
+            "anketler": [_atanmis_karti_to_dict(kart) for kart in anketler],
         }
     except AppError as hata:
         logla_sinir_hatasi(hata, baglam=baglam)
@@ -343,6 +370,15 @@ def _anket_to_dict(anket: AnketOzeti) -> dict:
         "atanan_sayisi": anket.atanan_sayisi,
         "yanitlayan_sayisi": anket.yanitlayan_sayisi,
     }
+
+
+def _atanmis_karti_to_dict(kart: AtanmisAnketKarti) -> dict:
+    """Ana ekran bekleyen anket satırını JSON-güvenli sözlüğe çevirir.
+
+    Panel yalnızca gösterip ankete gitmeye yeten en dar alanları taşır; ad düz
+    metindir, hassas alan yoktur.
+    """
+    return {"anket_id": kart.anket_id, "ad": kart.ad}
 
 
 def _detay_to_dict(anket: AnketDetay) -> dict:

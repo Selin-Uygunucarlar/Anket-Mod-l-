@@ -23,7 +23,13 @@ import pymysql
 
 from common.db import veritabani_baglantisi
 from common.errors import DataAccessError
-from models.anket import AnketDetay, AnketOzeti, AtananKullanici, BagliSoru
+from models.anket import (
+    AnketDetay,
+    AnketOzeti,
+    AtananKullanici,
+    AtanmisAnketKarti,
+    BagliSoru,
+)
 from repositories import anket_sorgulari as sorgular
 
 
@@ -70,6 +76,38 @@ def anketleri_getir(
             atanan_sayisi=satir["atanan_sayisi"],
             yanitlayan_sayisi=satir["yanitlayan_sayisi"],
         )
+        for satir in satirlar
+    ]
+
+
+def atanan_bekleyen_anketleri_getir(kullanici_kodu: str) -> list[AtanmisAnketKarti]:
+    """Bir kullanıcıya atanmış, anketi aktif ve henüz çözülmemiş anketleri döner.
+
+    Ana ekran panelinin veri kaynağıdır: AnketAtama satırı bu kullanıcıya ait,
+    atama durumu 'tamamlandı' DEĞİL, anketin durumu 'Aktif' ve bugün anketin
+    başlangıç–bitiş penceresinde olan anketler döner (kural ve NULL tarih davranışı
+    sorgu yorumunda). Yakın biten üstte sıralanır.
+
+    Repository yetki/rol/sahiplik BİLMEZ: sicil bir SÜZME girdisidir. Bunun oturum
+    sahibinin sicili olduğunu garanti etmek (IDOR koruması) Service'in işidir;
+    client'tan gelen bir sicile körlemesine güvenilmez.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                # Parametre sırası WHERE'deki %s sırasıyla eşleşir: önce sicil,
+                # sonra dışlanan atama durumu (tamamlandı).
+                imlec.execute(
+                    sorgular.ATANAN_BEKLEYEN_ANKETLER_SORGUSU,
+                    (kullanici_kodu, sorgular.ATAMA_TAMAMLANDI_DURUMU),
+                )
+                satirlar = imlec.fetchall()
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Atanmış anketler okunamadı.") from hata
+
+    return [
+        AtanmisAnketKarti(anket_id=satir["anket_id"], ad=satir["ad"])
         for satir in satirlar
     ]
 

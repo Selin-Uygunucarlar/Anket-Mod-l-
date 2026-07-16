@@ -530,6 +530,23 @@ def list_anketler(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     return yanit
 
 
+@app.get("/api/anketlerim")
+def list_anketlerim(oturum: str | None = Cookie(default=None)) -> JSONResponse:
+    """Oturumdaki kullanıcının ana ekran bekleyen anket listesini döndürür (yalnızca protokol).
+
+    Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular. KİŞİYE ÖZEL
+    panel: admin/user ayrımı yoktur, sicil oturumdan çözülür (client'a güvenilmez).
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir. Sabit
+    `GET /api/anketler` (admin liste) ile ayrı bir path'tir; çakışmaz.
+    """
+    sonuc = anket_controller.list_atanmis_anketler(oturum)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
 @app.post("/api/anketler")
 def ekle_anket(
     istek: AnketEkleIstegi, oturum: str | None = Cookie(default=None)

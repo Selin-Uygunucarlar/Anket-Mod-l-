@@ -1,10 +1,12 @@
 // Anket API erişim noktası — sunum katmanının backend'e bakan TEK yeri. UI
 // bileşenleri doğrudan istek atmaz; buradaki fonksiyonları çağırır. Backend
 // endpoint'leri (GET /api/anketler, POST /api/anketler, GET /api/anketler/{id},
-// PUT /api/anketler/{id}) burada bağlıdır; istek/yanıt şekli
-// ~/Desktop/kontratlar.txt "ANKET OLUŞTURMA + LİSTELEME (Faz 1)" ve "ANKET DETAY +
-// GÜNCELLEME" bloklarıyla birebir. Tüm uçlar admin-only'dir (yetki sunucuda) ve
-// oturum httpOnly cookie ile taşındığından credentials:'include' zorunludur.
+// PUT /api/anketler/{id}, GET /api/anketlerim) burada bağlıdır; istek/yanıt şekli
+// ~/Desktop/kontratlar.txt "ANKET OLUŞTURMA + LİSTELEME (Faz 1)", "ANKET DETAY +
+// GÜNCELLEME" ve "Ana ekran bekleyen anketler" bloklarıyla birebir. Anket yönetim
+// uçları admin-only'dir; /api/anketlerim ise her giriş yapmış kullanıcının KENDİ
+// listesini döner (yetki sunucuda). Oturum httpOnly cookie ile taşındığından tüm
+// çağrılarda credentials:'include' zorunludur.
 
 import { oturumGecersizMi, oturumGecersizYayinla } from '../common/oturumOlaylari.js'
 
@@ -14,6 +16,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 // Kullanıcıya gösterilebilecek jenerik, güvenli hata mesajları (teknik detay yok).
 const LISTE_HATA_MESAJI = 'Anketler yüklenemedi. Lütfen tekrar deneyin.'
+const ATANMIS_LISTE_HATA_MESAJI = 'Anketleriniz yüklenemedi. Lütfen tekrar deneyin.'
 const EKLE_HATA_MESAJI = 'Anket kaydedilemedi. Lütfen tekrar deneyin.'
 const DETAY_HATA_MESAJI = 'Anket bilgileri yüklenemedi. Lütfen tekrar deneyin.'
 const GUNCELLE_HATA_MESAJI = 'Anket güncellenemedi. Lütfen tekrar deneyin.'
@@ -49,6 +52,40 @@ export async function anketleriGetir() {
   // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
   if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || LISTE_HATA_MESAJI)
+}
+
+// atanmisAnketleriGetir: giriş yapan kullanıcıya atanmış, aktif ve henüz
+// tamamlanmamış anketleri ana ekran paneli için backend'den çeker. Admin gerekmez;
+// her kullanıcı KENDİ listesini alır (sicil sunucuda oturumdan çözülür, client'a
+// güvenilmez). Başarılıysa [{ anket_id, ad }] dizisini döndürür (atama yoksa boş
+// dizi). Başarısızsa backend'in güvenli mesajını taşıyan bir Error fırlatır; oturum
+// sona erdiyse (SESSION_INVALID) sinyal yayılır. Ağ/parse hatasında da teknik detay
+// sızdırmadan güvenli Error yükselir.
+export async function atanmisAnketleriGetir() {
+  let yanit
+  try {
+    yanit = await fetch(`${API_BASE}/api/anketlerim`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+  } catch {
+    throw new Error(AG_HATA_MESAJI)
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(ATANMIS_LISTE_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return govde.anketler
+  }
+
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
+  throw new Error(govde?.mesaj || ATANMIS_LISTE_HATA_MESAJI)
 }
 
 // ekleAnket: yeni bir anketi backend'e kaydeder (yalnızca admin; yetki ve asıl

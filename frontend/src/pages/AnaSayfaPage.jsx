@@ -8,7 +8,9 @@
 // girişi (hamburger + panel + admin görünümleri) yalnızca kullanıcı türü 'admin'
 // olduğunda gösterilir; bu bir gösterim kararıdır, gerçek yetki kontrolü sunucudadır.
 // İçerik alanının en üstünde, seçili görünümün menüdeki yerini bildiren kırıntı
-// yolu (KirintiYolu) tek bir yerde gösterilir.
+// yolu (KirintiYolu) tek bir yerde gösterilir. Ana ekranda (secilenGorunum === null
+// veya admin olmayan kullanıcı) herkese, giriş yapan kişiye atanmış bekleyen
+// anketleri gösteren AtanmisAnketPaneli render edilir.
 import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext.jsx'
 import Topbar from '../components/Topbar.jsx'
@@ -25,6 +27,7 @@ import GrupTanimlariAyar from '../components/GrupTanimlariAyar.jsx'
 import KullaniciGruplariSayfasi from '../components/KullaniciGruplariSayfasi.jsx'
 import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
 import KirintiYolu from '../components/KirintiYolu.jsx'
+import AtanmisAnketPaneli from '../components/AtanmisAnketPaneli.jsx'
 import {
   SECENEK_KATEGORILERI,
   SORU_SECENEK_KATEGORILERI,
@@ -211,7 +214,10 @@ function AnaSayfaPage() {
         )}
         {adminMi && secilenGorunum === 'grup-ayarlar' && <GrupTanimlariAyar />}
         {(!adminMi || secilenGorunum === null) && (
-          <div className="anasayfa-bos">{/* İçerik ileride eklenecek */}</div>
+          <div className="anasayfa-bos">
+            {/* Ana ekranda herkese (admin dahil) atanmış anket paneli gösterilir. */}
+            <AtanmisAnketPaneli />
+          </div>
         )}
       </main>
 

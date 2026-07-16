@@ -106,6 +106,43 @@ SORU_IDLERI_VAR_MI_SORGUSU = """
 # konmaz). Sorguya PARAMETRE olarak geçer.
 ATAMA_BASLANGIC_DURUMU = "atandı"
 
+# Bir atamanın TAMAMLANDI durumu (AnketAtama.durum; şemadaki değerler:
+# atandı / devam_ediyor / tamamlandı). Ana ekran paneli "henüz çözülmemiş"
+# anketleri süzerken bu değeri DIŞLAR. Sabit burada tanımlanır ki değer SQL
+# metnine sihirli dize (magic string) olarak gömülmesin; DB kolon değeri
+# olduğundan yeri bu modüldür (katmanlar arası bir iş eşiği değildir ->
+# constants.py'ye konmaz). Sorguya PARAMETRE olarak (%s) geçer.
+ATAMA_TAMAMLANDI_DURUMU = "tamamlandı"
+
+# Ana ekran paneli: bir kullanıcıya ATANMIŞ, ANKETİ AKTİF ve HENÜZ ÇÖZÜLMEMİŞ
+# anketler. AnketAtama JOIN Anket (INNER): atama.kullanici_kodu FK'dir, anket hep
+# vardır. Süzgeçler:
+#   - atama.kullanici_kodu = %s : kişiye özel (sicil OTURUMDAN gelir, client'tan
+#     DEĞİL; bunu garanti etmek Service'in işi -- Repository yalnızca süzer).
+#   - atama.durum <> %s (ATAMA_TAMAMLANDI_DURUMU): tamamlanan atama panelde çıkmaz
+#     ('atandı'/'devam_ediyor' kalır). Kişiye özel atama durumudur, Anket.durum DEĞİL.
+#   - a.durum = 'Aktif' : anketin yaşam döngüsü kodu (DB kolon değeri, kullanıcı
+#     girdisi değil; 'Pasif' anket panelde görünmez).
+#   - NOW() BETWEEN a.baslangic_tarihi AND a.bitis_tarihi : bugün tarih aralığında.
+#     baslangic/bitis NULL olabilir; NULL uçlu anket BETWEEN'de hiçbir zaman
+#     eşleşmez -> tarih penceresi tanımsız anket panelde GÖRÜNMEZ. Bu DOĞRU
+#     davranıştır (yayına hazır olmayan/süresiz anket "çözülmeyi bekleyen" sayılmaz).
+# Yalnızca a.anket_id, a.ad seçilir (panel yalnızca bunları gösterir). Sıra: yakın
+# biten üstte (a.bitis_tarihi), eşitlikte a.anket_id ikincil deterministik anahtar.
+# Tüm değerler parametreli (%s); string birleştirme yok. Parametre sırası:
+# kullanici_kodu, sonra ATAMA_TAMAMLANDI_DURUMU.
+ATANAN_BEKLEYEN_ANKETLER_SORGUSU = """
+    SELECT a.anket_id,
+           a.ad
+    FROM AnketAtama atama
+    JOIN Anket a ON a.anket_id = atama.anket_id
+    WHERE atama.kullanici_kodu = %s
+      AND atama.durum <> %s
+      AND a.durum = 'Aktif'
+      AND NOW() BETWEEN a.baslangic_tarihi AND a.bitis_tarihi
+    ORDER BY a.bitis_tarihi, a.anket_id
+"""
+
 # Anketin bir kullanıcıya atanmasını (AnketAtama satırı) ekler. Çoklu kişi için
 # Repository executemany ile bu tek şablonu parametre listesiyle çağırır; string
 # birleştirme yok. baslama_tarihi/tamamlanma_tarihi SET EDİLMEZ: atama anında kişi

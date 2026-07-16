@@ -38,7 +38,7 @@ from datetime import datetime
 
 from common.errors import NotFoundError, ValidationError, YetkiYokError
 from common.html_temizle import temizle_html
-from models.anket import AnketDetay, AnketOzeti
+from models.anket import AnketDetay, AnketOzeti, AtanmisAnketKarti
 from models.oturum import OturumSahibi
 from repositories import anket_repository, grup_repository, kullanici_repository
 from services import anket_tarih
@@ -106,6 +106,19 @@ def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
         gorunur_kullanici_kodu=talep_eden.kullanici_kodu,
         gorunur_grup_id=gorunur_grup_id,
     )
+
+
+def list_atanmis_anketler(talep_eden: OturumSahibi) -> list[AtanmisAnketKarti]:
+    """Talep edenin ana ekranına düşen bekleyen anketleri döner (kişiye özel panel).
+
+    Yönetim ucu DEĞİLDİR: admin/user ayrımı YOKTUR, her giriş yapmış kullanıcı
+    yalnızca KENDİ atanmış, aktif ve henüz tamamlamadığı anketlerini görür (hangi
+    anketlerin "bekleyen" sayılacağı Repository'nin süzgecindedir). IDOR koruması:
+    süzme sicili client'tan ALINMAZ, doğrulanmış oturum sahibinden geçirilir; kimse
+    başkasının bekleyen anketlerini isteyemez. ad düz metindir -> sanitize gerekmez.
+    Hata loglanmaz, YUKARI FIRLAR.
+    """
+    return anket_repository.atanan_bekleyen_anketleri_getir(talep_eden.kullanici_kodu)
 
 
 def get_anket(talep_eden: OturumSahibi, anket_id: int) -> AnketDetay:

@@ -13,6 +13,7 @@ import SifreBelirlePage from './pages/SifreBelirlePage.jsx'
 import SoruSecPage from './pages/SoruSecPage.jsx'
 import AnketKullaniciSecPage from './pages/AnketKullaniciSecPage.jsx'
 import AnketGrupSecPage from './pages/AnketGrupSecPage.jsx'
+import AnketDoldurPage from './pages/AnketDoldurPage.jsx'
 import GuardliRota from './auth/GuardliRota.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 import {
@@ -241,6 +242,23 @@ function App() {
               <Navigate to="/sifre-belirle" replace />
             ) : (
               <AnketGrupSecPage />
+            )}
+          </GuardliRota>
+        }
+      />
+
+      {/* Korumalı anket doldurma ekranı: ana ekrandaki "Anketler" panelinden bir
+          anket kutusuna tıklanınca açılır. Ankete atanmış NORMAL kullanıcı içindir;
+          AdminGuard KULLANILMAZ. Şu an placeholder/iskelettir. Şifre belirleme
+          bayrağı diğer korumalı yollarla aynı şekilde gözetilir. */}
+      <Route
+        path="/anket/:anketId"
+        element={
+          <GuardliRota>
+            {sifreBelirlemeGerek ? (
+              <Navigate to="/sifre-belirle" replace />
+            ) : (
+              <AnketDoldurPage />
             )}
           </GuardliRota>
         }

@@ -43,7 +43,8 @@
 }
 
 /* Tek anket kutusu: sabit taban genişlik (~%20 eksi gap payı) ile satır başına 5
-   sığar; daralınca daha az sığar. İçinde görsel üstte, ad altta. Salt gösterim. */
+   sığar; daralınca daha az sığar. İçinde görsel üstte, ad altta. Tıklanabilir:
+   imleç işaret eder, üzerine gelince/odaklanınca hafifçe belirginleşir. */
 .atanmis-anket-kutu {
   flex: 0 0 calc((100% - 4 * 16px) / 5);
   min-width: 120px;
@@ -54,6 +55,20 @@
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(31, 37, 48, 0.08);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+/* Fare ile üzerine gelince kutu hafifçe yükselir (tıklanabilir olduğu belli). */
+.atanmis-anket-kutu:hover {
+  box-shadow: 0 6px 16px rgba(31, 37, 48, 0.14);
+  transform: translateY(-2px);
+}
+
+/* Klavye ile odaklanınca belirgin odak halkası (erişilebilirlik). */
+.atanmis-anket-kutu:focus-visible {
+  outline: 2px solid var(--renk-lacivert);
+  outline-offset: 2px;
 }
 
 /* Kutu görseli: üstte, kutu genişliğini tam kaplar; yükseklik görselin doğal

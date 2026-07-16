@@ -3,10 +3,12 @@
 // Yalnızca sunum sorumluluğundadır: veriyi anketApi üzerinden ister ve gösterir;
 // iş kuralı, yetki kontrolü veya hesaplama İÇERMEZ (kime hangi anketin atandığı
 // sunucuda çözülür). Yükleniyor / hata / boş / dolu durumları sade biçimde ele
-// alınır; kullanıcıya yalnızca güvenli mesaj gösterilir. Kutular tıklanabilir
-// değildir (aksiyon yoktur).
+// alınır; kullanıcıya yalnızca güvenli mesaj gösterilir. Kutular tıklanabilir:
+// bir kutuya tıklanınca (veya klavyeyle Enter/Space) ilgili anketin sayfasına
+// (/anket/{anket_id}) gidilir.
 
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { atanmisAnketleriGetir } from '../api/anketApi.js'
 import anketGorseli from '../assets/anket.png'
 import '../styles/atanmis-anket-paneli.css'
@@ -23,6 +25,23 @@ function AtanmisAnketPaneli() {
   const [anketler, setAnketler] = useState([])
   const [yukleniyor, setYukleniyor] = useState(true)
   const [hataMesaji, setHataMesaji] = useState('')
+  const navigate = useNavigate()
+
+  // anketiAc: seçilen anketin sayfasına yönlendirir. Yalnızca gezinme yapar;
+  // veri işleme veya karar İÇERMEZ.
+  function anketiAc(anketId) {
+    navigate(`/anket/${anketId}`)
+  }
+
+  // klavyeIleAc: kutu odaktayken Enter/Space ile de anketin açılmasını sağlar
+  // (buton gibi erişilebilir davranış). Sayfanın kaymasını önlemek için Space'te
+  // varsayılan davranışı iptal eder.
+  function klavyeIleAc(olay, anketId) {
+    if (olay.key === 'Enter' || olay.key === ' ') {
+      olay.preventDefault()
+      anketiAc(anketId)
+    }
+  }
 
   useEffect(() => {
     // Bileşen kaldırıldıysa state güncellemesini atlamak için iptal bayrağı.
@@ -67,7 +86,14 @@ function AtanmisAnketPaneli() {
       {!yukleniyor && !hataMesaji && anketler.length > 0 && (
         <div className="atanmis-anket-izgara">
           {anketler.map((anket) => (
-            <article className="atanmis-anket-kutu" key={anket.anket_id}>
+            <article
+              className="atanmis-anket-kutu"
+              key={anket.anket_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => anketiAc(anket.anket_id)}
+              onKeyDown={(olay) => klavyeIleAc(olay, anket.anket_id)}
+            >
               <img
                 className="atanmis-anket-gorsel"
                 src={KUTU_GORSELI}

@@ -1,7 +1,9 @@
 // Üst bar bileşeni. Anasayfanın en üstünde yer alan kalın yatay çubuktur.
-// Sağ tarafında kişi menüsünü (KisiMenu) ve en sağda admin panelini açıp
-// kapatan hamburger butonunu barındırır. Yalnızca gösterim ve etkileşim
-// toplama sorumluluğundadır; iş mantığı içermez.
+// Sol tarafında anasayfaya (/) götüren "AKADEMİ" marka/logo alanını, sağ
+// tarafında kişi menüsünü (KisiMenu) ve en sağda admin panelini açıp kapatan
+// hamburger butonunu barındırır. Yalnızca gösterim ve etkileşim toplama
+// sorumluluğundadır; iş mantığı içermez.
+import { Link } from 'react-router-dom'
 import KisiMenu from './KisiMenu.jsx'
 
 // HamburgerIcon: üç yatay çizgiden oluşan menü simgesini çizer.
@@ -34,6 +36,9 @@ function HamburgerIcon() {
 function Topbar({ adminMi, adminPaneliniDegistir, adminPaneliniKapat }) {
   return (
     <header className="ust-bar">
+      <Link to="/" className="ust-bar-logo" aria-label="Anasayfaya git">
+        AKADEMİ
+      </Link>
       <div className="ust-bar-sag">
         <KisiMenu adminPaneliniKapat={adminPaneliniKapat} />
         {adminMi && (

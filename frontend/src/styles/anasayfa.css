@@ -16,11 +16,11 @@
   background: #ffffff;
 }
 
-/* Üst bar: belirgin yükseklik, beyaz zemin, içeriği sağa yaslar. Yalnızca en
-   üst kenarında ince bir marka mavisi aksan çizgi taşır; altındaki gölge,
-   beyaz içerik alanından net ayrışmasını sağlar. Marka mavisi global paletten
-   (--renk-marka-mavi) okunur. Metin/ikonlar beyaz zemin üzerinde okunur
-   kalması için lacivertdir. */
+/* Üst bar: belirgin yükseklik, beyaz zemin, solda logo alanı ve sağda kişi/
+   hamburger grubu için içeriği iki uca yaslar. Yalnızca en üst kenarında ince
+   bir marka mavisi aksan çizgi taşır; altındaki gölge, beyaz içerik alanından
+   net ayrışmasını sağlar. Marka mavisi global paletten (--renk-marka-mavi)
+   okunur. Metin/ikonlar beyaz zemin üzerinde okunur kalması için lacivertdir. */
 .ust-bar {
   height: 72px;
   background: var(--renk-beyaz);
@@ -28,10 +28,33 @@
   color: var(--renk-lacivert);
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   padding: 0 24px;
   box-shadow: 0 4px 12px rgba(31, 37, 48, 0.12);
+}
+
+/* Sol logo/marka alanı: anasayfaya (/) götüren bağlantı. Şimdilik yalnızca
+   "AKADEMİ" metni; marka mavisiyle kalın ve belirgin, altı çizgisiz.
+   Hover/odakta hamburger ile tutarlı hafif zemin vurgusu alır. İleride bu
+   alana logo görseli eklenebilir. */
+.ust-bar-logo {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--renk-marka-mavi);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.ust-bar-logo:hover,
+.ust-bar-logo:focus-visible {
+  background: var(--renk-zemin-acik);
+  outline: none;
 }
 
 /* Üst barın sağ bölümü: kişi menüsü ve hamburger yan yana. */

@@ -1,9 +1,11 @@
 // Yönetim menüsünün ağaç tanımı, bu ağaçtan bir görünümün kırıntı yolunu
-// (breadcrumb) çözen yardımcı ve görünüm kimliği ile gerçek URL yolu arasındaki
+// (breadcrumb) çözen yardımcılar ve görünüm kimliği ile gerçek URL yolu arasındaki
 // TEK KAYNAK eşleme. Hem admin panelinin menüyü çizmesi/URL'ye gezinmesi hem de
 // içerik alanının aktif URL'den "nereden geldim" yolunu göstermesi aynı tek
-// kaynaktan beslensin diye burada toplanmıştır. Salt UI verisi/gezinmesidir; iş
-// kuralı veya veri erişimi içermez.
+// kaynaktan beslensin diye burada toplanmıştır. Kırıntı yolu iki biçimde çözülür:
+// gorunumYolunuBul yalnızca başlık dizisi, gorunumYolunuBulDetayli ise her segmentin
+// hedefini de ({ baslik, gorunum }) döner (tıklanabilir kırıntı yolu için). Salt UI
+// verisi/gezinmesidir; iş kuralı veya veri erişimi içermez.
 
 import { matchPath } from 'react-router-dom'
 
@@ -93,6 +95,29 @@ function araMenuYolunu(secenekler, gorunumKimligi) {
   return null
 }
 
+// araMenuYoluDetayli: menü ağacında `gorunum` kimliği eşleşen yaprağı özyinelemeli
+// arar; bulursa kökten yaprağa kadarki her düğümü { baslik, gorunum } olarak döner
+// (grup düğümlerinde gorunum null, işlevsel yaprakta gerçek kimlik), bulamazsa null.
+// araMenuYolunu'nun detaylı kardeşidir: başlığın yanında segmentin hedefini de taşır
+// ki kırıntı yolu sayfa taşıyan segmentleri tıklanabilir çizebilsin.
+function araMenuYoluDetayli(secenekler, gorunumKimligi) {
+  for (const secenek of secenekler) {
+    if (typeof secenek === 'string') continue
+
+    if (secenek.gorunum === gorunumKimligi) {
+      return [{ baslik: secenek.baslik, gorunum: secenek.gorunum }]
+    }
+
+    if (secenek.altSecenekler) {
+      const altYol = araMenuYoluDetayli(secenek.altSecenekler, gorunumKimligi)
+      if (altYol) {
+        return [{ baslik: secenek.baslik, gorunum: secenek.gorunum ?? null }, ...altYol]
+      }
+    }
+  }
+  return null
+}
+
 // uyarCozulemeyenGorunum: yolu çözülemeyen bir görünümü yalnızca geliştirme
 // modunda konsola bildirir. Kırıntı yolunun sessizce kaybolması fark edilmez bir
 // eksiklik olduğundan, yeni bir görünüm menüye/tabloya eklenmeyi unutulduğunda
@@ -130,6 +155,35 @@ export function gorunumYolunuBul(gorunumKimligi) {
   }
 
   return [...ustYol, menuDisiGorunum.etiket]
+}
+
+// gorunumYolunuBulDetayli: gorunumYolunuBul'un detaylı karşılığı; başlık dizisi
+// yerine her segmenti { baslik, gorunum } olarak döner. Grup düğümleri gorunum:null
+// (tıklanamaz) taşırken sayfa taşıyan segmentler kendi gorunum kimliğini taşır.
+// Menüde olmayan alt ekranlarda üst yol segmentleri kendi kimliğini taşır; son segment
+// (bulunulan ekran) gorunum:null olur (kendi sayfasına gitmek anlamsızdır). Yol
+// çözülemezse boş dizi döner (çağıran hiçbir şey çizmez) — gorunumYolunuBul ile aynı
+// çözümleme ve aynı uyarı kullanılır.
+export function gorunumYolunuBulDetayli(gorunumKimligi) {
+  // Görünüm seçilmemişse (boş anasayfa) yol olmaması normaldir, eksiklik değil.
+  if (!gorunumKimligi) return []
+
+  const menuYolu = araMenuYoluDetayli(YONETIM_SECENEKLERI, gorunumKimligi)
+  if (menuYolu) return menuYolu
+
+  const menuDisiGorunum = MENU_DISI_GORUNUMLER[gorunumKimligi]
+  if (!menuDisiGorunum) {
+    uyarCozulemeyenGorunum(gorunumKimligi)
+    return []
+  }
+
+  const ustYol = araMenuYoluDetayli(YONETIM_SECENEKLERI, menuDisiGorunum.ustGorunum)
+  if (!ustYol) {
+    uyarCozulemeyenGorunum(gorunumKimligi)
+    return []
+  }
+
+  return [...ustYol, { baslik: menuDisiGorunum.etiket, gorunum: null }]
 }
 
 // GORUNUM_ROTA_ESLEMESI: her yönetim görünümü kimliğini gerçek URL yol kalıbıyla

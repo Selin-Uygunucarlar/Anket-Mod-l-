@@ -28,6 +28,26 @@
   color: var(--renk-lacivert);
 }
 
+/* Tıklanabilir (sayfa taşıyan) ara segment: Link'in varsayılan mavi/alt çizgisini
+   ez, metin rengini devral; hover'da alt çizgi + koyulaşma ile tıklanabilirliği
+   belli et. Klavye odağında görünür bir odak halkası bırakılır (erişilebilirlik). */
+.kirinti-yolu-baglanti {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.kirinti-yolu-baglanti:hover {
+  color: var(--renk-lacivert);
+  text-decoration: underline;
+}
+
+.kirinti-yolu-baglanti:focus-visible {
+  outline: 2px solid var(--renk-lacivert);
+  outline-offset: 2px;
+}
+
 /* Ayırıcı (›): başlıklardan daha silik, nefes alması için yanlarda boşluk. */
 .kirinti-yolu-ayirici {
   margin: 0 6px;

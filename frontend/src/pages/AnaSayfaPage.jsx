@@ -20,7 +20,7 @@ import KullaniciYanCubugu from '../components/KullaniciYanCubugu.jsx'
 import KisiDetayPaneli from '../components/KisiDetayPaneli.jsx'
 import KirintiYolu from '../components/KirintiYolu.jsx'
 import {
-  gorunumYolunuBul,
+  gorunumYolunuBulDetayli,
   gorunumUrl,
   yoldanGorunumBul,
 } from '../common/yonetimMenusu.js'
@@ -86,8 +86,9 @@ function AnaSayfaPage() {
         className={`anasayfa-icerik${yanCubukGenis ? ' yan-cubuk-genis' : ''}`}
       >
         {/* Aktif rotanın menüdeki yeri; boş anasayfada ve admin olmayan
-            kullanıcıda gösterilecek bir yol yoktur. */}
-        {adminMi && <KirintiYolu basliklar={gorunumYolunuBul(aktifGorunum)} />}
+            kullanıcıda gösterilecek bir yol yoktur. Sayfa taşıyan ara segmentler
+            tıklanabilir (bkz. KirintiYolu). */}
+        {adminMi && <KirintiYolu ogeler={gorunumYolunuBulDetayli(aktifGorunum)} />}
 
         {/* İç ekranlar aktif rotaya göre burada render edilir. Liste ekranlarına
             kişi detay panelini açan onKisiSec context ile iletilir. */}

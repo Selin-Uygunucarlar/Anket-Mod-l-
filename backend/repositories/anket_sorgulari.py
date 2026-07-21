@@ -8,9 +8,12 @@ Güvenlik: Tüm sorgular parametrelidir (%s); string birleştirme YASAK — para
 Repository'de cursor.execute'a ayrı geçilir. Anket'in serbest metin alanları
 (ad, on_yazi, son_yazi, aciklama) kullanıcı girdisidir ve yalnızca parametre
 olarak taşınır. Sorgu metninde birleştirilen tek şey SABİT parçalardır: paylaşılan
-GORUNURLUK_KOSULU (DRY; liste ve detay aynı kuralı kullanır) ile IN listelerindeki
-%s yer tutucularının SAYISI (SORU_IDLERI_VAR_MI_SORGUSU, ANKETATAMA_SIL_SORGUSU).
-KULLANICI DEĞERLERİ asla SQL metnine gömülmez; hepsi %s ile parametre geçer.
+GORUNURLUK_KOSULU (DRY; liste ve detay aynı kuralı kullanır), IN listelerindeki
+%s yer tutucularının SAYISI (SORU_IDLERI_VAR_MI_SORGUSU, ANKETATAMA_SIL_SORGUSU)
+ve liste ekranının isteğe bağlı FİLTRE KOŞULU FRAGMANLARI (aşağıdaki
+*_FILTRE_KOSULU sabitleri; yalnızca dolu filtre için sorguya eklenir). Bu
+fragmanlar SABİTTİR ve içlerinde %s taşır; KULLANICI DEĞERLERİ (anket_tipi, durum,
+tarih sınırları) asla SQL metnine gömülmez, hepsi %s ile parametre geçer.
 """
 
 # Anketin bir kullanıcıya görünüp görünmediğini belirleyen TEK koşul metni.
@@ -37,16 +40,22 @@ GORUNURLUK_KOSULU = """
     OR (COALESCE(a.erisim_seviyesi, 'ben') = 'ben' AND a.olusturan_kodu = %s)
 """
 
-# Anket listesi satırları. Oluşturanın ad/soyad'ı için Kullanici LEFT JOIN
-# (olusturan_kodu NULL ya da kullanıcı silinmişse -- FK ON DELETE SET NULL -- None
-# döner). atanan/yanitlayan sayıları AnketAtama üzerinden ilişkili alt sorgularla
-# hesaplanır (anket oluşturulurken yazılan atamalar buraya yansır; kimseye
-# atanmamış anket 0 alır). yanitlayan: AnketAtama.durum
-# 'tamamlandı' olanlar (bu Anket.durum DEĞİL, kişiye özel atama durumudur).
+# Anket listesi satırları (TABAN şablon). Oluşturanın ad/soyad'ı için Kullanici
+# LEFT JOIN (olusturan_kodu NULL ya da kullanıcı silinmişse -- FK ON DELETE SET
+# NULL -- None döner). atanan/yanitlayan sayıları AnketAtama üzerinden ilişkili alt
+# sorgularla hesaplanır (anket oluşturulurken yazılan atamalar buraya yansır;
+# kimseye atanmamış anket 0 alır). yanitlayan: AnketAtama.durum 'tamamlandı' olanlar
+# (bu Anket.durum DEĞİL, kişiye özel atama durumudur).
 # Sıralama: en son eklenen üstte (anket_id DESC; auto-increment olduğundan en yeni
 # kayıt en büyük id'dir -- soru_sorgulari ile aynı üslup).
-# WHERE = GORUNURLUK_KOSULU (yukarıda); parametre sırası değişmez: grup_id, sicil.
-ANKETLER_LISTE_SORGUSU = f"""
+# WHERE = ({GORUNURLUK_KOSULU}){filtre_kosullari}: görünürlük süzgeci HER ZAMAN ilk
+# gelir ve parantezle sarılır (OR zinciri AND'lerle yanlış bağlanmasın); ardından
+# {filtre_kosullari} yer tutucusuna Repository yalnızca DOLU filtrelerin SABİT
+# fragmanlarını (aşağıdaki *_FILTRE_KOSULU) " AND ..." biçiminde ekler. Hiç filtre
+# yoksa yer tutucu boş dizeye çözülür ve sorgu bugünküyle birebir aynı kalır.
+# Parametre sırası WHERE'deki %s sırasıyla eşleşmelidir: önce görünürlük (grup_id,
+# sicil), sonra eklenen dolu filtreler AYNI SIRAYLA (Repository yönetir).
+ANKETLER_LISTE_SORGUSU_TABAN = f"""
     SELECT a.anket_id,
            a.ad,
            a.durum,
@@ -60,9 +69,21 @@ ANKETLER_LISTE_SORGUSU = f"""
                AND atama.durum = 'tamamlandı') AS yanitlayan_sayisi
     FROM Anket a
     LEFT JOIN Kullanici k ON k.kullanici_kodu = a.olusturan_kodu
-    WHERE ({GORUNURLUK_KOSULU})
+    WHERE ({GORUNURLUK_KOSULU}){{filtre_kosullari}}
     ORDER BY a.anket_id DESC
 """
+
+# Liste ekranının isteğe bağlı filtre koşulu fragmanları. Her biri SABİT bir metindir
+# ve tek bir %s taşır; DEĞER asla metne gömülmez, Repository parametre olarak geçer.
+# Repository yalnızca ilgili filtre DOLU ise ilgili fragmanı ANKETLER_LISTE_SORGUSU_
+# TABAN'ın {filtre_kosullari} yer tutucusuna ekler ve parametresini AYNI SIRAYLA
+# parametre listesine koyar. Baştaki " AND " görünürlük koşuluyla birleşmeyi sağlar
+# (WHERE zaten parantezli görünürlük süzgeciyle başlar). Tarih üst sınırı DIŞLAYICIDIR
+# (< %s): gün sonuna kadar kapsamayı Service, bitişi +1 gün vererek hesaplar.
+ANKET_TIPI_FILTRE_KOSULU = " AND a.anket_tipi = %s"
+DURUM_FILTRE_KOSULU = " AND a.durum = %s"
+OLUSTURMA_BASLANGIC_FILTRE_KOSULU = " AND a.olusturma_tarihi >= %s"
+OLUSTURMA_BITIS_FILTRE_KOSULU = " AND a.olusturma_tarihi < %s"
 
 # Tek anket ekler (kayıt). olusturma_tarihi SET EDİLMEZ: DB DEFAULT CURRENT_TIMESTAMP
 # ile yazar (tek doğru zaman kaynağı). almak_zorunda / ana_sayfada_goster /

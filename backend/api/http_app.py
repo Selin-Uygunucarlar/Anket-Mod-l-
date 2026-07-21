@@ -13,7 +13,7 @@ Controller'ın ürettiği güvenli sözlüğün AYNISIDIR; ek alan/teknik detay 
 
 import os
 
-from fastapi import Cookie, FastAPI
+from fastapi import Cookie, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -515,14 +515,26 @@ def sil_soru(
 
 
 @app.get("/api/anketler")
-def list_anketler(oturum: str | None = Cookie(default=None)) -> JSONResponse:
-    """Oturumdaki admin için tüm anketlerin liste özetini döndürür (yalnızca protokol).
+def list_anketler(
+    oturum: str | None = Cookie(default=None),
+    anket_tipi: str | None = Query(default=None),
+    durum: str | None = Query(default=None),
+    tarih_araligi: str | None = Query(default=None),
+    baslangic_tarih: str | None = Query(default=None),
+    bitis_tarih: str | None = Query(default=None),
+) -> JSONResponse:
+    """Oturumdaki admin için (istenirse süzülmüş) anketlerin liste özetini döndürür (yalnızca protokol).
 
     Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular ve yetkiyi
-    (yalnızca admin) uygular. Başarılı yanıtta kayan pencere için cookie aynı
-    bayraklarla yenilenir. Aynı path'teki POST (ekle) uçundan method ile ayrışır.
+    (yalnızca admin) uygular. İsteğe bağlı filtreler query parametresi olarak alınır
+    (anket_tipi/durum/tarih_araligi/baslangic_tarih/bitis_tarih; hepsi opsiyonel);
+    değer/enum/tarih doğrulaması Controller/Service'e aittir, burada yalnızca taşınır.
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir. Aynı path'teki
+    POST (ekle) uçundan method ile ayrışır.
     """
-    sonuc = anket_controller.list_anketler(oturum)
+    sonuc = anket_controller.list_anketler(
+        oturum, anket_tipi, durum, tarih_araligi, baslangic_tarih, bitis_tarih
+    )
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

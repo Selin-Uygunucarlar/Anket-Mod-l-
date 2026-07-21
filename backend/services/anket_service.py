@@ -86,9 +86,16 @@ class _HazirAnketAlanlari:
     atanacak_kullanici_kodlari: list[str]
 
 
-def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
-    """Talep edenin GÖREBİLDİĞİ anketleri liste özeti olarak döner; yalnızca admin
-    çağırabilir.
+def list_anketler(
+    talep_eden: OturumSahibi,
+    anket_tipi: str | None = None,
+    durum: str | None = None,
+    tarih_araligi: str | None = None,
+    baslangic_tarih: str | None = None,
+    bitis_tarih: str | None = None,
+) -> list[AnketOzeti]:
+    """Talep edenin GÖREBİLDİĞİ (ve istenirse süzülmüş) anketleri liste özeti olarak
+    döner; yalnızca admin çağırabilir.
 
     Yetki talep edenin (doğrulanmış oturum sahibi) kullanici_turu'ne göre belirlenir;
     admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. Admin olmak tüm
@@ -96,15 +103,36 @@ def list_anketler(talep_eden: OturumSahibi) -> list[AnketOzeti]:
     'herkes' -> herkese görünür; 'grup' -> yalnızca anketin erisim_grup_id'si talep
     edenin KENDİ grubuyla aynıysa; 'ben'/NULL -> yalnızca anketi kendisi oluşturduysa.
     Süzme değerleri client'tan ALINMAZ; doğrulanmış oturum sahibinin kendi sicilinden
-    ve kendi grubundan çözülür. Hata loglanmaz, YUKARI FIRLAR.
+    ve kendi grubundan çözülür.
+
+    İsteğe bağlı filtreler (görünürlük süzgecinin ÜSTÜNE eklenir, onu GEVŞETMEZ; boş/
+    None -> o filtre uygulanmaz): anket_tipi ve durum dolu ise geçerli kümede olmalı
+    (aksi halde ValidationError). tarih_araligi + baslangic_tarih/bitis_tarih anket_tarih
+    ile somut (alt, üst) oluşturulma sınırlarına çevrilir (üst sınır dışlayıcı). Hata
+    loglanmaz, YUKARI FIRLAR.
     """
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
+
+    tip_filtre = _bos_ise_none(anket_tipi)
+    if tip_filtre is not None and tip_filtre not in _GECERLI_ANKET_TIPLERI:
+        raise ValidationError("Geçersiz anket tipi.")
+    durum_filtre = _bos_ise_none(durum)
+    if durum_filtre is not None and durum_filtre not in _GECERLI_DURUMLAR:
+        raise ValidationError("Geçersiz anket durumu.")
+
+    olusturma_baslangic, olusturma_bitis = anket_tarih.hesapla_olusturma_araligi(
+        tarih_araligi, baslangic_tarih, bitis_tarih
+    )
 
     gorunur_grup_id = grup_repository.kullanici_grup_id_getir(talep_eden.kullanici_kodu)
     return anket_repository.anketleri_getir(
         gorunur_kullanici_kodu=talep_eden.kullanici_kodu,
         gorunur_grup_id=gorunur_grup_id,
+        anket_tipi=tip_filtre,
+        durum=durum_filtre,
+        olusturma_baslangic=olusturma_baslangic,
+        olusturma_bitis=olusturma_bitis,
     )
 
 

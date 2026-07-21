@@ -1,7 +1,9 @@
 // Anket listesi filtre kartının paylaşılan seçenek ve başlangıç tanımları.
 // AnketFiltre bileşeni buradan beslenir; sabitler tek yerde tutulur (DRY) ve
-// bileşen dosyası sade kalır. Yalnızca sunum/girdi biçimlemesi içerir; iş kuralı,
-// hesaplama veya doğrulama sınırı taşımaz (gerçek filtreleme ileride sunucuda).
+// bileşen dosyası sade kalır. Yalnızca sunum/girdi biçimlemesi içerir; iş kuralı
+// veya hesaplama taşımaz. Gerçek filtreleme (tarih aralığı hesabı, süzme) SUNUCUDA
+// yapılır; buradaki uygulanacakFiltre yalnızca "eksik girdiyle istek atma" gösterim
+// kuralını uygular (iş kuralı değildir).
 
 // Oluşturulma tarih aralığı radyo seçenekleri (bu sırayla). Görünen metin (etiket)
 // ile state'te tutulan değer (deger) FARKLI olduğundan { deger, etiket } nesne
@@ -26,4 +28,32 @@ export const BOS_ANKET_FILTRESI = {
   tarih_araligi: '', // radyo; TARIH_ARALIGI_SECENEKLERI degerlerinden biri
   baslangic_tarih: '', // yalnızca tarih_araligi === 'tarih_sec' iken anlamlı; <input type="date"> değeri
   bitis_tarih: '', // yalnızca tarih_araligi === 'tarih_sec' iken anlamlı; <input type="date"> değeri
+}
+
+// uygulanacakFiltre: kullanıcının seçtiği filtreden, sunucuya gönderilecek nihai
+// filtre nesnesini türetir. Neden: "Tarih Seç" seçiliyken kullanıcı iki takvimi de
+// doldurmadan yarım bir tarih filtresiyle istek atılmasın (eksik girdiyi gösterme
+// katmanında ele alma). anket_tipi/durum/tarih_araligi doğrudan taşınır; yalnızca
+// tarih_araligi === 'tarih_sec' iken VE iki tarih de doluysa tarihler (ve aralığın
+// kendisi) dahil edilir, aksi halde üçü de dışlanır. Saf/yan etkisiz; iş kuralı değil.
+export function uygulanacakFiltre(filtre) {
+  const uygulanan = {
+    anket_tipi: filtre.anket_tipi,
+    durum: filtre.durum,
+  }
+
+  if (filtre.tarih_araligi === 'tarih_sec') {
+    const baslangic = filtre.baslangic_tarih.trim()
+    const bitis = filtre.bitis_tarih.trim()
+    // Yalnızca iki tarih de doluysa tarih filtresini gönder; yarım girdiyi dışla.
+    if (baslangic !== '' && bitis !== '') {
+      uygulanan.tarih_araligi = 'tarih_sec'
+      uygulanan.baslangic_tarih = baslangic
+      uygulanan.bitis_tarih = bitis
+    }
+  } else {
+    uygulanan.tarih_araligi = filtre.tarih_araligi
+  }
+
+  return uygulanan
 }

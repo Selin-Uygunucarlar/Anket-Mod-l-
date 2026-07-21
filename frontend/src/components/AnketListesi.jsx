@@ -11,18 +11,25 @@
 // yüzünden burada da kullanılır; kopya CSS yazılmaz (DRY) ve kullanıcı listesi
 // tasarımı hiç değişmez. "Anket Ekle" butonu üst bileşene (onAnketEkle) haber
 // vererek içerik alanında anket oluşturma formunu açar; kişi listesindeki
-// "Kullanıcı Ekle" ile aynı kalıptadır. Arama kutusu ve filtre kartı (AnketFiltre)
-// bu fazın kapsamı DIŞINDADIR: tasarım paritesi için dururlar, gerçek
-// filtreleme/arama YAPMAZLAR (ileride bağlanacaktır). "İşlem" sütunundaki "Güncelle"
+// "Kullanıcı Ekle" ile aynı kalıptadır. Filtre kartı (AnketFiltre) GERÇEK
+// filtrelemeye bağlıdır: seçilen anket tipi/durum/oluşturulma tarih aralığı bu
+// bileşende state'te tutulur ve uygulanacakFiltre ile sunucuya taşınır; seçim
+// değişince liste React Query üzerinden anında yeniden çekilir (süzme SUNUCUDA,
+// iş kuralı/tarih hesabı UI'a KONMAZ). Arama kutusu (aramaMetni) bu işin kapsamı
+// DIŞINDADIR: tasarım paritesi için durur, gerçek arama YAPMAZ. "İşlem" sütunundaki "Güncelle"
 // butonu, üst bileşene (onAnketDuzenle) haber vererek içerik alanında anket
 // güncelleme görünümünü açar (satır özetini taşır; form detayı backend'den kendisi
 // çeker). Buton stili SoruListesi'nin İşlem butonlarıyla paylaşılır (soru-listesi.css,
 // DRY); yeni CSS yazılmaz.
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { anketleriGetir } from '../api/anketApi.js'
 import { tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
+import {
+  BOS_ANKET_FILTRESI,
+  uygulanacakFiltre,
+} from '../common/anketFiltreAlanlari.js'
 import AnketFiltre from './AnketFiltre'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
@@ -95,6 +102,16 @@ function olusturanAdiBicimlendir(anket) {
 // butonu tıklanınca çağrılır (üst bileşen o anket için güncelleme görünümünü açar).
 function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
   const [aramaMetni, setAramaMetni] = useState('')
+  const [filtre, setFiltre] = useState(BOS_ANKET_FILTRESI)
+
+  // onFiltreDegis: filtre kartındaki tek bir alanın değerini günceller (kontrollü).
+  // Değişiklik queryKey'i değiştireceğinden liste anında yeniden çekilir.
+  function onFiltreDegis(kimlik, deger) {
+    setFiltre((oncekiler) => ({ ...oncekiler, [kimlik]: deger }))
+  }
+
+  // Sunucuya gönderilecek nihai filtre; hem cache anahtarı hem istek argümanı olur.
+  const uygulanan = uygulanacakFiltre(filtre)
 
   const {
     data: anketler,
@@ -102,8 +119,12 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
     isError,
     error,
   } = useQuery({
-    queryKey: ['anketler'],
-    queryFn: anketleriGetir,
+    queryKey: ['anketler', uygulanan],
+    queryFn: () => anketleriGetir(uygulanan),
+    // Filtre değişince önceki listeyi ekranda tut: isPending yalnızca ilk yüklemede
+    // true olur, sonraki filtrelemelerde "Yükleniyor..." sıçraması ve filtre kartının
+    // unmount olması engellenir (arka planda sessizce yeniden çekilir).
+    placeholderData: keepPreviousData,
   })
 
   if (isPending) {
@@ -153,8 +174,9 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
         </button>
       </div>
       {/* Başlıksız filtre kartı: arama satırının hemen altında, tablonun üstünde.
-          Salt sunumdur; kendi state'ini tutar, gerçek filtreleme/API yoktur. */}
-      <AnketFiltre />
+          Kontrollü bileşen: seçimi filtre propundan okur, değişikliği onFiltreDegis
+          ile bildirir; süzme sunucuda yapılır (queryKey değişince yeniden çekilir). */}
+      <AnketFiltre filtre={filtre} onFiltreDegis={onFiltreDegis} />
       {/* Tablo çerçevesi kişi listesiyle birebir aynı sınıflarla kurulur. Anket
           yoksa başlıklı çerçeve boş görünmesin diye tek satırlık bir boş-durum
           hücresi konur; colSpan tüm kolonları kaplar (liste-bos-hucre ile ortalanır). */}

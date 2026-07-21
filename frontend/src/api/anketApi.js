@@ -22,15 +22,29 @@ const DETAY_HATA_MESAJI = 'Anket bilgileri yüklenemedi. Lütfen tekrar deneyin.
 const GUNCELLE_HATA_MESAJI = 'Anket güncellenemedi. Lütfen tekrar deneyin.'
 const AG_HATA_MESAJI = 'Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deneyin.'
 
-// anketleriGetir: tüm anketleri liste ekranı için backend'den çeker. Başarılıysa
-// [{ anket_id, ad, durum, olusturan_ad, olusturan_soyad, olusturma_tarihi,
-// atanan_sayisi, yanitlayan_sayisi }] dizisini döndürür. Başarısızsa backend'in
-// güvenli mesajını (ör. 403 yetki, 401 oturum) taşıyan bir Error fırlatır;
-// ağ/parse hatasında da teknik detay sızdırmadan güvenli Error yükselir.
-export async function anketleriGetir() {
+// anketleriGetir: anketleri liste ekranı için backend'den çeker. filtreler, dolu
+// olan alanları query parametresi olarak taşınan bir nesnedir (anket_tipi, durum,
+// tarih_araligi, baslangic_tarih, bitis_tarih); boş/eksik alanlar URL'ye EKLENMEZ,
+// hiç filtre yoksa çıplak /api/anketler istenir. Süzme SUNUCUDA yapılır; burası
+// yalnızca seçimi taşır. Başarılıysa [{ anket_id, ad, durum, olusturan_ad,
+// olusturan_soyad, olusturma_tarihi, atanan_sayisi, yanitlayan_sayisi }] dizisini
+// döndürür. Başarısızsa backend'in güvenli mesajını (ör. 403 yetki, 401 oturum)
+// taşıyan bir Error fırlatır; ağ/parse hatasında da teknik detay sızdırmadan güvenli
+// Error yükselir.
+export async function anketleriGetir(filtreler = {}) {
+  // Yalnızca dolu (boş olmayan) alanlardan query string kur; boş alan eklenmez.
+  const sorguParametreleri = new URLSearchParams()
+  for (const [alan, deger] of Object.entries(filtreler)) {
+    if (deger !== undefined && deger !== null && deger !== '') {
+      sorguParametreleri.append(alan, deger)
+    }
+  }
+  const sorguMetni = sorguParametreleri.toString()
+  const url = sorguMetni ? `${API_BASE}/api/anketler?${sorguMetni}` : `${API_BASE}/api/anketler`
+
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketler`, {
+    yanit = await fetch(url, {
       method: 'GET',
       credentials: 'include',
     })

@@ -20,12 +20,21 @@ from models.anket import AnketDetay, AnketOzeti, AtanmisAnketKarti
 from services import anket_service, oturum_service
 
 
-def list_anketler(ham_jeton: str) -> dict:
-    """Oturumu doğrulanmış admin için tüm anketlerin liste özetini döndürür.
+def list_anketler(
+    ham_jeton: str,
+    anket_tipi: str | None = None,
+    durum: str | None = None,
+    tarih_araligi: str | None = None,
+    baslangic_tarih: str | None = None,
+    bitis_tarih: str | None = None,
+) -> dict:
+    """Oturumu doğrulanmış admin için (istenirse süzülmüş) anketlerin liste özetini döndürür.
 
     Cookie'den gelen ham jeton oturum_service ile doğrulanır (geçersiz ->
     OturumError); yetki kararı anket_service'e bırakılır (admin değil ->
-    YetkiYokError). Hata BİR KEZ loglanır ve güvenli yanıt döner.
+    YetkiYokError). Filtreler yalnızca ŞEKİL olarak doğrulanır (her biri str ya da
+    None); geçerli değer kümesi (anket tipi/durum enum üyeliği) ve tarih hesabı iş
+    kuralıdır, anket_service'e bırakılır. Hata BİR KEZ loglanır ve güvenli yanıt döner.
 
     Başarılı: {"basari": True, "anketler": [ {anket alanları...}, ... ]}.
     Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
@@ -33,7 +42,14 @@ def list_anketler(ham_jeton: str) -> dict:
     baglam = {"islem": "anket_listesi"}
     try:
         sahip = oturum_service.oturum_dogrula(ham_jeton)
-        anketler = anket_service.list_anketler(sahip)
+        _dogrula_istege_bagli_metin(anket_tipi, "Anket tipi")
+        _dogrula_istege_bagli_metin(durum, "Durum")
+        _dogrula_istege_bagli_metin(tarih_araligi, "Tarih aralığı")
+        _dogrula_istege_bagli_metin(baslangic_tarih, "Başlangıç tarihi")
+        _dogrula_istege_bagli_metin(bitis_tarih, "Bitiş tarihi")
+        anketler = anket_service.list_anketler(
+            sahip, anket_tipi, durum, tarih_araligi, baslangic_tarih, bitis_tarih
+        )
         return {
             "basari": True,
             "anketler": [_anket_to_dict(anket) for anket in anketler],

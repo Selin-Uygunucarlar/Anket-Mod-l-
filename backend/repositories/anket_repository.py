@@ -34,32 +34,68 @@ from repositories import anket_sorgulari as sorgular
 
 
 def anketleri_getir(
-    gorunur_kullanici_kodu: str, gorunur_grup_id: int | None
+    gorunur_kullanici_kodu: str,
+    gorunur_grup_id: int | None,
+    anket_tipi: str | None = None,
+    durum: str | None = None,
+    olusturma_baslangic: datetime | None = None,
+    olusturma_bitis: datetime | None = None,
 ) -> list[AnketOzeti]:
-    """Verilen görünürlük parametrelerine uyan anketleri, oluşturan bilgisi ve
-    atama/yanıt sayılarıyla döner.
+    """Görünürlük süzgecine (ve verilirse isteğe bağlı filtrelere) uyan anketleri,
+    oluşturan bilgisi ve atama/yanıt sayılarıyla döner.
 
     Repository yetki/rol BİLMEZ: "kim neyi görür" bir iş kararıdır ve Service'e
-    aittir. Burada yalnızca gelen iki değerle süzme yapılır -- anketin erişim
+    aittir. Burada yalnızca gelen değerlerle süzme yapılır -- anketin erişim
     seviyesi 'herkes' ise, 'grup' olup erisim_grup_id `gorunur_grup_id` ile
     eşleşiyorsa, ya da 'ben'/NULL olup olusturan_kodu `gorunur_kullanici_kodu`
     ise satır döner (kural ve NULL seviyenin neden 'ben' sayıldığı sorgu
     yorumunda). Grubu olmayan için `gorunur_grup_id` None geçilir; 'grup'
     seviyeli hiçbir anket eşleşmez (beklenen davranış).
 
+    İSTEĞE BAĞLI FİLTRELER (hepsi None ise davranış bugünküyle birebir aynı):
+      - anket_tipi: doluysa `a.anket_tipi = %s` süzgeci eklenir.
+      - durum: doluysa `a.durum = %s` süzgeci eklenir.
+      - olusturma_baslangic: doluysa `a.olusturma_tarihi >= %s` (alt sınır dahil).
+      - olusturma_bitis: doluysa `a.olusturma_tarihi < %s` (üst sınır DIŞLAYICI;
+        gün sonuna kadar kapsamak için bitişi +1 gün vermek Service'in işi).
+    Bu değerler Service'ten DOĞRULANMIŞ gelir (enum üyeliği/tarih hesabı Service'te);
+    Repository yalnızca süzer. Dolu her filtrenin SABİT fragmanı sorguya eklenir ve
+    parametresi görünürlükten SONRA, WHERE'deki %s ile AYNI SIRAYLA parametre
+    listesine konur; DEĞERLER asla SQL metnine gömülmez.
+
     Sıra: en yeni anket üstte (anket_id DESC). Atama/yanıt sayıları AnketAtama
     üzerinden hesaplanır (anket oluşturulurken yazılan atamalar buraya yansır;
     kimseye atanmamış anket 0 alır).
     """
+    # Parametre sırası WHERE'deki %s sırasıyla BİREBİR eşleşmelidir: önce görünürlük
+    # (grup_id, sicil), sonra dolu filtreler ekleniş sırasıyla. Fragman ve parametre
+    # AYNI koşulda birlikte eklenir ki sıra bozulmasın.
+    filtre_fragmanlari: list[str] = []
+    parametreler: list = [gorunur_grup_id, gorunur_kullanici_kodu]
+
+    if anket_tipi is not None:
+        filtre_fragmanlari.append(sorgular.ANKET_TIPI_FILTRE_KOSULU)
+        parametreler.append(anket_tipi)
+    if durum is not None:
+        filtre_fragmanlari.append(sorgular.DURUM_FILTRE_KOSULU)
+        parametreler.append(durum)
+    if olusturma_baslangic is not None:
+        filtre_fragmanlari.append(sorgular.OLUSTURMA_BASLANGIC_FILTRE_KOSULU)
+        parametreler.append(olusturma_baslangic)
+    if olusturma_bitis is not None:
+        filtre_fragmanlari.append(sorgular.OLUSTURMA_BITIS_FILTRE_KOSULU)
+        parametreler.append(olusturma_bitis)
+
+    # Yalnızca SABİT fragmanlar birleştirilir (kullanıcı değeri değil); hiç filtre
+    # yoksa yer tutucu boş dizeye çözülür ve sorgu bugünküyle aynı kalır.
+    sorgu = sorgular.ANKETLER_LISTE_SORGUSU_TABAN.format(
+        filtre_kosullari="".join(filtre_fragmanlari)
+    )
+
     try:
         with veritabani_baglantisi() as baglanti:
             with baglanti.cursor() as imlec:
-                # Parametre sırası WHERE'deki %s sırasıyla eşleşir: önce grup_id,
-                # sonra sicil.
-                imlec.execute(
-                    sorgular.ANKETLER_LISTE_SORGUSU,
-                    (gorunur_grup_id, gorunur_kullanici_kodu),
-                )
+                imlec.execute(sorgu, tuple(parametreler))
                 satirlar = imlec.fetchall()
     except pymysql.MySQLError as hata:
         # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.

@@ -21,16 +21,24 @@
 // güncelleme görünümünü açar (satır özetini taşır; form detayı backend'den kendisi
 // çeker). Buton stili SoruListesi'nin İşlem butonlarıyla paylaşılır (soru-listesi.css,
 // DRY); yeni CSS yazılmaz.
+// "Atanan Kullanıcı Sayısı" ve "Yanıtlayan Kullanıcı Sayısı" hücreleri sayı 0'dan
+// büyükken tıklanabilir birer butondur: ilki ankete atanmış herkesi, ikincisi
+// yalnızca yanıtlayanları AnketAtamaKutusu'nda gösterir; oradaki "Cevapları Gör"
+// ile kişinin cevapları AnketKullaniciCevaplariKutusu'nda AÇILAN kutunun ÜSTÜNDE
+// açılır. Hangi kutunun kimin için açık olduğu burada saf UI state'te tutulur;
+// veri çekme ve gösterim ilgili kutu bileşenlerine aittir (SRP).
 
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { anketleriGetir } from '../api/anketApi.js'
-import { tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
+import { adSoyadBirlestir, tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
 import {
   BOS_ANKET_FILTRESI,
   uygulanacakFiltre,
 } from '../common/anketFiltreAlanlari.js'
 import AnketFiltre from './AnketFiltre'
+import AnketAtamaKutusu from './AnketAtamaKutusu'
+import AnketKullaniciCevaplariKutusu from './AnketKullaniciCevaplariKutusu'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
 
@@ -88,11 +96,31 @@ const ANKET_KOLON_BASLIKLARI = [
 ]
 
 // olusturanAdiBicimlendir: anketi oluşturanın ad ve soyadını tek okunur metinde
-// birleştirir. İkisi de yoksa (ör. kullanıcı silinmişse) tire ('-') döner.
-// Saf gösterim formatlamasıdır.
+// birleştirir (ortak biçimlendirici üzerinden; ikisi de yoksa tire döner).
 function olusturanAdiBicimlendir(anket) {
-  const tamAd = `${anket.olusturan_ad ?? ''} ${anket.olusturan_soyad ?? ''}`.trim()
-  return tamAd === '' ? '-' : tamAd
+  return adSoyadBirlestir(anket.olusturan_ad, anket.olusturan_soyad)
+}
+
+// SayiHucresi: atanan/yanıtlayan sayısını gösterir. Sayı 0'dan büyükken ilgili
+// kişi listesini açan gerçek bir <button> (klavyeyle erişilebilir), 0 iken düz
+// metindir (açılacak liste yoktur). Gösterme/gizleme salt UX'tir; yetki sunucuda.
+// props: sayi -> gösterilecek adet; ariaEtiketi -> butonun okunur açıklaması;
+// onAc() -> butona basılınca ilgili kutuyu açar.
+function SayiHucresi({ sayi, ariaEtiketi, onAc }) {
+  const deger = sayi ?? 0
+  if (deger <= 0) {
+    return <span>{deger}</span>
+  }
+  return (
+    <button
+      type="button"
+      className="kisi-ad-buton"
+      onClick={onAc}
+      aria-label={ariaEtiketi}
+    >
+      {deger}
+    </button>
+  )
 }
 
 // AnketListesi: anketleri React Query ile çeker ve durumuna göre yükleniyor /
@@ -103,6 +131,12 @@ function olusturanAdiBicimlendir(anket) {
 function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
   const [aramaMetni, setAramaMetni] = useState('')
   const [filtre, setFiltre] = useState(BOS_ANKET_FILTRESI)
+  // Açık kişi listesi kutusu: null = kapalı; { anket, mod } = ilgili anketin
+  // atananları ('atanan') ya da yanıtlayanları ('yanitlayan').
+  const [atamaKutusu, setAtamaKutusu] = useState(null)
+  // Açık cevap kutusu: null = kapalı; { anket, kullanici } = o kişinin cevapları.
+  // Kişi listesi kutusu açık kalır; cevap kutusu kapanınca listeye geri dönülür.
+  const [cevapKutusu, setCevapKutusu] = useState(null)
 
   // onFiltreDegis: filtre kartındaki tek bir alanın değerini günceller (kontrollü).
   // Değişiklik queryKey'i değiştireceğinden liste anında yeniden çekilir.
@@ -206,8 +240,20 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
                   <td>{anket.durum}</td>
                   <td>{olusturanAdiBicimlendir(anket)}</td>
                   <td>{tarihSaatBicimlendir(anket.olusturma_tarihi)}</td>
-                  <td>{anket.atanan_sayisi}</td>
-                  <td>{anket.yanitlayan_sayisi}</td>
+                  <td>
+                    <SayiHucresi
+                      sayi={anket.atanan_sayisi}
+                      ariaEtiketi={`${anket.ad} anketine atanan kullanıcıları göster`}
+                      onAc={() => setAtamaKutusu({ anket, mod: 'atanan' })}
+                    />
+                  </td>
+                  <td>
+                    <SayiHucresi
+                      sayi={anket.yanitlayan_sayisi}
+                      ariaEtiketi={`${anket.ad} anketini yanıtlayan kullanıcıları göster`}
+                      onAc={() => setAtamaKutusu({ anket, mod: 'yanitlayan' })}
+                    />
+                  </td>
                   <td>
                     <div className="soru-islem-hucre">
                       {/* Güncelle: üst bileşene haber vererek bu anket için güncelleme
@@ -228,6 +274,28 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
           </tbody>
         </table>
       </div>
+      {/* Kişi listesi kutusu: hangi anket ve hangi mod için açıldığı state'te
+          tutulur. Cevap kutusu açıkken bu kutu açık KALIR (kullanıcı listeyi
+          kaybetmesin) ama kapatma en üstteki kutuya aittir. */}
+      {atamaKutusu && (
+        <AnketAtamaKutusu
+          anket={atamaKutusu.anket}
+          mod={atamaKutusu.mod}
+          ustKutuAcik={cevapKutusu !== null}
+          onKapat={() => setAtamaKutusu(null)}
+          onCevaplariGor={(kullanici) =>
+            setCevapKutusu({ anket: atamaKutusu.anket, kullanici })
+          }
+        />
+      )}
+      {/* Cevap kutusu listenin ÜSTÜNDE açılır; kapanınca kişi listesine dönülür. */}
+      {cevapKutusu && (
+        <AnketKullaniciCevaplariKutusu
+          anket={cevapKutusu.anket}
+          kullanici={cevapKutusu.kullanici}
+          onKapat={() => setCevapKutusu(null)}
+        />
+      )}
     </section>
   )
 }

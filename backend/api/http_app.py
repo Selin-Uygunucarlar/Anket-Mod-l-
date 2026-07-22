@@ -22,6 +22,7 @@ from common.constants import OTURUM_SURESI_DAKIKA
 from controllers import (
     anket_controller,
     anket_doldur_controller,
+    anket_sonuc_controller,
     auth_controller,
     grup_controller,
     kullanici_controller,
@@ -771,6 +772,49 @@ def gonder_anket_cevaplari(
     """
     cevaplar = [kalem.model_dump() for kalem in istek.cevaplar]
     sonuc = anket_doldur_controller.gonder_anket(oturum, anket_id, cevaplar)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/anketler/{anket_id}/atamalar")
+def list_anket_atamalari(
+    anket_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için ankete atanmış kişileri döndürür (yalnızca protokol).
+
+    Liste ekranındaki "Atanan / Yanıtlayan Kullanıcı Sayısı" hücrelerinin arkasındaki
+    kişi listesidir; yanitladi_mi Service türetimidir. Yetki (admin) ve görünürlük
+    Controller/Service'te; görünmüyor/yok -> 404. `/atamalar` alt segmenti admin detay
+    `GET /api/anketler/{anket_id}` ile ÇAKIŞMAZ. Başarılı yanıtta kayan pencere için
+    cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = anket_sonuc_controller.list_anket_atamalari(oturum, anket_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/anketler/{anket_id}/cevaplar/{kullanici_kodu}")
+def get_kullanici_cevaplari(
+    anket_id: int, kullanici_kodu: str, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için tek kişinin anket cevaplarını döndürür (yalnızca protokol).
+
+    "Cevapları Gör" ucudur. anket_id ve kullanici_kodu path segment'lerinden alınır;
+    biçim doğrulaması, yetki (admin), görünürlük ve soru↔cevap montajı + sanitizasyon
+    Controller/Service'te. Anket görünmüyor/yok ya da kişi ankete atanmamış -> 404
+    (ayrım yapılmaz). GET olduğundan POST `/api/anketler/{anket_id}/cevaplar` (cevap
+    gönderme) ile method ve segment sayısı bakımından ÇAKIŞMAZ. Başarılı yanıtta kayan
+    pencere için cookie yenilenir.
+    """
+    sonuc = anket_sonuc_controller.get_kullanici_cevaplari(
+        oturum, anket_id, kullanici_kodu
+    )
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

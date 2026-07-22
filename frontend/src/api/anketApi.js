@@ -2,13 +2,15 @@
 // bileşenleri doğrudan istek atmaz; buradaki fonksiyonları çağırır. Backend
 // endpoint'leri (GET /api/anketler, POST /api/anketler, GET /api/anketler/{id},
 // PUT /api/anketler/{id}, GET /api/anketlerim, GET /api/anketler/{id}/doldur,
-// POST /api/anketler/{id}/cevaplar) burada bağlıdır; istek/yanıt şekli
-// ~/Desktop/kontratlar.txt "ANKET OLUŞTURMA + LİSTELEME (Faz 1)", "ANKET DETAY +
-// GÜNCELLEME", "Ana ekran bekleyen anketler" ve "ANKET DOLDURMA (cevaplama)"
-// bloklarıyla birebir. Anket yönetim uçları admin-only'dir; /api/anketlerim ve
-// doldurma/cevaplama uçları ise her giriş yapmış kullanıcının KENDİ (kendisine
-// atanmış) anketleri içindir (yetki sunucuda, sahiplik üzerinden). Oturum httpOnly
-// cookie ile taşındığından tüm çağrılarda credentials:'include' zorunludur.
+// POST /api/anketler/{id}/cevaplar, GET /api/anketler/{id}/atamalar,
+// GET /api/anketler/{id}/cevaplar/{kullanici_kodu}) burada bağlıdır; istek/yanıt
+// şekli ~/Desktop/kontratlar.txt "ANKET OLUŞTURMA + LİSTELEME (Faz 1)", "ANKET
+// DETAY + GÜNCELLEME", "Ana ekran bekleyen anketler", "ANKET DOLDURMA (cevaplama)"
+// ve "ANKET SONUÇLARI" bloklarıyla birebir. Anket yönetim ve sonuç uçları
+// admin-only'dir; /api/anketlerim ve doldurma/cevaplama uçları ise her giriş yapmış
+// kullanıcının KENDİ (kendisine atanmış) anketleri içindir (yetki sunucuda, sahiplik
+// üzerinden). Oturum httpOnly cookie ile taşındığından tüm çağrılarda
+// credentials:'include' zorunludur.
 
 import { oturumGecersizMi, oturumGecersizYayinla } from '../common/oturumOlaylari.js'
 
@@ -24,6 +26,10 @@ const DETAY_HATA_MESAJI = 'Anket bilgileri yüklenemedi. Lütfen tekrar deneyin.
 const GUNCELLE_HATA_MESAJI = 'Anket güncellenemedi. Lütfen tekrar deneyin.'
 const DOLDUR_HATA_MESAJI = 'Anket yüklenemedi. Lütfen tekrar deneyin.'
 const CEVAP_HATA_MESAJI = 'Cevaplarınız gönderilemedi. Lütfen tekrar deneyin.'
+const ATAMA_LISTE_HATA_MESAJI =
+  'Ankete atanan kullanıcılar yüklenemedi. Lütfen tekrar deneyin.'
+const KULLANICI_CEVAP_HATA_MESAJI =
+  'Kullanıcının cevapları yüklenemedi. Lütfen tekrar deneyin.'
 const AG_HATA_MESAJI = 'Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deneyin.'
 
 // anketleriGetir: anketleri liste ekranı için backend'den çeker. filtreler, dolu
@@ -288,4 +294,81 @@ export async function anketCevaplariGonder(anketId, cevaplar) {
   // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
   if (oturumGecersizMi(yanitGovdesi)) oturumGecersizYayinla()
   throw new Error(yanitGovdesi?.mesaj || CEVAP_HATA_MESAJI)
+}
+
+// anketAtamalariniGetir: bir ankete atanmış kullanıcıları (yanıtlayanlar dahil)
+// sonuç kutusu için backend'den çeker (yalnızca admin; yetki ve görünürlük
+// sunucuda). Başarılıysa [{ kullanici_kodu, ad, soyad, email, durum,
+// yanitladi_mi, tamamlanma_tarihi }] dizisini döndürür; kimse atanmamışsa boş
+// dizi gelir (hata değildir). `yanitladi_mi` SUNUCUDA türetilir; UI onu yalnızca
+// süzmek için kullanır. Görünmüyor/yok (404), yetki (403) veya oturum (401)
+// durumlarında backend'in güvenli mesajını taşıyan Error fırlatır; ağ/parse
+// hatasında da teknik detay sızdırmadan güvenli Error yükselir.
+export async function anketAtamalariniGetir(anketId) {
+  let yanit
+  try {
+    yanit = await fetch(
+      `${API_BASE}/api/anketler/${encodeURIComponent(anketId)}/atamalar`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      },
+    )
+  } catch {
+    throw new Error(AG_HATA_MESAJI)
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(ATAMA_LISTE_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return govde.atamalar
+  }
+
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
+  throw new Error(govde?.mesaj || ATAMA_LISTE_HATA_MESAJI)
+}
+
+// kullaniciCevaplariniGetir: tek bir kullanıcının bir anketteki cevaplarını sonuç
+// kutusu için backend'den çeker (yalnızca admin; yetki ve görünürlük sunucuda).
+// Başarılıysa { kullanici_kodu, tamamlandi_mi, sorular: [{ soru_id, soru_metni,
+// soru_tipi, verilen_secenekler, cevap_metni }] } nesnesini döndürür; metinler
+// sunucuda SANITIZE EDİLMİŞTİR ve cevapsız sorular listede kalır (boş dizi + null).
+// Bulunamadı (404), yetki (403), doğrulama (400) veya oturum (401) durumlarında
+// backend'in güvenli mesajını taşıyan Error fırlatır; ağ/parse hatasında da teknik
+// detay sızdırmadan güvenli Error yükselir.
+export async function kullaniciCevaplariniGetir(anketId, kullaniciKodu) {
+  const yol =
+    `${API_BASE}/api/anketler/${encodeURIComponent(anketId)}` +
+    `/cevaplar/${encodeURIComponent(kullaniciKodu)}`
+
+  let yanit
+  try {
+    yanit = await fetch(yol, {
+      method: 'GET',
+      credentials: 'include',
+    })
+  } catch {
+    throw new Error(AG_HATA_MESAJI)
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(KULLANICI_CEVAP_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return govde.cevaplar
+  }
+
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
+  throw new Error(govde?.mesaj || KULLANICI_CEVAP_HATA_MESAJI)
 }

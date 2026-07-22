@@ -13,6 +13,14 @@ export function buyukHarfeCevir(metin) {
   return metin.toLocaleUpperCase('tr-TR')
 }
 
+// adSoyadBirlestir: bir kişinin ad ve soyadını tek okunur metinde birleştirir.
+// İkisi de boş/null ise tire ('-') döner (ör. kayıt silinmişse hücre boş kalmaz).
+// Saf gösterim formatlamasıdır; iş kuralı içermez.
+export function adSoyadBirlestir(ad, soyad) {
+  const tamAd = `${ad ?? ''} ${soyad ?? ''}`.trim()
+  return tamAd === '' ? '-' : tamAd
+}
+
 // tarihSaatBicimlendir: ISO 8601 tarih-saat metnini Türkçe okunur biçime
 // (gün/ay/yıl saat:dk) çevirir. null/boş/geçersiz değerde tire ('-') döner.
 // Sisteme eklenme, son giriş gibi zaman damgalarında kullanılır.

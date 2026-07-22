@@ -1,7 +1,8 @@
 // Anket soruları API erişim noktası — sunum katmanının backend'e bakan TEK yeri.
 // UI bileşenleri doğrudan istek atmaz; buradaki fonksiyonları çağırır. Backend
 // endpoint'leri (GET /api/sorular, POST /api/sorular, GET /api/sorular/{soru_id},
-// PUT /api/sorular/{soru_id}, DELETE /api/sorular/{soru_id}) burada bağlıdır;
+// PUT /api/sorular/{soru_id}, DELETE /api/sorular/{soru_id}, GET
+// /api/sorular/sablon, POST /api/sorular/toplu-yukle) burada bağlıdır;
 // istek/yanıt şekli ~/Desktop/kontratlar.txt "ANKET SORULARI LİSTESİ", "ANKET
 // SORUSU EKLEME" ve "ANKET SORUSU DETAY + GÜNCELLEME" bloklarıyla birebir. Oturum
 // httpOnly cookie ile taşındığından credentials:'include' zorunludur.
@@ -18,6 +19,8 @@ const EKLE_HATA_MESAJI = 'Soru kaydedilemedi. Lütfen tekrar deneyin.'
 const SIL_HATA_MESAJI = 'Soru silinemedi. Lütfen tekrar deneyin.'
 const DETAY_HATA_MESAJI = 'Soru detayı yüklenemedi. Lütfen tekrar deneyin.'
 const GUNCELLE_HATA_MESAJI = 'Soru güncellenemedi. Lütfen tekrar deneyin.'
+const SABLON_HATA_MESAJI = 'Şablon indirilemedi. Lütfen tekrar deneyin.'
+const TOPLU_YUKLE_HATA_MESAJI = 'Sorular yüklenemedi. Lütfen tekrar deneyin.'
 const AG_HATA_MESAJI = 'Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deneyin.'
 
 // sorulariGetir: tüm anketlerin tüm sorularını backend'den çeker. Başarılıysa
@@ -192,4 +195,86 @@ export async function soruGuncelle(soruId, payload) {
   // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
   if (oturumGecersizMi(govde)) oturumGecersizYayinla()
   throw new Error(govde?.mesaj || GUNCELLE_HATA_MESAJI)
+}
+
+// soruSablonuIndir: toplu yükleme için kullanılacak Excel şablonunu backend'den
+// çeker (yalnızca admin; yetki sunucuda). Başarıda dosyanın ham içeriğini Blob
+// olarak döndürür — dosyayı tarayıcıya indirtmek sunum işidir, çağıran bileşene
+// aittir. Backend hata durumunda xlsx yerine JSON döndüğü için yanıtın içerik
+// tipi denetlenir; hata yolunda backend'in güvenli mesajını taşıyan Error fırlar
+// (ağ/parse hatasında da teknik detay sızmadan güvenli jenerik mesaj).
+export async function soruSablonuIndir() {
+  let yanit
+  try {
+    yanit = await fetch(`${API_BASE}/api/sorular/sablon`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+  } catch {
+    throw new Error(AG_HATA_MESAJI)
+  }
+
+  // Başarılı yanıt xlsx baytlarıdır (JSON değil); doğrudan Blob'a çevrilir.
+  const icerikTipi = yanit.headers.get('Content-Type') ?? ''
+  if (yanit.ok && !icerikTipi.includes('application/json')) {
+    try {
+      return await yanit.blob()
+    } catch {
+      throw new Error(SABLON_HATA_MESAJI)
+    }
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(SABLON_HATA_MESAJI)
+  }
+
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
+  throw new Error(govde?.mesaj || SABLON_HATA_MESAJI)
+}
+
+// sorulariExcelIleYukle: seçilen .xlsx dosyasını multipart gövdeyle backend'e
+// gönderir ve soruları TOPLU ekletir (yalnızca admin; yetki, uzantı/boyut ve
+// satır doğrulaması sunucuda). Alan adı backend'in beklediğiyle birebir aynıdır:
+// 'dosya'. Content-Type başlığı ELLE verilmez; tarayıcı multipart sınırını (boundary)
+// kendisi yazar. Başarıda eklenen soru sayısını döndürür. Başarısızsa backend'in
+// güvenli mesajını taşıyan Error fırlar; yanıtta satır bazlı doğrulama hataları
+// varsa (kullanıcının kendi verisine ait), bileşen tabloda gösterebilsin diye
+// Error nesnesine `satirHatalari` olarak iliştirilir.
+export async function sorulariExcelIleYukle(dosya) {
+  const govdeVerisi = new FormData()
+  govdeVerisi.append('dosya', dosya)
+
+  let yanit
+  try {
+    yanit = await fetch(`${API_BASE}/api/sorular/toplu-yukle`, {
+      method: 'POST',
+      body: govdeVerisi,
+      credentials: 'include',
+    })
+  } catch {
+    throw new Error(AG_HATA_MESAJI)
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(TOPLU_YUKLE_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return govde.eklenen_sayisi
+  }
+
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
+  const hata = new Error(govde?.mesaj || TOPLU_YUKLE_HATA_MESAJI)
+  if (Array.isArray(govde?.satir_hatalari)) {
+    hata.satirHatalari = govde.satir_hatalari
+  }
+  throw hata
 }

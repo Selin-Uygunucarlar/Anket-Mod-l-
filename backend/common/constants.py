@@ -22,3 +22,11 @@ OTURUM_SURESI_DAKIKA = 480
 # Zayıf şifreyi Service reddeder; geçici (sistem üretimi) şifreler için değil,
 # kullanıcı tarafından belirlenen kalıcı şifreler için alt sınırdır.
 MIN_SIFRE_UZUNLUK = 8
+
+# Toplu soru yüklemede kabul edilen en büyük Excel (.xlsx) dosya boyutu (bayt).
+# Kaynak tüketimini sınırlar: dosya AÇILMADAN önce sınırda reddedilir.
+MAKS_EXCEL_DOSYA_BAYTI = 2 * 1024 * 1024
+
+# Tek bir Excel yüklemesinde işlenebilecek en fazla soru (veri) satırı. Aşılırsa
+# dosya doğrulanmadan reddedilir; tek seferde çok büyük yazma denemesi önlenir.
+MAKS_EXCEL_SORU_SATIRI = 500

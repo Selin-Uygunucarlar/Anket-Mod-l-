@@ -1,4 +1,5 @@
-"""Anket soruları (ekleme + listeleme + silme + detay + güncelleme) veri erişim katmanı.
+"""Anket soruları (ekleme + toplu ekleme + listeleme + silme + detay + güncelleme)
+veri erişim katmanı.
 
 Neden: DB ile konuşan tek yer burasıdır; SQL yalnızca bu katmanda çalıştırılır.
 Service/Controller tablo/şema/SQL görmez. Tüm sorgular parametreli (prepared)
@@ -19,7 +20,7 @@ import pymysql
 
 from common.db import veritabani_baglantisi
 from common.errors import DataAccessError
-from models.soru import SoruKaydi, SoruSecenegi
+from models.soru import SoruKaydi, SoruSecenegi, YuklenecekSoru
 from repositories import soru_sorgulari as sorgular
 
 
@@ -130,6 +131,68 @@ def soru_ekle(
         raise DataAccessError("Soru eklenemedi.") from hata
 
     return yeni_soru_id
+
+
+def sorulari_toplu_ekle(kayitlar: list[YuklenecekSoru]) -> list[int]:
+    """Birden çok soruyu (ve şıklarını) TEK transaction'da ekler; soru_id'leri döner.
+
+    Excel ile toplu soru yükleme akışının yazma ucudur. Her kayıt için önce Soru
+    INSERT edilir (mevcut SORU_EKLE_SORGUSU), oluşan soru_id cursor.lastrowid ile
+    alınır ve varsa şıkları sira_no = index+1 ile executemany edilir — tek soru
+    ekleyen soru_ekle ile birebir aynı kalıp. Sabitler de aynıdır: anket_id=None
+    (bağımsız soru), sira_no=None, zorunlu_mu=False. Şıksız kayıt HATA DEĞİLDİR;
+    yalnızca Soru satırı yazılır.
+
+    ATOMİK: tüm kayıtlar tek bağlantı/tek transaction içinde yazılır. Herhangi bir
+    kayıtta istisna oluşursa veritabani_baglantisi context manager'ı ROLLBACK yapar
+    (doğrulandı: blok sorunsuz biterse commit, istisnada rollback + yukarı fırlat),
+    yani ya HEPSİ yazılır ya HİÇBİRİ. Dönüş: eklenen soru_id'ler GİRİŞ SIRASIYLA.
+
+    Boş liste geldiğinde DB'ye hiç gidilmez, doğrudan boş liste dönülür (yazacak
+    kayıt yokken bağlantı açmanın anlamı yok; "boş girdi" kararı Service'e aittir,
+    burada hata sayılmaz). Tüm sorgular parametreli (%s); string birleştirme yok.
+    Metinler HAM yazılır — sanitizasyon (XSS) Service'in işidir; Repository
+    yetki/rol/sahiplik BİLMEZ ve loglamaz. Teknik DB hatası DataAccessError'a
+    sarmalanıp yukarı fırlatılır (ham DB mesajı/tablo adı üst mesaja konmaz).
+    """
+    if not kayitlar:
+        return []
+
+    eklenen_soru_idleri: list[int] = []
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                for kayit in kayitlar:
+                    imlec.execute(
+                        sorgular.SORU_EKLE_SORGUSU,
+                        (
+                            None,  # anket_id: toplu yüklenen soru BAĞIMSIZ eklenir
+                            kayit.soru_metni,
+                            kayit.soru_tipi,
+                            kayit.konu,
+                            kayit.amac,
+                            None,  # sira_no: ankete bağlanmadığı için tanımsız
+                            False,  # zorunlu_mu: ankete bağlanırken belirlenir
+                            kayit.hazirlayan_kodu,
+                        ),
+                    )
+                    yeni_soru_id = imlec.lastrowid
+                    eklenen_soru_idleri.append(yeni_soru_id)
+
+                    if kayit.secenekler:
+                        # Şıklar giriş sırasına göre 1'den başlayan sira_no ile eklenir.
+                        secenek_parametreleri = [
+                            (yeni_soru_id, metin, indeks + 1)
+                            for indeks, metin in enumerate(kayit.secenekler)
+                        ]
+                        imlec.executemany(
+                            sorgular.SECENEK_EKLE_SORGUSU, secenek_parametreleri
+                        )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Sorular toplu eklenemedi.") from hata
+
+    return eklenen_soru_idleri
 
 
 def soru_sil(soru_id: int) -> None:

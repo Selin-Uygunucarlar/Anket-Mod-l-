@@ -9,6 +9,8 @@
 //                   "Evet / Hayır" rozet önizlemesi (kullanıcı girdisi yok; gönderilecek
 //                   sabiti backend/üst bileşen kurar).
 //   'skala_5'    -> iki sade metin girişi: "1 için ifade" ve "5 için ifade" (uçlar).
+//   'yok'        -> seçenek alanı HİÇ render edilmez (bu tipte şık girilmez; sunucu
+//                   da şık kabul etmez, gövdeye boş liste gider).
 // Görünüm için kullanici-ekle.css'teki mevcut form sınıfları paylaşılır (DRY).
 
 import SoruMetniKart from './SoruMetniKart.jsx'
@@ -22,7 +24,7 @@ function seceneksHarfi(indeks) {
 
 // SoruSecenekAlani: seçenek alanını moda göre render eder.
 // props:
-//   secenekModu        -> 'liste' | 'evet_hayir' | 'skala_5' (soruTipiSecenekModu)
+//   secenekModu        -> 'liste' | 'evet_hayir' | 'skala_5' | 'yok' (soruTipiSecenekModu)
 //   secenekMetinleri   -> (liste) seçenek HTML metinleri dizisi
 //   onSecenekMetniDegis-> (liste) (indeks, yeniHtml) => void; bir seçeneği günceller
 //   skalaAltUc         -> (skala_5) "1 için ifade" metni
@@ -38,6 +40,12 @@ function SoruSecenekAlani({
   onSkalaAltUcDegis,
   onSkalaUstUcDegis,
 }) {
+  // yok: bu tipte (ör. yorum sorusu) şık girilmez; ne "Seçenekler" başlığı ne de bir
+  // giriş alanı gösterilir. Üst bileşen gövdeye boş liste gönderir.
+  if (secenekModu === 'yok') {
+    return null
+  }
+
   // evet_hayir: diğer tiplerle aynı satır düzeni kullanılır; solda 180px "Seçenekler"
   // etiketi, karşısında (sağda) sabit Evet/Hayır rozetleri durur. Sabitler yalnız bilgi
   // amaçlı gösterildiğinden kullanıcı girdisi ve zorunlu yıldızı yoktur; sabit-uyarı notu

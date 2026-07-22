@@ -14,13 +14,16 @@
 // yalnızca soruya özgü ekler soru- önekli sınıflarla gelir. Başlık satırının
 // sağında "Yeni Soru Ekle" butonu bulunur; tıklanınca üst bileşene (onSoruEkle)
 // haber vererek içerik alanında soru ekleme görünümünü açar (anket/kullanıcı
-// ekle butonlarıyla aynı kalıp).
+// ekle butonlarıyla aynı kalıp). Aynı satırdaki Excel toplu işlem butonları
+// ("Şablon İndir" / "Excel ile Yükle") ayrı bir bileşendedir (SoruExcelIslemleri);
+// oradan gelen güvenli hata mesajı listenin tek hata alanında gösterilir.
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { sorulariGetir, soruSil } from '../api/soruApi.js'
 import { soruTipiEtiketi } from '../common/soruTipleri.js'
 import OnayKutusu from './OnayKutusu.jsx'
+import SoruExcelIslemleri from './SoruExcelIslemleri.jsx'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
 
@@ -120,7 +123,7 @@ function SoruListesi({ onSoruEkle, onSoruDuzenle }) {
   const [aramaMetni, setAramaMetni] = useState('')
   // Onay kutusunun hedefi olan soru (null iken onay kutusu kapalı).
   const [hedefSoru, setHedefSoru] = useState(null)
-  // Silme isteği başarısız olursa gösterilecek güvenli, kısa mesaj.
+  // Silme veya şablon indirme başarısız olursa gösterilecek güvenli, kısa mesaj.
   const [islemHatasi, setIslemHatasi] = useState('')
 
   const queryClient = useQueryClient()
@@ -200,16 +203,23 @@ function SoruListesi({ onSoruEkle, onSoruDuzenle }) {
             />
           </div>
         </div>
-        {/* "Yeni Soru Ekle": kullanıcı/anket listesindeki ekle kalıbıyla üst
-            bileşene haber verir ve içerik alanında soru ekleme görünümünü açar. */}
-        <button
-          type="button"
-          className="kullanici-ekle-buton"
-          onClick={onSoruEkle}
-        >
-          <ArtiIcon />
-          <span>Yeni Soru Ekle</span>
-        </button>
+        {/* Başlık satırının sağındaki işlem butonları: şablon indirme, Excel ile
+            toplu yükleme ve tek soru ekleme (hepsi aynı görsel kalıpta). */}
+        <div className="soru-baslik-butonlari">
+          {/* Şablon indirme + Excel ile toplu yükleme; hata mesajını aşağıdaki
+              tek hata alanında göstermek üzere bu bileşene bildirir. */}
+          <SoruExcelIslemleri onHata={setIslemHatasi} />
+          {/* "Yeni Soru Ekle": kullanıcı/anket listesindeki ekle kalıbıyla üst
+              bileşene haber verir ve içerik alanında soru ekleme görünümünü açar. */}
+          <button
+            type="button"
+            className="kullanici-ekle-buton"
+            onClick={onSoruEkle}
+          >
+            <ArtiIcon />
+            <span>Yeni Soru Ekle</span>
+          </button>
+        </div>
       </div>
       {islemHatasi && (
         <p className="kullanici-liste-durum kullanici-liste-hata" role="alert">

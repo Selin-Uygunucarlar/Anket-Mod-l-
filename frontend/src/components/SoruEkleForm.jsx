@@ -13,6 +13,10 @@
 //   'skala_5'    -> Seçenek Sayısı/kartlar gizlenir; iki uç ifade girişi (1 ve 5).
 //                   Gönderilen secenekler = [skalaAltUc, skalaUstUc]; skalanın 5'li
 //                   yapısını backend kurar (UI iki ucu toplar, hesaplama yapmaz).
+//   'yok'        -> Seçenek Sayısı ve seçenek alanı HİÇ gösterilmez (ör. yorum sorusu).
+//                   Gönderilen secenekler = [] (sunucu bu tipte şık kabul etmez).
+//                   Başka bir tipte doldurulmuş seçenek state'i TEMİZLENMEZ, yalnızca
+//                   gizlenir ve gövdeye konmaz; tipe geri dönülürse içerik korunur.
 // Seçenek yerleşimi SoruSecenekAlani bileşenine ayrılmıştır (SRP). Soru Metni* her
 // modda tek zengin metin kartıdır. Düzenleme modunda mevcut soru soruApi.soruDetayGetir
 // ile çekilip alanlar tipe göre ÖN-DOLDURULUR (skala'da yalnız uçlar; ara noktalar yok
@@ -61,7 +65,7 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
   const [skalaAltUc, setSkalaAltUc] = useState('')
   const [skalaUstUc, setSkalaUstUc] = useState('')
 
-  // Seçili soru tipinin seçenek modu (liste/evet_hayir/skala_5). Hangi seçenek
+  // Seçili soru tipinin seçenek modu (liste/evet_hayir/skala_5/yok). Hangi seçenek
   // yerleşiminin gösterileceğini ve gönderilecek secenekler'in nasıl kurulacağını
   // belirler; iş kuralı değil, gösterim eşlemesidir.
   const secenekModu = soruTipiSecenekModu(soruTipi)
@@ -102,6 +106,8 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
   //   - skala_5: stored secenekler [uc1,"2","3","4",uc5] gelir; yalnız ilk/son eleman
   //     kullanıcı uç ifadesidir, ara noktalar (2,3,4) YOK SAYILIR.
   //   - evet_hayir: kullanıcı girdisi yok (sabit); seçenek state'ine dokunulmaz.
+  //   - yok: bu tipte şık gösterilmez; detaydan şık gelse bile seçenek state'ine
+  //     dokunulmaz ve gövdeye şık konmaz.
   useEffect(() => {
     if (!soruDetayi) {
       return
@@ -173,6 +179,7 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
   // BASİT presence guard'ı; yalnızca Kaydet butonunu pasifleştirmek içindir (UX),
   // iş kuralı/karar değildir (asıl doğrulama sunucuda). Seçenek kontrolü TİPE göre:
   //   - evet_hayir: seçenekler sabit; ek kontrol yok.
+  //   - yok: bu tipte şık girilmez; ek kontrol yok.
   //   - skala_5: her iki uç ifade de trim sonrası dolu olmalı.
   //   - liste: her seçenek kartı dolu olmalı (en az bir kart bulunmalı).
   function zorunluAlanlarDolu() {
@@ -180,7 +187,7 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
     if (!doluMu(soruTipi) || !doluMu(konu) || !doluMu(amac) || !doluMu(soruMetni)) {
       return false
     }
-    if (secenekModu === 'evet_hayir') {
+    if (secenekModu === 'evet_hayir' || secenekModu === 'yok') {
       return true
     }
     if (secenekModu === 'skala_5') {
@@ -196,11 +203,16 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
   // secenekler dizisini üretir. UI iş kuralı/hesaplama YAPMAZ; yalnız aktif modun
   // topladığı değerleri iletir (skalanın 5'li yapısını backend kurar):
   //   - evet_hayir: sabit ["Evet","Hayır"] (2 eleman; sınır katmanı boş liste kabul etmez).
+  //   - yok: boş liste (sunucu bu tipte şık kabul etmez); gizli kalan seçenek state'i
+  //     gönderilmez.
   //   - skala_5: [skalaAltUc, skalaUstUc] (2 uç; backend ara noktaları ekler).
   //   - liste: seçenek kartı metinleri (sıra/indeks korunarak).
   function secenekleriTipeGoreKur() {
     if (secenekModu === 'evet_hayir') {
       return ['Evet', 'Hayır']
+    }
+    if (secenekModu === 'yok') {
+      return []
     }
     if (secenekModu === 'skala_5') {
       return [skalaAltUc, skalaUstUc]
@@ -292,8 +304,8 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
             </select>
           </label>
 
-          {/* Seçenek Sayısı yalnız 'liste' modunda anlamlıdır; evet_hayir (sabit) ve
-              skala_5 (iki uç) modlarında gizlenir. */}
+          {/* Seçenek Sayısı yalnız 'liste' modunda anlamlıdır; evet_hayir (sabit),
+              skala_5 (iki uç) ve yok (şık girilmez) modlarında gizlenir. */}
           {secenekModu === 'liste' && (
             <label className="form-satir">
               <span className="form-etiket">Seçenek Sayısı</span>
@@ -363,7 +375,8 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
         </div>
 
         {/* Seçenek alanı seçili soru tipinin moduna göre değişir (liste kartları /
-            sabit Evet-Hayır önizlemesi / iki uç ifade). Yerleşim SoruSecenekAlani'da. */}
+            sabit Evet-Hayır önizlemesi / iki uç ifade); 'yok' modunda hiç render
+            edilmez. Yerleşim SoruSecenekAlani'da. */}
         <SoruSecenekAlani
           secenekModu={secenekModu}
           secenekMetinleri={secenekMetinleri}

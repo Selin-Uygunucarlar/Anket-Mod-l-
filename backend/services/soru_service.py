@@ -9,11 +9,14 @@ olduğundan (migration 009) aynı allowlist ile sanitize edilir. Sanitize allowl
 ve temizleme yardımcısı (temizle_html) Common katmanında ortaktır (common.html_temizle);
 anket_service ile paylaşılır (DRY). Şık kuralları ve boş-içerik reddi bu Service'e özeldir.
 
-Şık listesinin ANLAMI soru tipine göre değişir (kablo sözleşmesi list[str] aynı
-kalır): evet_hayir'de client şıkları YOK SAYILIR, sunucu kanonik ["Evet","Hayır"]
-kurar; skala_5'te client 2 uç ifade gönderir (sanitize edilir), sunucu ara
-noktaları ekleyip [uc1,"2","3","4",uc5] kurar; diğer tiplerde her şık sanitize
-edilen serbest listedir. Bu normalizasyon _secenekleri_tipe_gore_hazirla'da toplanır.
+Şık listesinin ANLAMI ve kaç adet gerektiği soru tipine göre değişir (kablo
+sözleşmesi list[str] aynı kalır): evet_hayir'de client şıkları YOK SAYILIR (adet
+kontrolü yok), sunucu kanonik ["Evet","Hayır"] kurar; skala_5'te client tam 2 uç
+ifade gönderir (sanitize edilir), sunucu ara noktaları ekleyip [uc1,"2","3","4",uc5]
+kurar; yorum tipi şık KABUL ETMEZ (liste boş olmalı); kalan tipler (çoktan seçmeli
+tek/çoklu, listeden seçmeli, grid) 2–15 arası serbest şık alır ve her biri sanitize
+edilir. Bu kural tablosu _secenekleri_tipe_gore_hazirla'da TEK yerde toplanır;
+ekleme ve güncelleme onu paylaşır (DRY). Sınır katmanı yalnız ŞEKİL doğrular.
 
 Bu katman HTTP ve SQL bilmez; veriye Repository üzerinden erişir. Hatalar burada
 LOGLANMAZ, yukarı fırlatılır; loglama yalnızca sınır katmanında bir kez yapılır.
@@ -32,23 +35,32 @@ from repositories import soru_repository
 _ADMIN_TURU = "admin"
 
 # Şık normalizasyonunda özel davranışa sahip tip kimlikleri (aşağıdaki kümenin
-# üyeleri). Bu iki tip _secenekleri_tipe_gore_hazirla'da ayrı dallanır.
+# üyeleri). Bu üç tip _secenekleri_tipe_gore_hazirla'da ayrı dallanır.
 _EVET_HAYIR_TIPI = "evet_hayir"
 _SKALA_5_TIPI = "skala_5"
+_YORUM_TIPI = "yorum"
 
 # Bir sorunun alabileceği geçerli soru tipleri (iş kuralı sabiti). Frontend'in
 # gösterdiği 7 tipin kimlikleriyle birebir; bu küme DIŞINDA bir tip reddedilir.
-_GECERLI_SORU_TIPLERI = frozenset(
+# PUBLIC: toplu yükleme (soru_yukleme_service) import edilebilir tip kümesini
+# BURADAN türetir (listeyi kopyalamaz) — tip kümesinin tek kaynağı burasıdır.
+GECERLI_SORU_TIPLERI = frozenset(
     {
         "coktan_secmeli_tek",
         "coktan_secmeli_coklu",
         _EVET_HAYIR_TIPI,
         _SKALA_5_TIPI,
         "listeden_secmeli",
-        "yorum",
+        _YORUM_TIPI,
         "grid",
     }
 )
+
+# Serbest şıklı tipler (çoktan seçmeli tek/çoklu, listeden seçmeli, grid) için
+# kabul edilen şık sayısı aralığı. İŞ KURALI olduğundan tek yer burasıdır; sınır
+# katmanı adet kontrolü yapmaz. evet_hayir/skala_5/yorum bu aralığa TABİ DEĞİLDİR.
+_SERBEST_SECENEK_ADET_MIN = 2
+_SERBEST_SECENEK_ADET_MAX = 15
 
 # evet_hayir sorusu için sunucunun kurduğu KANONİK şık listesi. Client'tan gelen
 # şık metinleri yok sayılır; bu iki değer sunucu sabitidir (kullanıcı girdisi
@@ -77,10 +89,11 @@ def _sanitize_edilmis_bos_mu(sanitize_edilmis: str) -> bool:
 def _sanitize_serbest_secenekler(secenek_metinleri: list[str]) -> list[str]:
     """Serbest şık listesindeki her metni XSS'e karşı sanitize eder; boş şıkkı reddeder.
 
-    Neden: çoktan seçmeli/liste/grid/yorum tiplerinde şıklar KULLANICI girdisidir;
-    her biri allowlist ile temizlenir ve sanitize sonrası görünür içerik taşımalıdır
-    (yalnız boşluk/etiket -> reddedilir). Boş liste kabul edilir (açık uçlu soru).
-    İhlalde ValidationError fırlatılır (loglanmaz, yukarı çıkar).
+    Neden: çoktan seçmeli/listeden seçmeli/grid tiplerinde şıklar KULLANICI
+    girdisidir; her biri allowlist ile temizlenir ve sanitize sonrası görünür içerik
+    taşımalıdır (yalnız boşluk/etiket -> reddedilir). Adet kuralı burada DEĞİL,
+    çağıran _secenekleri_tipe_gore_hazirla'dadır (SRP). İhlalde ValidationError
+    fırlatılır (loglanmaz, yukarı çıkar).
     """
     temiz_secenekler: list[str] = []
     for ham_secenek in secenek_metinleri:
@@ -117,40 +130,58 @@ def _secenekleri_tipe_gore_hazirla(
 ) -> list[str]:
     """Soru tipine göre şık listesini normalize/doğrular; kayda hazır list[str] döner.
 
-    Neden: şıkkın ANLAMI tipe göre değişir (kablo sözleşmesi list[str] aynı kalır).
-    evet_hayir: client değeri YOK SAYILIR, sunucu kanonik ['Evet','Hayır'] kurar.
-    skala_5: client 2 uç ifade gönderir (sanitize), sunucu [uc1,'2','3','4',uc5]
-    kurar. Diğer tipler: her şık sanitize + boş reddi (boş liste = açık uçlu).
-    ekle_soru ve guncelle_soru bu TEK kuralı paylaşır (DRY). Yalnızca kullanıcı
-    girdileri sanitize edilir; sunucu sabitleri (Evet/Hayır/2/3/4) gerektirmez.
+    Neden: şıkkın ANLAMI ve kaç adet gerektiği tipe göre değişir; bu bir İŞ
+    KURALIDIR ve tek yeri burasıdır (kablo sözleşmesi list[str] aynı kalır).
+    evet_hayir: client değeri YOK SAYILIR (adet kontrolü yok), sunucu kanonik
+    ['Evet','Hayır'] kurar. skala_5: tam 2 uç ifade (sanitize) -> [uc1,'2','3','4',uc5].
+    yorum: şık kabul edilmez, liste boş olmalı. Kalanlar (çoktan seçmeli tek/çoklu,
+    listeden seçmeli, grid): 2–15 arası, her şık sanitize + boş reddi. ekle_soru ve
+    guncelle_soru bu TEK kuralı paylaşır (DRY). Yalnızca kullanıcı girdileri sanitize
+    edilir; sunucu sabitleri (Evet/Hayır/2/3/4) gerektirmez. İhlalde ValidationError
+    fırlatılır (loglanmaz, yukarı çıkar).
     """
     if soru_tipi == _EVET_HAYIR_TIPI:
         return list(_EVET_HAYIR_SECENEKLERI)
     if soru_tipi == _SKALA_5_TIPI:
         return _hazirla_skala_secenekleri(secenek_metinleri)
+    if soru_tipi == _YORUM_TIPI:
+        if secenek_metinleri:
+            raise ValidationError("Yorum sorusu için seçenek girilemez.")
+        return []
+    if not (
+        _SERBEST_SECENEK_ADET_MIN
+        <= len(secenek_metinleri)
+        <= _SERBEST_SECENEK_ADET_MAX
+    ):
+        raise ValidationError(
+            f"Seçenek sayısı {_SERBEST_SECENEK_ADET_MIN}-"
+            f"{_SERBEST_SECENEK_ADET_MAX} arasında olmalıdır."
+        )
     return _sanitize_serbest_secenekler(secenek_metinleri)
 
 
-def _hazirla_soru_alanlari(
+def hazirla_soru_alanlari(
     soru_tipi: str,
     konu: str,
     amac: str,
     soru_metni_ham: str,
     secenek_metinleri: list[str],
-) -> tuple[str, str, list[str]]:
-    """Soru ekleme/güncelleme için ortak iş kuralı doğrulaması + XSS sanitizasyonu.
+) -> tuple[str, str, str, list[str]]:
+    """Soru ekleme/güncelleme/toplu yükleme için ortak iş kuralı doğrulaması + XSS sanitizasyonu.
 
-    Neden: ekle_soru ve guncelle_soru AYNI kurallara uyar; bu gerçek tekrar tek
-    yerde toplanır (DRY). soru_tipi geçerli kümede olmalı; konu/amac dolu olmalı
+    Neden: ekle_soru, guncelle_soru ve Excel ile toplu yükleme (soru_yukleme_service)
+    AYNI kurallara uyar; bu gerçek tekrar tek yerde toplanır (DRY) — bu yüzden
+    fonksiyon PUBLIC'tir. soru_tipi geçerli kümede olmalı; konu/amac dolu olmalı
     (TanimliSecenek'e karşı DOĞRULANMAZ, yalnız boş kontrolü). soru_metni HAM
     HTML'dir: sanitize edilir ve sanitize sonrası görünür içerik taşımalıdır (yalnız
     boşluk/etiket -> reddedilir). Şıklar TİPE GÖRE _secenekleri_tipe_gore_hazirla ile
-    normalize edilir (evet_hayir kanonik, skala_5 uç+ara, diğerleri serbest). Yetki
+    normalize edilir ve adedi orada doğrulanır (evet_hayir kanonik, skala_5 uç+ara,
+    yorum şıksız, kalanlar 2–15 serbest). Yetki
     kontrolü BURADA DEĞİL, çağıran public fonksiyondadır (admin kontrolü doğrulamadan
     önce yapılır). Döner: (konu_temiz, amac_temiz, sanitize_soru_metni,
     hazir_secenekler). İhlalde ValidationError fırlatılır (loglanmaz, yukarı çıkar).
     """
-    if soru_tipi not in _GECERLI_SORU_TIPLERI:
+    if soru_tipi not in GECERLI_SORU_TIPLERI:
         raise ValidationError("Geçersiz soru tipi.")
 
     konu_temiz = (konu or "").strip()
@@ -181,14 +212,14 @@ def ekle_soru(
 
     Yalnızca admin çağırabilir (talep_eden'e göre; client'tan gelen role/id'ye
     güvenilmez). İş kuralları (tip kümesi, konu/amac dolu, XSS sanitizasyonu +
-    boş-içerik kontrolü) _hazirla_soru_alanlari'nda ortaktır (guncelle_soru ile
+    boş-içerik kontrolü) hazirla_soru_alanlari'nda ortaktır (guncelle_soru ile
     paylaşılır). hazirlayan_kodu OTURUMDAN alınır. anket_id=None (bağımsız),
     sira_no=None, zorunlu_mu=False sabit geçilir. Hata burada loglanmaz, YUKARI FIRLAR.
     """
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
 
-    konu_temiz, amac_temiz, soru_metni, secenekler = _hazirla_soru_alanlari(
+    konu_temiz, amac_temiz, soru_metni, secenekler = hazirla_soru_alanlari(
         soru_tipi, konu, amac, soru_metni_ham, secenek_metinleri
     )
 
@@ -287,7 +318,7 @@ def guncelle_soru(
 
     Yalnızca admin çağırabilir; admin değilse veri erişimine geçilmeden
     YetkiYokError. İş kuralları (tip kümesi, konu/amac dolu, XSS sanitizasyonu +
-    boş-içerik kontrolü) ekle_soru ile ORTAK _hazirla_soru_alanlari'ndan geçer.
+    boş-içerik kontrolü) ekle_soru ile ORTAK hazirla_soru_alanlari'ndan geçer.
     Güncellemeden ÖNCE soru_repository.soru_getir ile varlık doğrulanır; kayıt yoksa
     NotFoundError (Repository soru_guncelle NotFound FIRLATMAZ, sessizce geçer).
     Sonra soru_guncelle sanitize edilmiş soru_metni + şık listesiyle çağrılır.
@@ -297,7 +328,7 @@ def guncelle_soru(
     if talep_eden.kullanici_turu != _ADMIN_TURU:
         raise YetkiYokError()
 
-    konu_temiz, amac_temiz, soru_metni, secenekler = _hazirla_soru_alanlari(
+    konu_temiz, amac_temiz, soru_metni, secenekler = hazirla_soru_alanlari(
         soru_tipi, konu, amac, soru_metni_ham, secenek_metinleri
     )
 

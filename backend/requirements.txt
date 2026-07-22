@@ -18,3 +18,11 @@ fastapi==0.115.6
 
 # ASGI sunucusu (uvicorn[standard]: uvloop/httptools ile hızlı çalıştırma)
 uvicorn[standard]==0.34.0
+
+# Excel (.xlsx) okuma/yazma — toplu soru yükleme şablonunun üretimi ve yüklenen
+# dosyanın satırlara çözümlenmesi (sınır/Controller katmanı; iş kuralı içermez).
+openpyxl==3.1.5
+
+# multipart/form-data ayrıştırıcı; FastAPI'nin UploadFile (dosya yükleme) ucu için
+# gereklidir (toplu yükleme POST /api/sorular/toplu-yukle).
+python-multipart==0.0.20

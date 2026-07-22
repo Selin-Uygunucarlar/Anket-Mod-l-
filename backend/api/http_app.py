@@ -13,7 +13,7 @@ Controller'ın ürettiği güvenli sözlüğün AYNISIDIR; ek alan/teknik detay 
 
 import os
 
-from fastapi import Cookie, FastAPI, Query
+from fastapi import Cookie, FastAPI, File, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -27,6 +27,7 @@ from controllers import (
     kullanici_controller,
     secenek_controller,
     soru_controller,
+    soru_yukleme_controller,
 )
 
 # Geliştirme (Vite) origin'leri; üretimde ortam bazlı genişletilir. "*" AÇILMAZ.
@@ -46,6 +47,11 @@ _KOD_HTTP_ESLEME = {
     "UNEXPECTED_ERROR": 500,
 }
 
+# Excel (.xlsx) yanıtlarının MIME tipi (şablon indirme ucu). Protokol detayıdır.
+_XLSX_MEDIA_TIPI = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
 # httpOnly oturum cookie'sinin adı ve ortak bayrakları (transport kararı).
 _OTURUM_COOKIE_ADI = "oturum"
 _COOKIE_PATH = "/"
@@ -61,11 +67,13 @@ def _cookie_secure_bayragi() -> bool:
     return os.environ.get("COOKIE_SECURE", "false").strip().lower() == "true"
 
 
-def _oturum_cookiesini_yaz(yanit: JSONResponse, ham_jeton: str) -> None:
+def _oturum_cookiesini_yaz(yanit: Response, ham_jeton: str) -> None:
     """Ham oturum jetonunu httpOnly cookie olarak yazar (kayan pencereyle senkron).
 
     Bayraklar: httponly (JS erişemez), samesite=lax, path=/, secure ortam bazlı,
     max_age kayan pencere uzunluğu. Jeton yalnızca cookie'ye gider; gövdeye konmaz.
+    JSON yanıtların yanı sıra dosya (xlsx) yanıtlarında da kullanılır, bu yüzden
+    tip genel Response'tur.
     """
     yanit.set_cookie(
         key=_OTURUM_COOKIE_ADI,
@@ -464,6 +472,54 @@ def ekle_soru(
         istek.amac,
         istek.soru_metni,
         istek.secenekler,
+    )
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/sorular/sablon")
+def indir_soru_sablonu(oturum: str | None = Cookie(default=None)) -> Response:
+    """Oturumdaki admin için toplu yükleme Excel şablonunu indirir (yalnızca protokol).
+
+    ROTA SIRASI ÖNEMLİ: bu SABİT path, `GET /api/sorular/{soru_id}` tanımından ÖNCE
+    gelmelidir; aksi halde "sablon" int'e parse edilmeye çalışılır. Başarıda xlsx
+    baytları dosya olarak (attachment) döner, hatada mevcut JSON kalıbı kullanılır.
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = soru_yukleme_controller.indir_sablon(oturum)
+    if not sonuc.get("basari"):
+        durum = _kod_to_http_durum(sonuc.get("kod", ""))
+        return JSONResponse(status_code=durum, content=sonuc)
+
+    dosya_adi = sonuc["dosya_adi"]
+    yanit = Response(
+        content=sonuc["dosya_baytlari"],
+        media_type=_XLSX_MEDIA_TIPI,
+        headers={"Content-Disposition": f'attachment; filename="{dosya_adi}"'},
+    )
+    if oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/sorular/toplu-yukle")
+async def yukle_sorular(
+    dosya: UploadFile = File(...), oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için Excel'deki soruları TOPLU ekler (yalnızca protokol).
+
+    Dosya multipart gövdeden okunur ve Controller'a bayt + dosya adı olarak geçilir
+    (Controller/Service Excel taşıma detayını değil, içeriği görür). Uzantı/boyut
+    doğrulaması, iş kuralları, yetki ve atomik yazma Controller/Service'tedir. Rota
+    sırası: SABİT path, `GET /api/sorular/{soru_id}` tanımından ÖNCE gelir. Hatalı
+    satırlar yanıtta `satir_hatalari` olarak döner. Başarılı yanıtta cookie yenilenir.
+    """
+    dosya_baytlari = await dosya.read()
+    sonuc = soru_yukleme_controller.yukle_sorular(
+        oturum, dosya_baytlari, dosya.filename or ""
     )
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)

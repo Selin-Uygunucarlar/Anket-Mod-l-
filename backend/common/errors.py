@@ -117,6 +117,30 @@ class ValidationError(AppError):
     severity = Severity.WARNING
 
 
+class TopluYuklemeDogrulamaHatasi(ValidationError):
+    """Excel ile toplu yüklemede bir veya daha fazla SATIRIN doğrulamayı geçememesi.
+
+    Yükleme ATOMİKTİR: tek satır bile hatalıysa hiçbir kayıt yazılmaz ve tüm
+    satırların hataları tek seferde bu hatayla yukarı taşınır. `satir_hatalari`
+    her öğesi {"satir_no": int, "alan": str, "mesaj": str} olan bir listedir ve
+    kullanıcının KENDİ gönderdiği veriye aittir (teknik detay/stack DEĞİL), bu
+    yüzden sınırda yanıta konabilir. `kod` ve `severity` ValidationError'dan
+    MİRAS ALINIR (VALIDATION_ERROR / WARNING): hatanın tek kimliği/severity'si
+    oluşturulduğu anda bellidir, yukarı çıkarken değişmez.
+    """
+
+    def __init__(
+        self,
+        mesaj: str,
+        *,
+        satir_hatalari: list[dict],
+        kod: str | None = None,
+        severity: Severity | None = None,
+    ) -> None:
+        super().__init__(mesaj, kod=kod, severity=severity)
+        self.satir_hatalari = satir_hatalari
+
+
 class BusinessRuleError(AppError):
     """Girdi biçimi geçerli olsa da bir iş kuralının ihlal edildiği durum.
 

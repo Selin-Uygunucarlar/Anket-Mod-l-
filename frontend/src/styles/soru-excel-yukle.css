@@ -1,0 +1,65 @@
+/*
+  Excel ile toplu soru yükleme kutusuna (SoruExcelYukleKutusu) ÖZGÜ stil ekleri.
+  Perde, kart ve butonlar onay-kutusu.css'ten; satır hatası tablosu
+  kullanici-listesi.css'ten PAYLAŞILIR (DRY). Burada yalnızca bu kutuya özel
+  parçalar tanımlanır: daha geniş kart, dosya seçme satırı, başarı bilgisi ve
+  hata tablosunun kutu içindeki yükseklik/sarma davranışı. Paylaşılan sınıflar
+  EZİLMEZ; ezme yerine bu kutunun kapsamında (soru-excel-*) daraltılır.
+  Renk değişkenleri (--renk-*) global paletten miras alınır.
+*/
+
+/* Kart: satır hatası tablosu okunabilsin diye onay kutusundan geniştir ve uzun
+   listede kendi içinde kayar (ekran taşmaz). */
+.soru-excel-kutu {
+  max-width: 640px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Dosya seçme satırı: "Dosya Seç" butonu ile seçilen dosya adını yan yana tutar. */
+.soru-excel-dosya-satiri {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* Seçilen dosya adı: soluk, uzun adlarda taşmadan kırpılır. */
+.soru-excel-dosya-adi {
+  font-size: 14px;
+  color: var(--renk-metin-soluk);
+  overflow-wrap: anywhere;
+}
+
+/* Gerçek dosya girdisi gizlenir; seçim, erişilebilir "Dosya Seç" butonuyla
+   tetiklenir (tarayıcının varsayılan görünümü tasarımdan ayrışıyor). */
+.soru-excel-dosya-girdisi {
+  display: none;
+}
+
+/* Başarı bilgisi: sakin yeşil tonda, kısa ve net. */
+.soru-excel-bilgi {
+  margin: 0 0 16px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a7f47;
+}
+
+/* Hata tablosu: kutu içinde nefes payı ve uzun listede kendi kaydırması. */
+.soru-excel-hata-liste {
+  margin: 12px 0 20px 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* Hata mesajı hücreleri uzun olabilir: paylaşılan tablodaki nowrap yalnızca bu
+   kutunun kapsamında normal sarmaya çevrilir. */
+.soru-excel-hata-liste .kullanici-tablo td {
+  white-space: normal;
+  font-size: 15px;
+}
+
+.soru-excel-hata-liste .kullanici-tablo th {
+  font-size: 15px;
+}

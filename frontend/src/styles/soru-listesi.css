@@ -7,6 +7,23 @@
   değişkenleri (--renk-*) anasayfa/login paletinden miras alınır.
 */
 
+/* Başlık satırının sağındaki işlem butonları (Şablon İndir / Excel ile Yükle /
+   Yeni Soru Ekle): birlikte sağa yaslanır, dar ekranda alt satıra sarar.
+   Butonların kendi görünümü kullanici-ekle-buton'dan paylaşılır. */
+.soru-baslik-butonlari {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* İstek sürerken (ör. şablon indirilirken) buton pasif görünür ve tıklanamaz. */
+.soru-baslik-butonlari .kullanici-ekle-buton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* Soru metni HTML içeriği: hücre metni varsayılan olarak nowrap olduğundan burada
    normal sarma açılır ve genişlik sınırlanır; böylece uzun/zengin içerik hücreyi
    taşırmaz, satır satır okunur. İç etiketlerin (p, ul, ol) dış boşlukları sadeleşir. */

@@ -1,4 +1,6 @@
-"""Anket (oluşturma + listeleme + detay + güncelleme, admin) Controller — ince sınır.
+"""Anket (oluşturma + listeleme + detay + güncelleme + durum değiştirme) Controller.
+
+Yönetim uçlarının (admin) ince sınırı.
 
 Neden: Oturum doğrulaması, girdinin tip/biçim doğrulaması, Service çağrısı ve
 response dönüşümü burada orkestre edilir. İŞ KURALI BURADA YOK: geçerli durum/
@@ -259,6 +261,32 @@ def guncelle_anket(
             kullanici_kodlari,
         )
         return {"basari": True}
+    except AppError as hata:
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti(hata.kod, hata.mesaj)
+    except Exception as hata:  # noqa: BLE001 - sınır katmanı: yut değil, logla+güvenli dön
+        logla_sinir_hatasi(hata, baglam=baglam)
+        return _hata_yaniti("UNEXPECTED_ERROR", "Beklenmeyen bir hata oluştu.")
+
+
+def degistir_anket_durumu(ham_jeton: str, anket_id: int) -> dict:
+    """Oturumu doğrulanmış admin için bir anketin yayın durumunu tersine çevirir.
+
+    Cookie'den gelen ham jeton oturum_service ile doğrulanır (geçersiz -> OturumError);
+    sınırda yalnızca ŞEKİL doğrulanır (anket_id pozitif tamsayı). Hedef durum gövdede
+    YOKTUR: "Aktif <-> Pasif" kararı ve yetki/görünürlük ("görebilen güncelleyebilir")
+    anket_service'e aittir (admin değil -> YetkiYokError; görünmüyor/yok ->
+    NotFoundError). Hata BİR KEZ loglanır ve güvenli yanıt döner; teknik detay sızmaz.
+
+    Başarılı: {"basari": True, "durum": <yeni durum>}.
+    Başarısız: {"basari": False, "kod": <hata kodu>, "mesaj": <güvenli mesaj>}.
+    """
+    baglam = {"islem": "anket_durum_degistir", "anket_id": anket_id}
+    try:
+        sahip = oturum_service.oturum_dogrula(ham_jeton)
+        _dogrula_pozitif_kimlik(anket_id, "Geçersiz anket kimliği.")
+        yeni_durum = anket_service.degistir_anket_durumu(sahip, anket_id)
+        return {"basari": True, "durum": yeni_durum}
     except AppError as hata:
         logla_sinir_hatasi(hata, baglam=baglam)
         return _hata_yaniti(hata.kod, hata.mesaj)

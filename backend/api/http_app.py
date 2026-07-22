@@ -736,6 +736,27 @@ def guncelle_anket(
     return yanit
 
 
+@app.post("/api/anketler/{anket_id}/durum")
+def degistir_anket_durumu(
+    anket_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki admin için anketin yayın durumunu değiştirir (yalnızca protokol).
+
+    anket_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
+    GÖVDE YOKTUR: hedef durum client'tan alınmaz, "Aktif <-> Pasif" kararı Service'te
+    verilir. Yetki (yalnızca admin) ve "görebilen güncelleyebilir" görünürlüğü de
+    Controller/Service'te; görünmüyor/yok -> 404. Ek `/durum` segmenti taşıdığından
+    GET/PUT `/api/anketler/{anket_id}` (detay/güncelleme) ile ÇAKIŞMAZ. Başarılı
+    yanıtta kayan pencere için cookie aynı bayraklarla YENİDEN set edilir.
+    """
+    sonuc = anket_controller.degistir_anket_durumu(oturum, anket_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
 @app.get("/api/anketler/{anket_id}/doldur")
 def get_anket_doldur(
     anket_id: int, oturum: str | None = Cookie(default=None)

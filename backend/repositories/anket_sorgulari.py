@@ -261,6 +261,21 @@ ANKET_GUNCELLE_SORGUSU = """
     WHERE anket_id = %s
 """
 
+# Anketin YALNIZCA durum alanını yazar (Aktif <-> Pasif). Neden ayrı sorgu: liste
+# ekranından tek tıkla verilen bir yayın kararıdır; ANKET_GUNCELLE_SORGUSU bunun için
+# fazla geniştir (formun tüm alanlarını yeniden yazar, yani taşınmayan bir alan
+# istemeden ezilebilir). Görünürlük süzgeci (GORUNURLUK_KOSULU) BURADA UYGULANMAZ:
+# ANKET_GUNCELLE_SORGUSU ile aynı kalıp geçerlidir -- varlık + görünürlük ("görebilen
+# güncelleyebilir") doğrulamasını Service ÖNCE anket_detay_getir ile yapar; kayıt yoksa
+# UPDATE etkisizdir (rowcount 0). Durum değerinin geçerliliği bir İŞ KURALIDIR ve
+# Service'e aittir; buraya DOĞRULANMIŞ gelir ve %s ile parametre geçer (metne gömülmez).
+# Parametre sırası: durum, anket_id.
+ANKET_DURUM_GUNCELLE_SORGUSU = """
+    UPDATE Anket
+    SET durum = %s
+    WHERE anket_id = %s
+"""
+
 # Anketin TÜM soru bağlarını siler. Güncellemede bağlar "hepsini sil + yeniden yaz"
 # ile tazelenir: bağ satırında korunacak bir durum bilgisi YOKTUR (yalnızca sira_no
 # vardır, o da gelen sıraya göre yeniden hesaplanır). Sorular havuzda YAŞAR --

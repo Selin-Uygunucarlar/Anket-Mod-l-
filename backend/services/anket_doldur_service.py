@@ -12,8 +12,12 @@ Sorumluluk: (1) anketi cevaplanmaya hazır, metinleri sanitize edilmiş görün�
 döner; (2) gelen cevapları -- otoriteyi DB'den YENİDEN okuyarak, client'a güvenmeden --
 iş kurallarına göre doğrulayıp Cevap satırlarına çevirir ve kaydettirir.
 
-İş kuralları: anket 'Aktif' olmalı, bugün başlangıç-bitiş penceresinde olmalı, atama
-henüz tamamlanmamış olmalı; her cevaplanan soru ankete ait olmalı, her seçilen şık o
+İş kuralları: anket 'Aktif' olmalı ve bugün başlangıç-bitiş penceresinde olmalı --
+bu kural İKİ AKIŞIN ORTAĞIDIR (_bul_cevaplama_engeli): görüntülemede sağlanmıyorsa
+anket "yok" sayılır (NotFoundError; pasif/süresi geçmiş anketin formu doğrudan URL
+ile de açılmaz), gönderimde BusinessRuleError olur. Atamanın tamamlanmamış olması
+YALNIZCA gönderim koşuludur; tamamlanmış anket salt-okunur görüntülenebilir
+(tamamlandi_mi). Ayrıca her cevaplanan soru ankete ait olmalı, her seçilen şık o
 sorunun şık kümesinde olmalı (aidiyet/enjeksiyon koruması), soru tipine göre kardinalite
 tutmalı ve zorunlu sorular cevaplanmış olmalı. Yorum metni okuma değil YAZMA sınırında
 da temizle_html ile sanitize edilir.
@@ -55,8 +59,10 @@ def get_anket_doldur(talep_eden: OturumSahibi, anket_id: int) -> AnketDoldurGoru
     """Anketi cevaplama ekranı için metinleri sanitize edilmiş görünümüyle döner.
 
     Sahiplik kapısı: anket talep edene ATANMIŞ değilse Repository None döner; bu
-    "yok" olarak ele alınır (NotFoundError -> varlık sızmaz). Admin/user ayrımı
-    YOKTUR; sicil oturumdan gelir (IDOR'a kapalı). Soru ve şık metinleri okuma
+    "yok" olarak ele alınır (NotFoundError -> varlık sızmaz). Anket pasifse ya da
+    cevaplama penceresi dışındaysa da AYNI şekilde "yok" sayılır (doldurulamayacak
+    form açılmaz). Admin/user ayrımı YOKTUR; sicil oturumdan gelir (IDOR'a kapalı).
+    Atama tamamlanmış olsa bile görünüm DÖNER (salt okunur). Soru ve şık metinleri okuma
     sınırında temizle_html ile temizlenir (frontend HTML olarak render eder).
     tamamlandi_mi, kişiye özel atamanın tamamlanıp tamamlanmadığıdır. Hata loglanmaz,
     YUKARI FIRLAR.
@@ -65,6 +71,11 @@ def get_anket_doldur(talep_eden: OturumSahibi, anket_id: int) -> AnketDoldurGoru
         anket_id, talep_eden.kullanici_kodu
     )
     if kaynak is None:
+        raise NotFoundError("Anket bulunamadı.")
+    # Pasife alınmış ya da süresi dışındaki anketin FORMU da açılmaz: doğrudan URL
+    # ile gelinse bile "yok" gibi ele alınır (boşuna doldurulacak form açılmaz,
+    # anketin varlığı sızmaz). Kural gonder_anket ile TEK yerden paylaşılır.
+    if _bul_cevaplama_engeli(kaynak) is not None:
         raise NotFoundError("Anket bulunamadı.")
 
     return AnketDoldurGorunumu(
@@ -120,19 +131,37 @@ def _sanitize_soru(soru: DoldurSoru) -> DoldurSoru:
 
 
 def _dogrula_gonderim_kosullari(kaynak: AnketDoldurKaynak) -> None:
-    """Cevap göndermenin ön koşullarını (anket/atama durumu, tarih) doğrular.
+    """Cevap göndermenin ön koşullarını (atama durumu + anketin cevaplanabilirliği)
+    doğrular.
 
-    Bunlar girdi hatası değil DURUM/İŞ KURALI ihlalleridir (BusinessRuleError):
-    atama zaten tamamlanmışsa yeniden gönderilemez; anket 'Aktif' değilse ya da bugün
-    başlangıç-bitiş penceresinde değilse cevaplanamaz. Sınırlardan biri NULL ise o
-    yönde kısıt yoktur (NULL başlangıç = alt sınır yok; NULL bitiş = üst sınır yok).
+    Bunlar girdi hatası değil DURUM/İŞ KURALI ihlalleridir (BusinessRuleError): atama
+    zaten tamamlanmışsa yeniden gönderilemez. "Tamamlanmışlık" YALNIZCA gönderime
+    özgüdür; tamamlanmış anket salt-okunur GÖRÜNTÜLENEBİLİR olduğundan ortak kurala
+    KONMAZ. Anketin aktifliği/tarih penceresi ise görüntüleme ile paylaşılan kuraldır
+    (_bul_cevaplama_engeli); engel metni burada BusinessRuleError'a çevrilir.
     """
     if kaynak.atama_durum == ATAMA_TAMAMLANDI_DURUMU:
         raise BusinessRuleError("Bu anketi zaten tamamladınız.")
+
+    engel = _bul_cevaplama_engeli(kaynak)
+    if engel is not None:
+        raise BusinessRuleError(engel)
+
+
+def _bul_cevaplama_engeli(kaynak: AnketDoldurKaynak) -> str | None:
+    """Anketin cevaplanmasını engelleyen durumu bulur; engel yoksa None döner.
+
+    Neden ortak: aynı kural hem doldurma EKRANINI açarken hem cevap GÖNDERİRKEN
+    geçerlidir; iki yere kopyalanmaması için tek yerde toplanır. Kural: anket 'Aktif'
+    olmalı ve şu an başlangıç-bitiş penceresinde olmalı. Hata TİPİ burada seçilmez
+    (çağıran görüntülemede NotFoundError, gönderimde BusinessRuleError fırlatır);
+    dönen metin kullanıcıya gösterilebilir güvenli bir mesajdır.
+    """
     if kaynak.durum != _AKTIF_DURUM:
-        raise BusinessRuleError("Bu anket şu anda cevaplanamaz.")
+        return "Bu anket şu anda cevaplanamaz."
     if not _bugun_pencerede_mi(kaynak.baslangic_tarihi, kaynak.bitis_tarihi):
-        raise BusinessRuleError("Bu anketin cevaplama süresi dışındasınız.")
+        return "Bu anketin cevaplama süresi dışındasınız."
+    return None
 
 
 def _bugun_pencerede_mi(

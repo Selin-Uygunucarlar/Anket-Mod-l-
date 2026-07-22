@@ -459,3 +459,29 @@ def anket_guncelle(
     except pymysql.MySQLError as hata:
         # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
         raise DataAccessError("Anket güncellenemedi.") from hata
+
+
+def anket_durumu_guncelle(anket_id: int, durum: str) -> None:
+    """Anketin YALNIZCA durum alanını (Aktif <-> Pasif) yazar.
+
+    Neden ayrı uç: bu, liste ekranından tek tıkla verilen bir yayın kararıdır ve
+    anketin diğer alanlarına (metinler, tarihler, soru bağları, atamalar) hiç
+    dokunmamalıdır; anket_guncelle bunun için fazla geniştir.
+
+    Repository iş kuralı BİLMEZ: `durum` değerinin geçerliliği (yalnız 'Aktif' /
+    'Pasif') bir iş kararıdır ve Service'e aittir -- buraya DOĞRULANMIŞ gelir ve
+    parametre (%s) olarak geçer. Kayıt yoksa/görünmüyorsa UPDATE etkisizdir
+    (rowcount 0) ve SESSİZCE geçilir: varlık + görünürlük ("görebilen
+    güncelleyebilir") doğrulamasını Service ÖNCE anket_detay_getir ile yapar
+    (anket_guncelle ile aynı kalıp); burada NotFound FIRLATILMAZ.
+    """
+    try:
+        with veritabani_baglantisi() as baglanti:
+            with baglanti.cursor() as imlec:
+                # Parametre sırası sorgudaki %s sırasıyla eşleşir: durum, anket_id.
+                imlec.execute(
+                    sorgular.ANKET_DURUM_GUNCELLE_SORGUSU, (durum, anket_id)
+                )
+    except pymysql.MySQLError as hata:
+        # Ham DB mesajı/tablo adı sızdırılmaz; orijinali `from` ile zincirlenir.
+        raise DataAccessError("Anket durumu güncellenemedi.") from hata

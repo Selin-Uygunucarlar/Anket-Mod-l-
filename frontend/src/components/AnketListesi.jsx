@@ -19,7 +19,10 @@
 // DIŞINDADIR: tasarım paritesi için durur, gerçek arama YAPMAZ. "İşlem" sütunundaki "Güncelle"
 // butonu, üst bileşene (onAnketDuzenle) haber vererek içerik alanında anket
 // güncelleme görünümünü açar (satır özetini taşır; form detayı backend'den kendisi
-// çeker). Buton stili SoruListesi'nin İşlem butonlarıyla paylaşılır (soru-listesi.css,
+// çeker). Yanındaki "Pasife Al" / "Aktife Al" butonu ise önce onay kutusu açar,
+// onaylanınca anketin durumunu sunucuya tersine çevirtir ve listeyi tazeler; buton
+// etiketi satırdaki duruma bakan SALT GÖSTERİMDİR, hedef durumu ve yetkiyi SUNUCU
+// belirler. Buton stili SoruListesi'nin İşlem butonlarıyla paylaşılır (soru-listesi.css,
 // DRY); yeni CSS yazılmaz.
 // "Atanan Kullanıcı Sayısı" ve "Yanıtlayan Kullanıcı Sayısı" hücreleri sayı 0'dan
 // büyükken tıklanabilir birer butondur: ilki ankete atanmış herkesi, ikincisi
@@ -29,8 +32,13 @@
 // veri çekme ve gösterim ilgili kutu bileşenlerine aittir (SRP).
 
 import { useState } from 'react'
-import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { anketleriGetir } from '../api/anketApi.js'
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from '@tanstack/react-query'
+import { anketleriGetir, anketDurumuDegistir } from '../api/anketApi.js'
 import { adSoyadBirlestir, tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
 import {
   BOS_ANKET_FILTRESI,
@@ -39,6 +47,7 @@ import {
 import AnketFiltre from './AnketFiltre'
 import AnketAtamaKutusu from './AnketAtamaKutusu'
 import AnketKullaniciCevaplariKutusu from './AnketKullaniciCevaplariKutusu'
+import OnayKutusu from './OnayKutusu.jsx'
 import '../styles/kullanici-listesi.css'
 import '../styles/soru-listesi.css'
 
@@ -101,6 +110,24 @@ function olusturanAdiBicimlendir(anket) {
   return adSoyadBirlestir(anket.olusturan_ad, anket.olusturan_soyad)
 }
 
+// Sunucunun "yayında" anlamına gelen durum metni. Yalnızca buton/onay metnini
+// seçmek için karşılaştırılır; hangi durumun yazılacağına SUNUCU karar verir.
+const AKTIF_DURUM = 'Aktif'
+
+// durumButonEtiketi: satırın mevcut durumuna göre işlem butonunun etiketini döner
+// ("Aktif" ise "Pasife Al", değilse "Aktife Al"). Salt gösterim eşlemesidir.
+function durumButonEtiketi(anket) {
+  return anket.durum === AKTIF_DURUM ? 'Pasife Al' : 'Aktife Al'
+}
+
+// durumOnayMesaji: onay kutusunda gösterilecek, anket adını içeren net soruyu
+// kurar. Yalnızca metin üretir; işlemin sonucunu sunucu belirler.
+function durumOnayMesaji(anket) {
+  return anket.durum === AKTIF_DURUM
+    ? `"${anket.ad}" anketini pasife almak istediğinize emin misiniz?`
+    : `"${anket.ad}" anketini aktife almak istediğinize emin misiniz?`
+}
+
 // SayiHucresi: atanan/yanıtlayan sayısını gösterir. Sayı 0'dan büyükken ilgili
 // kişi listesini açan gerçek bir <button> (klavyeyle erişilebilir), 0 iken düz
 // metindir (açılacak liste yoktur). Gösterme/gizleme salt UX'tir; yetki sunucuda.
@@ -137,6 +164,12 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
   // Açık cevap kutusu: null = kapalı; { anket, kullanici } = o kişinin cevapları.
   // Kişi listesi kutusu açık kalır; cevap kutusu kapanınca listeye geri dönülür.
   const [cevapKutusu, setCevapKutusu] = useState(null)
+  // Durum değiştirme onayının hedefi olan anket (null iken onay kutusu kapalı).
+  const [durumHedefi, setDurumHedefi] = useState(null)
+  // Durum değiştirme başarısız olursa gösterilecek güvenli, kısa mesaj.
+  const [islemHatasi, setIslemHatasi] = useState('')
+
+  const queryClient = useQueryClient()
 
   // onFiltreDegis: filtre kartındaki tek bir alanın değerini günceller (kontrollü).
   // Değişiklik queryKey'i değiştireceğinden liste anında yeniden çekilir.
@@ -160,6 +193,38 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
     // unmount olması engellenir (arka planda sessizce yeniden çekilir).
     placeholderData: keepPreviousData,
   })
+
+  // Durum değiştirme isteği: gövdesizdir, yeni durumu SUNUCU belirler. Başarıda
+  // liste (filtreli tüm varyantlarıyla) tazelenir ve onay kutusu kapanır; hatada
+  // onay kutusu kapanır ve backend'in güvenli mesajı ekrana yansıtılır (hata
+  // sessizce yutulmaz, teknik detay sızmaz). Yetki sunucuda uygulanır.
+  // Ana ekranın atanmış anket paneli (AtanmisAnketPaneli) React Query CACHE'i
+  // KULLANMAZ; her mount olduğunda kendisi yeniden çeker. Bu yüzden burada onun
+  // için geçersiz kılınacak bir anahtar yoktur (ana ekrana dönünce zaten güncel).
+  const durumMutation = useMutation({
+    mutationFn: anketDurumuDegistir,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['anketler'] })
+      setDurumHedefi(null)
+    },
+    onError: (hata) => {
+      setDurumHedefi(null)
+      setIslemHatasi(hata.message)
+    },
+  })
+
+  // durumDegistirmeyeBasla: satırın durum butonu tıklanınca varsa önceki hatayı
+  // temizler ve seçilen anket için onay kutusunu açar (istek henüz ATILMAZ).
+  function durumDegistirmeyeBasla(anket) {
+    setIslemHatasi('')
+    setDurumHedefi(anket)
+  }
+
+  // durumDegistirmeyiOnayla: onay kutusundaki onay butonuna basılınca hedef
+  // anketin durum değiştirme isteğini tetikler.
+  function durumDegistirmeyiOnayla() {
+    durumMutation.mutate(durumHedefi.anket_id)
+  }
 
   if (isPending) {
     return <p className="kullanici-liste-durum">Yükleniyor...</p>
@@ -207,6 +272,13 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
           <span>Anket Ekle</span>
         </button>
       </div>
+      {/* Durum değiştirme başarısız olursa tek hata alanı: backend'in güvenli
+          mesajı gösterilir (SoruListesi ile aynı kalıp); teknik detay sızmaz. */}
+      {islemHatasi && (
+        <p className="kullanici-liste-durum kullanici-liste-hata" role="alert">
+          {islemHatasi}
+        </p>
+      )}
       {/* Başlıksız filtre kartı: arama satırının hemen altında, tablonun üstünde.
           Kontrollü bileşen: seçimi filtre propundan okur, değişikliği onFiltreDegis
           ile bildirir; süzme sunucuda yapılır (queryKey değişince yeniden çekilir). */}
@@ -266,6 +338,16 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
                       >
                         Güncelle
                       </button>
+                      {/* Durum değiştirme: doğrudan istek atmaz, önce onay kutusu
+                          açar. Etiket satırın durumuna bakan salt gösterimdir;
+                          hedef durumu ve yetkiyi sunucu belirler. */}
+                      <button
+                        type="button"
+                        className="soru-islem-buton soru-guncelle-buton"
+                        onClick={() => durumDegistirmeyeBasla(anket)}
+                      >
+                        {durumButonEtiketi(anket)}
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -286,6 +368,18 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
           onCevaplariGor={(kullanici) =>
             setCevapKutusu({ anket: atamaKutusu.anket, kullanici })
           }
+        />
+      )}
+      {/* Durum değiştirme onayı: hedef anket seçiliyken açılır. Onaylanmadan
+          hiçbir istek atılmaz; istek sürerken butonlar kilitlenir (islemAktif). */}
+      {durumHedefi && (
+        <OnayKutusu
+          baslik="Anket durumunu değiştir"
+          mesaj={durumOnayMesaji(durumHedefi)}
+          onaylaMetni={durumButonEtiketi(durumHedefi)}
+          onOnayla={durumDegistirmeyiOnayla}
+          onVazgec={() => setDurumHedefi(null)}
+          islemAktif={durumMutation.isPending}
         />
       )}
       {/* Cevap kutusu listenin ÜSTÜNDE açılır; kapanınca kişi listesine dönülür. */}

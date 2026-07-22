@@ -1,8 +1,9 @@
 // Anket API erişim noktası — sunum katmanının backend'e bakan TEK yeri. UI
 // bileşenleri doğrudan istek atmaz; buradaki fonksiyonları çağırır. Backend
 // endpoint'leri (GET /api/anketler, POST /api/anketler, GET /api/anketler/{id},
-// PUT /api/anketler/{id}, GET /api/anketlerim, GET /api/anketler/{id}/doldur,
-// POST /api/anketler/{id}/cevaplar, GET /api/anketler/{id}/atamalar,
+// PUT /api/anketler/{id}, POST /api/anketler/{id}/durum, GET /api/anketlerim,
+// GET /api/anketler/{id}/doldur, POST /api/anketler/{id}/cevaplar,
+// GET /api/anketler/{id}/atamalar,
 // GET /api/anketler/{id}/cevaplar/{kullanici_kodu}) burada bağlıdır; istek/yanıt
 // şekli ~/Desktop/kontratlar.txt "ANKET OLUŞTURMA + LİSTELEME (Faz 1)", "ANKET
 // DETAY + GÜNCELLEME", "Ana ekran bekleyen anketler", "ANKET DOLDURMA (cevaplama)"
@@ -24,6 +25,7 @@ const ATANMIS_LISTE_HATA_MESAJI = 'Anketleriniz yüklenemedi. Lütfen tekrar den
 const EKLE_HATA_MESAJI = 'Anket kaydedilemedi. Lütfen tekrar deneyin.'
 const DETAY_HATA_MESAJI = 'Anket bilgileri yüklenemedi. Lütfen tekrar deneyin.'
 const GUNCELLE_HATA_MESAJI = 'Anket güncellenemedi. Lütfen tekrar deneyin.'
+const DURUM_HATA_MESAJI = 'Anket durumu değiştirilemedi. Lütfen tekrar deneyin.'
 const DOLDUR_HATA_MESAJI = 'Anket yüklenemedi. Lütfen tekrar deneyin.'
 const CEVAP_HATA_MESAJI = 'Cevaplarınız gönderilemedi. Lütfen tekrar deneyin.'
 const ATAMA_LISTE_HATA_MESAJI =
@@ -222,6 +224,43 @@ export async function guncelleAnket(anketId, govde) {
   // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
   if (oturumGecersizMi(yanitGovdesi)) oturumGecersizYayinla()
   throw new Error(yanitGovdesi?.mesaj || GUNCELLE_HATA_MESAJI)
+}
+
+// anketDurumuDegistir: verilen anketin yayın durumunu (Aktif <-> Pasif) tersine
+// çevirir (yalnızca admin; yetki ve toggle kararı sunucuda). GÖVDE GÖNDERMEZ:
+// hedef durumu client BELİRLEMEZ, sunucu mevcut durumun tersini yazar. Anketin
+// diğer alanlarına dokunulmaz. Başarılıysa YENİ durumu ('Aktif' | 'Pasif') string
+// olarak döndürür. Başarısızsa backend'in güvenli mesajını (ör. 403 YETKI_YOK,
+// 404 NOT_FOUND, 401 oturum) taşıyan Error fırlatır; ağ/parse hatasında da teknik
+// detay sızdırmadan güvenli Error yükselir.
+export async function anketDurumuDegistir(anketId) {
+  let yanit
+  try {
+    yanit = await fetch(
+      `${API_BASE}/api/anketler/${encodeURIComponent(anketId)}/durum`,
+      {
+        method: 'POST',
+        credentials: 'include',
+      },
+    )
+  } catch {
+    throw new Error(AG_HATA_MESAJI)
+  }
+
+  let govde
+  try {
+    govde = await yanit.json()
+  } catch {
+    throw new Error(DURUM_HATA_MESAJI)
+  }
+
+  if (govde?.basari === true) {
+    return govde.durum
+  }
+
+  // basari:false — oturum sona erdiyse sinyal yay; her durumda güvenli mesajı taşı.
+  if (oturumGecersizMi(govde)) oturumGecersizYayinla()
+  throw new Error(govde?.mesaj || DURUM_HATA_MESAJI)
 }
 
 // anketDoldurGetir: ankete ATANMIŞ kullanıcının anketi cevaplaması için sorularını

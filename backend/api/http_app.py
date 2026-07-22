@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from common.constants import OTURUM_SURESI_DAKIKA
 from controllers import (
     anket_controller,
+    anket_doldur_controller,
     auth_controller,
     grup_controller,
     kullanici_controller,
@@ -161,6 +162,30 @@ class AnketEkleIstegi(BaseModel):
     soru_idler: list[int]
     grup_idler: list[int] = []
     kullanici_kodlari: list[str] = []
+
+
+class CevapKalemi(BaseModel):
+    """Tek bir soruya verilen ham cevap (anket cevaplama istek gövdesi öğesi).
+
+    Seçim tiplerinde secenek_idler dolu / cevap_metni boş; yorum tipinde tersi. Tip/
+    şekil doğrulaması Controller'da, aidiyet/kardinalite/zorunluluk iş kuralı Service'te.
+    Varsayılanlar boş liste / None; böylece cevapsız (zorunsuz) soru da temsil edilebilir.
+    """
+
+    soru_id: int
+    secenek_idler: list[int] = []
+    cevap_metni: str | None = None
+
+
+class AnketCevapIstegi(BaseModel):
+    """Anket cevaplama istek gövdesi: tüm soruların cevapları tek seferde gönderilir.
+
+    Cevaplar kaydedilir ve atama 'tamamlandı' işaretlenir (taslak yok). anket_id
+    gövdede DEĞİL, path'ten gelir; kullanıcı sicili sunucu oturumundan çözülür
+    (client'a güvenilmez). İş kuralları Service'te uygulanır.
+    """
+
+    cevaplar: list[CevapKalemi] = []
 
 
 class GrupEkleIstegi(BaseModel):
@@ -647,6 +672,49 @@ def guncelle_anket(
         istek.grup_idler,
         istek.kullanici_kodlari,
     )
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.get("/api/anketler/{anket_id}/doldur")
+def get_anket_doldur(
+    anket_id: int, oturum: str | None = Cookie(default=None)
+) -> JSONResponse:
+    """Oturumdaki kullanıcı için anketi cevaplama görünümüyle döndürür (yalnızca protokol).
+
+    anket_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
+    Admin-only DEĞİL: sahiplik/yetki ("bu anket bana atanmış mı") ve metin sanitizasyonu
+    Controller/Service'te; atanmamış/yok -> 404 (varlık sızmaz). `/doldur` alt segmenti
+    admin detay `GET /api/anketler/{anket_id}` ile ÇAKIŞMAZ. Başarılı yanıtta kayan
+    pencere için cookie aynı bayraklarla yenilenir.
+    """
+    sonuc = anket_doldur_controller.get_anket_doldur(oturum, anket_id)
+    durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
+    yanit = JSONResponse(status_code=durum, content=sonuc)
+    if sonuc.get("basari") and oturum:
+        _oturum_cookiesini_yaz(yanit, oturum)
+    return yanit
+
+
+@app.post("/api/anketler/{anket_id}/cevaplar")
+def gonder_anket_cevaplari(
+    anket_id: int,
+    istek: AnketCevapIstegi,
+    oturum: str | None = Cookie(default=None),
+) -> JSONResponse:
+    """Oturumdaki kullanıcının anket cevaplarını gönderir/tamamlar (yalnızca protokol).
+
+    anket_id path segment'inden alınır (int); gövde AnketCevapIstegi. Cevap kalemleri
+    dict listesine çevrilip Controller'a iletilir; sahiplik/aidiyet/kardinalite/zorunluluk
+    ve aktiflik/tarih iş kuralları Controller/Service'te. Atanmamış/yok -> 404, geçersiz
+    girdi -> 400, iş kuralı (zaten tamamlandı / pencere dışı / pasif) -> 409. Başarılı
+    yanıtta kayan pencere için cookie yenilenir.
+    """
+    cevaplar = [kalem.model_dump() for kalem in istek.cevaplar]
+    sonuc = anket_doldur_controller.gonder_anket(oturum, anket_id, cevaplar)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
     yanit = JSONResponse(status_code=durum, content=sonuc)
     if sonuc.get("basari") and oturum:

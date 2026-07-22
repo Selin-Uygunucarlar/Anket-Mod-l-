@@ -1,0 +1,220 @@
+/*
+  Anket doldurma (cevaplama) ekranının stilleri: AnketDoldurPage,
+  AnketDoldurForm ve AnketDoldurSoruKarti bileşenleri paylaşır. Bu sayfa anasayfa
+  kabuğunun içinde değil, /anket/:anketId altında TEK BAŞINA açıldığından burada bir
+  dış sayfa çerçevesi + okunur bir soru/kart düzeni tanımlanır. Renk değişkenleri
+  global paletten (login.css :root) gelir; buton için paylaşılan .birincil-buton
+  kullanılır. Yalnızca sunum sorumluluğundadır.
+*/
+
+/* Sayfa çerçevesi: açık zemin üzerinde ortalanmış, okunur genişlikte bir sütun. */
+.anket-doldur-sayfa {
+  min-height: 100vh;
+  background: var(--renk-zemin-acik);
+  padding: 32px 16px;
+  display: flex;
+  justify-content: center;
+}
+
+/* İçerik kartı: beyaz zemin, yumuşak kenarlık; anket başlığı ve sorular burada. */
+.anket-doldur-kart {
+  width: 100%;
+  max-width: 760px;
+  background: var(--renk-beyaz);
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 12px;
+  padding: 28px 32px;
+  box-shadow: 0 4px 16px rgba(31, 37, 48, 0.06);
+}
+
+/* Üst satır: "Ana ekrana dön" bağlantısını sola yaslar. */
+.anket-doldur-ust {
+  margin-bottom: 12px;
+}
+
+.anket-doldur-geri {
+  display: inline-block;
+  color: var(--renk-mavi);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.anket-doldur-geri:hover {
+  text-decoration: underline;
+}
+
+.anket-doldur-baslik {
+  margin: 0 0 16px;
+  font-size: 24px;
+  color: var(--renk-lacivert);
+}
+
+/* Açılış/kapanış serbest metinleri (sunucuda sanitize HTML). */
+.anket-doldur-on-yazi,
+.anket-doldur-son-yazi {
+  color: var(--renk-metin-soluk);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.anket-doldur-son-yazi {
+  margin: 24px 0 0;
+}
+
+/* Tamamlanmış / durum bilgi bandı. */
+.anket-doldur-bilgi {
+  background: var(--renk-zemin-acik);
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--renk-lacivert);
+  margin-bottom: 20px;
+}
+
+/* Yükleniyor / hata durum metinleri. */
+.anket-doldur-durum {
+  text-align: center;
+  color: var(--renk-metin-soluk);
+  padding: 24px 0;
+}
+
+.anket-doldur-hata {
+  color: var(--renk-hata);
+}
+
+/* Soru listesi: numaralı, dikey akış. */
+.anket-doldur-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.anket-doldur-soru-listesi {
+  list-style: none;
+  counter-reset: soru;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Tek soru kutusu: hafif kenarlıklı, numaralandırılmış kart. */
+.anket-doldur-soru {
+  counter-increment: soru;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+
+/* Zorunlu boş bırakılan sorunun vurgusu (istemci tarafı erken uyarı). */
+.anket-doldur-soru-hatali {
+  border-color: var(--renk-hata);
+  background: rgba(192, 57, 43, 0.04);
+}
+
+.anket-doldur-soru-metin {
+  font-weight: 600;
+  color: var(--renk-lacivert);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+/* Soru numarasını metnin önüne koyar (1., 2., ...). */
+.anket-doldur-soru-metin::before {
+  content: counter(soru) '. ';
+  color: var(--renk-metin-soluk);
+}
+
+.zorunlu-yildiz {
+  color: var(--renk-hata);
+}
+
+/* Şık listesi (radyo / checkbox). */
+.anket-doldur-secenekler {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.anket-doldur-secenek {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  color: var(--renk-lacivert);
+}
+
+.anket-doldur-radyo,
+.anket-doldur-kutu {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--renk-mavi);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.anket-doldur-secenek-metin {
+  line-height: 1.4;
+}
+
+/* Dropdown (listeden_secmeli) ve metin kutusu (yorum). */
+.anket-doldur-select,
+.anket-doldur-textarea {
+  width: 100%;
+  border: 1px solid var(--renk-kenarlik);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: var(--renk-lacivert);
+  background: var(--renk-beyaz);
+}
+
+.anket-doldur-textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.anket-doldur-select:focus,
+.anket-doldur-textarea:focus {
+  outline: none;
+  border-color: var(--renk-mavi);
+}
+
+.anket-doldur-select:disabled,
+.anket-doldur-textarea:disabled {
+  background: var(--renk-zemin-acik);
+  cursor: not-allowed;
+}
+
+/* Soru başına zorunluluk uyarısı. */
+.anket-doldur-soru-uyari {
+  color: var(--renk-hata);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+/* Form geneli uyarı ve sunucu hata mesajı. */
+.anket-doldur-uyari,
+.anket-doldur-hata {
+  color: var(--renk-hata);
+  margin: 0;
+}
+
+.anket-doldur-bos {
+  color: var(--renk-metin-soluk);
+  text-align: center;
+  padding: 16px 0;
+}
+
+/* Gönder butonu satırı: sağa yaslı. */
+.anket-doldur-gonder-satiri {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.anket-doldur-gonder {
+  padding: 10px 24px;
+  font-size: 16px;
+}

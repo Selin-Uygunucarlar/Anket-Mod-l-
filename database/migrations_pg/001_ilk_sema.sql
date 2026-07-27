@@ -205,17 +205,19 @@ ALTER TABLE ONLY public.rolepermissions
 -- REPLİKADA KURULMAYAN FK'ler (ÜRETİMDE EKSİK DEĞİLDİR)
 -- Aşağıdaki kolonlar host sisteminde FK'dir ve ÜRETİMDE ZATEN KURULUDUR. Burada
 -- referanssız kalmalarının tek nedeni, hedef tablolarının (company, department,
--- "group", unit, team, kadro, webpage, ability, location, "user",
--- act_ge_bytearray vb.) bu geliştirme replikasına ALINMAMIŞ olmasıdır.
+-- "group", unit, team, kadro, webpage, ability, location, act_ge_bytearray vb.)
+-- bu geliştirme replikasına ALINMAMIŞ olmasıdır.
 -- Yani bu bir üretim açığı değil, replikanın bilinçli olarak dar tutulmasıdır.
 -- SONUÇ: Lokal replikada bu kolonların bütünlüğü DB tarafından zorlanmaz; lokalde
 -- tutarsız bir değer yazılabilmesi ÜRETİMDE de yazılabileceği anlamına GELMEZ.
 -- Replikaya ileride bu tablolar eklenirse FK'ler de birlikte kurulmalıdır:
 --   staff:       company_id, department_id, group_id, team_id, unit_id, kadro,
---                location_id, location2, cadre_title_id, duty_title_id,
---                education_id, profession_id, workplace, manager_id
+--                location_id, location2, duty_title_id, education_id,
+--                profession_id, workplace, manager_id
 --   roleright:   webpage_id, ability_id
 --   act_id_user: picture_id_
+-- SONRADAN KAPATILDI: staff.cadre_title_id FK'si 004_host_cadre_title.sql ile
+-- kurulmuştur (hedef tablo cadre_title replikaya orada eklendi).
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------

@@ -1,0 +1,273 @@
+// ===========================================================================
+// Savronik Akademi — PostgreSQL şeması (DBML)
+// AMAÇ: İlişkileri görsel olarak incelemek için üretilmiş GEÇİCİ dokümandır;
+// çalıştırılabilir DDL değildir. Tek kaynak database/migrations_pg/*.sql'dir.
+// Kaynak: database/migrations_pg/001_ilk_sema.sql  (HOST replikası, bizim değil)
+//         database/migrations_pg/002_anket_modulu.sql (BİZİM modülümüz)
+//         database/migrations_pg/003_host_user.sql (HOST replikası — "user" tablosu)
+// Tüm tablolar public şemasında.
+//
+// GELİŞTİRME REPLİKASINDA UYGULANMA DURUMU (lokal savronik_akademi veritabanı):
+//   001_ilk_sema.sql    — UYGULANDI
+//   003_host_user.sql   — UYGULANDI (2026-07-27)
+//   002_anket_modulu.sql— UYGULANMIŞ DURUMDA (2026-07-27 tarihinde canlı replikada
+//                         tespit edildi: 8 tablo + CHECK + FK'ler + ix_* indeksleri
+//                         ve savronik_app GRANT'leri mevcut, tablolar BOŞ). Ne zaman
+//                         uygulandığı kayıtlı değildir; migration'ın kendisi
+//                         DEĞİŞTİRİLMEMİŞTİR.
+// UYARI: Bu durum yalnızca GELİŞTİRME replikasına aittir; üretim host'unu TARİF ETMEZ.
+//
+// TEST VERİSİ (yalnız geliştirme replikasında, 2026-07-27): "role" 10 satırla ve
+// "rolepermissions" rol 3/5/10 için anket modülü uçlarıyla doldurulmuştur. Bu VERİ
+// REPODA TUTULMAZ (DB içeriği git'e girmez) ve üretimi TARİF ETMEZ. Uç adları
+// İngilizcedir; host'un GERÇEK endpoint konvansiyonu HENÜZ DOĞRULANMAMIŞTIR.
+// ===========================================================================
+
+
+// ---------------------------------------------------------------------------
+// HOST TABLOLARI (001) — Savronik'in çalışan sistemi. Biz KULLANIRIZ, kurmayız.
+// ---------------------------------------------------------------------------
+
+Table act_id_user {
+  id_            varchar(64)  [pk, note: 'İş akışı motorunun kendi kimlik kaydı — UYGULAMANIN KULLANICI TABLOSU DEĞİLDİR (ÇIKARIM: "act_" öneki motora işaret eder). Uygulamanın kullanıcı tablosu public."user" dır.']
+  rev_           integer
+  first_         varchar(255)
+  last_          varchar(255)
+  display_name_  varchar(255)
+  email_         varchar(255)
+  pwd_           varchar(255)
+  picture_id_    varchar(64)  [note: 'Host ta act_ge_bytearray FK; replikada tablo yok -> FK YOK']
+  tenant_id_     varchar(255) [default: '']
+}
+
+Table staff {
+  staff_id         bigint    [pk, note: 'Personel numarası — DIŞ sistemden (SAP/İK) gelir, DB üretmez']
+  name             varchar
+  company_id       bigint    [note: 'Host FK (company) — replikada tablo yok']
+  location_id      bigint    [note: 'Host FK (location) — replikada tablo yok']
+  group_id         bigint    [note: 'Host FK ("group") — replikada tablo yok']
+  department_id    bigint    [note: 'Host FK (department) — replikada tablo yok']
+  unit_id          bigint    [note: 'Host FK (unit) — replikada tablo yok']
+  team_id          bigint    [note: 'Host FK (team) — replikada tablo yok']
+  cadre_title_id   bigint
+  duty_title_id    bigint
+  collar           varchar
+  hire_date        date
+  education_id     bigint
+  kadro            bigint
+  workplace        bigint
+  location2        bigint
+  email            varchar
+  internal_phone   varchar
+  is_active        boolean   [default: true]
+  is_checked       boolean   [not null, default: false]
+  deleted_at       timestamp
+  manager_id       bigint    [note: 'ÖZ-İLİŞKİ: yönetici de personeldir (replikada FK kurulmadı)']
+  birth_date       date
+  profession_id    bigint
+  is_rnd_personnel boolean   [not null, default: false]
+  mobile_phone     varchar
+  acting_roles     varchar
+  created_at       timestamp [not null]
+  updated_at       timestamp
+  termination_date date
+}
+
+// Oturum açan kişinin HESABI (003). id hem PK hem staff a FK: hesap <-> personel 1:1.
+Table "user" {
+  id             bigint  [pk, note: 'Hem PK hem staff a FK — hesap ile personel 1:1, AYNI DEĞER (user.id = staff.staff_id). DB üretmez, personel numarasıdır.']
+  password       varchar [note: 'Şifre alanı — içeriği ASLA log/hata/yanıta yazılmaz']
+  temp_password  varchar [note: 'Geçici şifre alanı — içeriği ASLA log/hata/yanıta yazılmaz']
+  role_id        bigint  [not null]
+  editor_role_id bigint  [note: 'Host ta muhtemelen role a FK (ÇIKARIM) — elimizdeki dump ta yok, replikada KURULMADI']
+  theme          varchar
+  is_active      boolean [default: true]
+
+  Note: '"user" PostgreSQL de ayrılmış sözcüktür, her yerde tırnaklanır.'
+}
+
+Table role {
+  id   bigint [pk, increment, note: 'seq: role_id_seq']
+  name varchar
+}
+
+Table roleright {
+  id         bigint [pk, increment, note: 'seq: role_rigth_id_seq (yazım host taki gibi korundu)']
+  webpage_id bigint [note: 'Host FK (webpage) — replikada tablo yok']
+  ability_id bigint [note: 'Host FK (ability) — replikada tablo yok']
+}
+
+Table rolerightmapping {
+  id       bigint [pk, increment, note: 'seq: role_right_mapping_id_seq']
+  role_id  bigint
+  right_id bigint
+}
+
+Table rolepermissions {
+  id       bigint  [pk, increment]
+  role_id  bigint
+  endpoint varchar [note: 'Rolün erişebildiği API ucu']
+}
+
+// Host içi ilişkiler (replikada GERÇEKTEN kurulu olan FK'ler)
+Ref: rolerightmapping.right_id > roleright.id
+Ref: rolerightmapping.role_id  > role.id
+Ref: rolepermissions.role_id   > role.id
+Ref: "user".id                 > staff.staff_id
+Ref: "user".role_id            > role.id
+
+// Öz-ilişki (üretimde var, replikada FK yok — görünsün diye yorumda)
+// Ref: staff.manager_id > staff.staff_id
+
+
+// ---------------------------------------------------------------------------
+// ANKET MODÜLÜ (002) — BİZİM tablolarımız. PK'ler bigint identity.
+// Saklanan kod DEĞERLERİ Türkçe kalır (Service sabitleri onlara dayanır).
+//
+// KARAR: Anket modülü "user"a FK VERMEZ. Aktörler KİŞİdir, hesap değil; bu yüzden
+// survey.created_by, question.prepared_by ve survey_assignment.staff_id staff'a
+// bağlıdır. Oturumdaki kişi uygulama katmanında "user.id = staff.staff_id"
+// eşitliğiyle personele çözülür ve anketler staff üzerinden aranır.
+// ---------------------------------------------------------------------------
+
+Table survey {
+  id                    bigint       [pk, increment]
+  name                  varchar(255) [not null]
+  intro_text            text
+  closing_text          text
+  description           text
+  status                varchar(50)  [not null, note: '"Aktif" / "Pasif" — anketin YAYIN durumu']
+  survey_type           varchar(50)  [note: '"Kullanıcı Bilgi Anketi", "Eğitim Davranış Anketi" ...']
+  access_level          varchar(50)  [note: '"grup" / "ben" / "herkes"']
+  access_group_id       bigint       [note: 'BLOKE: FK YOK. Host ta grubun hedefi ("group"/department/unit/team) BELİRLENMEDİ']
+  start_at              timestamp    [note: 'tarih+saat']
+  end_at                timestamp    [note: 'tarih+saat']
+  is_mandatory          boolean      [not null, default: false]
+  show_on_home_page     boolean      [not null, default: false]
+  show_question_numbers boolean      [not null, default: true]
+  question_display_type varchar(50)
+  created_by            bigint       [note: 'FK staff — ON DELETE SET NULL']
+  created_at            timestamp    [not null, default: `LOCALTIMESTAMP`]
+
+  indexes {
+    access_group_id [name: 'ix_survey_access_group_id']
+    created_by      [name: 'ix_survey_created_by']
+  }
+}
+
+Table question {
+  id            bigint       [pk, increment]
+  question_text text         [not null, note: 'HAM HTML — sunucuda sanitizasyon ZORUNLU (XSS)']
+  question_type varchar(50)  [not null, note: '"coktan_secmeli_tek", "evet_hayir", "skala_5", "yorum" ...']
+  subject       varchar(255)
+  purpose       varchar(255)
+  sort_order    integer
+  is_required   boolean      [not null, default: false]
+  prepared_by   bigint       [note: 'FK staff — ON DELETE SET NULL']
+
+  Note: 'Soru HAVUZU: ankete işaret eden kolon YOK. Bir soru hiçbir ankete bağlı olmadan var olabilir, N ankete bağlanabilir; bağ YALNIZCA survey_question üzerinden kurulur. MariaDB deki Soru.anket_id TAŞINMADI (ölü kolon + CASCADE riski).'
+
+  indexes {
+    prepared_by [name: 'ix_question_prepared_by']
+  }
+}
+
+Table question_option {
+  id          bigint  [pk, increment]
+  question_id bigint  [not null]
+  option_text text    [not null, note: 'HAM HTML — sunucuda sanitizasyon ZORUNLU']
+  sort_order  integer
+
+  indexes {
+    question_id [name: 'ix_question_option_question_id']
+  }
+}
+
+Table survey_question {
+  survey_id   bigint  [not null]
+  question_id bigint  [not null]
+  sort_order  integer
+
+  Note: 'Anket <-> soru N:M ara tablosu (MariaDB: AnketSoru). Bileşik PK (survey_id, question_id): aynı soru bir ankete İKİ KEZ eklenemez (DB düzeyinde garanti).'
+
+  indexes {
+    (survey_id, question_id) [pk]
+    question_id [name: 'ix_survey_question_question_id']
+    // survey_id için ayrı indeks YOK: bileşik PK nin ilk kolonu zaten karşılıyor
+  }
+}
+
+Table survey_assignment {
+  id           bigint      [pk, increment]
+  survey_id    bigint      [not null]
+  staff_id     bigint      [not null, note: 'Anket bir KİŞİYE atanır, hesaba değil -> hedef staff (user değil)']
+  assigned_at  timestamp   [not null]
+  due_at       timestamp
+  status       varchar(20) [not null, note: '"atandı" / "devam_ediyor" / "tamamlandı" — KİŞİYE ÖZEL ilerleme (survey.status ile karıştırma)']
+  started_at   timestamp
+  completed_at timestamp
+
+  Note: 'CHECK ck_survey_assignment_completion: completed_at IS NULL OR status = tamamlandı (bilinçli EKLEME; MariaDB de yoktu). Ters yön bilerek zorlanmadı.'
+
+  indexes {
+    survey_id [name: 'ix_survey_assignment_survey_id']
+    staff_id  [name: 'ix_survey_assignment_staff_id']
+  }
+}
+
+Table answer {
+  id                 bigint [pk, increment]
+  assignment_id      bigint [not null]
+  question_id        bigint [not null]
+  selected_option_id bigint [note: 'Şık seçimi — ON DELETE SET NULL']
+  answer_text        text   [note: 'Serbest metin; ham kullanıcı girdisi, yazma+okuma sınırında sanitize']
+
+  indexes {
+    assignment_id      [name: 'ix_answer_assignment_id']
+    question_id        [name: 'ix_answer_question_id']
+    selected_option_id [name: 'ix_answer_selected_option_id']
+  }
+}
+
+Table survey_message {
+  id        bigint [pk, increment]
+  survey_id bigint [not null]
+
+  Note: 'Şimdilik yalnız anahtar alanları; içerik alanları netleşince AYRI migration ile genişler.'
+
+  indexes {
+    survey_id [name: 'ix_survey_message_survey_id']
+  }
+}
+
+Table lookup_value {
+  id       bigint       [pk, increment]
+  category varchar(50)  [not null, note: '"konu" / "amac" (kapsam daraldı: kullanıcı-formu kategorileri host ta)']
+  value    varchar(100) [not null]
+
+  indexes {
+    (category, value) [unique, name: 'uq_lookup_value_category_value']
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// İLİŞKİLER — modülden HOST a (staff a bağlanırız, onu yönetmeyiz)
+// ---------------------------------------------------------------------------
+Ref: survey.created_by            > staff.staff_id [delete: set null, update: cascade]
+Ref: question.prepared_by         > staff.staff_id [delete: set null, update: cascade]
+Ref: survey_assignment.staff_id   > staff.staff_id [delete: cascade,  update: cascade]
+
+// ---------------------------------------------------------------------------
+// İLİŞKİLER — modül içi (MariaDB davranışlarıyla birebir)
+// ---------------------------------------------------------------------------
+Ref: question_option.question_id  > question.id  [delete: cascade, update: cascade]
+Ref: survey_question.survey_id    > survey.id    [delete: cascade, update: cascade]
+Ref: survey_question.question_id  > question.id  [delete: cascade, update: cascade]
+Ref: survey_assignment.survey_id  > survey.id    [delete: cascade, update: cascade]
+Ref: answer.assignment_id         > survey_assignment.id [delete: cascade, update: cascade]
+Ref: answer.question_id           > question.id  [delete: cascade, update: cascade]
+Ref: answer.selected_option_id    > question_option.id [delete: set null, update: cascade]
+Ref: survey_message.survey_id     > survey.id    [delete: cascade, update: cascade]
+
+// FK siz kalan tek modül kolonu: survey.access_group_id (hedef tablo belirlenmedi)

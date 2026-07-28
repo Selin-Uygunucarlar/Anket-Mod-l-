@@ -1,0 +1,66 @@
+-- 005_host_cadre_title_indeks.sql
+--
+-- ############################################################################
+-- # HOST ŞEMASI REPLİKASI — YALNIZCA GELİŞTİRME/TEST. ÜRETİMDE ÇALIŞTIRILMAZ. #
+-- ############################################################################
+-- Bu dosya Savronik'in ÇALIŞAN sistemindeki public.cadre_title tablosu üzerinde
+-- bulunan ve replikada EKSİK KALAN tek indeksi (idx_title_name) lokalde yeniden
+-- üretir. Üretim veritabanında bu indeks ZATEN VARDIR; orada çalıştırmak mevcut
+-- sisteme zarar verir.
+--
+-- Nesne bize ait DEĞİLDİR: cadre_title host'un personel UNVAN SÖZLÜĞÜDÜR (bkz.
+-- 004_host_cadre_title.sql). Biz o tabloyu KULLANIRIZ, kurmayız. Bize ait olan tek
+-- şey anket modülüdür (bkz. 002_anket_modulu.sql).
+--
+-- NEDEN AYRI DOSYA (004'e eklenmedi): 004_host_cadre_title.sql geliştirme
+-- veritabanına UYGULANMIŞTIR (2026-07-27). Uygulanmış bir migration geriye dönük
+-- DÜZENLENMEZ; yeni şema parçası her zaman yeni numaralı bir migration olarak eklenir.
+--
+-- ---------------------------------------------------------------------------
+-- DİKKAT: BU İNDEKS HOST'TA ÇİFT KAYITLIDIR
+-- idx_title_name, 004 ile alınan idx_cadre_title_name_lower ile BİREBİR AYNI
+-- tanıma sahiptir: aynı tablo, aynı ifade — lower((name)::text) üzerinde btree.
+-- Yani host'ta aynı fonksiyonel indeks İKİ FARKLI ADLA durmaktadır ve ikinci kopya
+-- sorgu planına hiçbir şey katmaz; yalnızca yazma maliyeti ve disk tüketir.
+-- YİNE DE ALINMIŞTIR: 003/004'te benimsenen REPLİKA SADAKATİ ilkesi gereği host'ta
+-- ne varsa replikada da o olur — olmayan uydurulmaz (bkz. 003'teki editor_role_id
+-- FK'si), olan da "gereksiz" diye atlanmaz. Aksi halde replika ile gerçek sistem
+-- ad ad karşılaştırılamaz hale gelir. Kopyanın host'ta gerçekten fazlalık olduğu
+-- teyit edilirse, silme kararı HOST tarafına aittir ve ayrı bir migration konusudur.
+-- ---------------------------------------------------------------------------
+--
+-- SALT PERFORMANS: indeks bir bütünlük kısıtı değildir (UNIQUE değildir). Verinin
+-- doğruluğuna, kısıtlara veya uygulama davranışına HİÇBİR etkisi yoktur.
+--
+-- Kaynak: host sistemden alınan pg_dump çıktısı. İndeks adı, tablosu, yöntemi
+-- (btree) ve ifadesi kaynağa BİREBİR sadıktır.
+--
+-- ÇALIŞTIRMA: savronik_migrate rolüyle, savronik_akademi veritabanı üzerinde.
+-- Şema: public. DDL yalnızca migration ile uygulanır; runtime hesabının
+-- (savronik_app) DDL yetkisi YOKTUR.
+--
+-- ÖN KOŞUL: public.cadre_title tablosu mevcut olmalıdır (üretimde host'ta zaten
+-- vardır, geliştirmede 004_host_cadre_title.sql ile kurulur). Aksi halde indeks düşer.
+
+-- ---------------------------------------------------------------------------
+-- İndeks — SALT PERFORMANS nesnesi
+-- Fonksiyonel indeks: YALNIZCA sorgu da lower(name) yazarsa kullanılır
+-- (düz "WHERE name = ..." bu indeksten yararlanmaz).
+-- ---------------------------------------------------------------------------
+
+CREATE INDEX idx_title_name ON public.cadre_title USING btree (lower((name)::text));
+
+-- ---------------------------------------------------------------------------
+-- GRANT YOKTUR
+-- İndeks ayrı bir yetkilendirme nesnesi DEĞİLDİR: erişim, üzerinde tanımlı olduğu
+-- tablonun yetkileriyle belirlenir. savronik_app'in cadre_title üzerindeki mevcut
+-- CRUD GRANT'i (004) yeterlidir; eklenecek yeni bir hak yoktur.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- KAPANIŞ NOTU
+-- Bu migration ile public.cadre_title replikası host dump'ıyla TAM eşleşir:
+-- tablo + cadre_title_id_seq + title_pk + "staff_title_FK" + idx_staff_cadre_title
+-- + idx_cadre_title_name_lower (004) ve idx_title_name (bu dosya).
+-- Anket modülü (002) bu tabloya FK VERMEZ ve onu SORGULAMAK ZORUNDA DEĞİLDİR.
+-- ---------------------------------------------------------------------------

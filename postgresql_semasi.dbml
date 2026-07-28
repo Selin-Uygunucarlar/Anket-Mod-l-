@@ -5,11 +5,15 @@
 // Kaynak: database/migrations_pg/001_ilk_sema.sql  (HOST replikası, bizim değil)
 //         database/migrations_pg/002_anket_modulu.sql (BİZİM modülümüz)
 //         database/migrations_pg/003_host_user.sql (HOST replikası — "user" tablosu)
+//         database/migrations_pg/004_host_cadre_title.sql (HOST replikası — cadre_title)
+//         database/migrations_pg/005_host_cadre_title_indeks.sql (HOST replikası — eksik indeks)
 // Tüm tablolar public şemasında.
 //
 // GELİŞTİRME REPLİKASINDA UYGULANMA DURUMU (lokal savronik_akademi veritabanı):
 //   001_ilk_sema.sql    — UYGULANDI
 //   003_host_user.sql   — UYGULANDI (2026-07-27)
+//   004_host_cadre_title.sql        — UYGULANDI (2026-07-27)
+//   005_host_cadre_title_indeks.sql — UYGULANDI (2026-07-28)
 //   002_anket_modulu.sql— UYGULANMIŞ DURUMDA (2026-07-27 tarihinde canlı replikada
 //                         tespit edildi: 8 tablo + CHECK + FK'ler + ix_* indeksleri
 //                         ve savronik_app GRANT'leri mevcut, tablolar BOŞ). Ne zaman
@@ -49,7 +53,7 @@ Table staff {
   department_id    bigint    [note: 'Host FK (department) — replikada tablo yok']
   unit_id          bigint    [note: 'Host FK (unit) — replikada tablo yok']
   team_id          bigint    [note: 'Host FK (team) — replikada tablo yok']
-  cadre_title_id   bigint
+  cadre_title_id   bigint    [note: 'FK cadre_title (004) — host taki constraint adı "staff_title_FK"']
   duty_title_id    bigint
   collar           varchar
   hire_date        date
@@ -71,6 +75,23 @@ Table staff {
   created_at       timestamp [not null]
   updated_at       timestamp
   termination_date date
+
+  indexes {
+    cadre_title_id [name: 'idx_staff_cadre_title', note: 'FK nin ÇOCUK tarafını indeksler (004); PostgreSQL bunu otomatik yapmaz']
+  }
+}
+
+// Personel UNVAN SÖZLÜĞÜ (004). staff.cadre_title_id in hedefi.
+Table cadre_title {
+  title_id bigint  [pk, increment, note: 'seq: cadre_title_id_seq — staff/"user"dan FARKLI olarak id yi DB üretir (host ta nextval DEFAULT ı var). Sequence OWNED BY YOK: host dump ında o bağ yok.']
+  name     varchar
+
+  Note: 'HOST a ait unvan sözlüğü: biz KULLANIRIZ, kurmayız (replika yalnız geliştirme/test için). Anket modülü (002) bu tabloya FK VERMEZ.'
+
+  indexes {
+    `lower(name)` [name: 'idx_cadre_title_name_lower', note: 'Fonksiyonel indeks: yalnız sorgu da lower(name) yazarsa kullanılır']
+    `lower(name)` [name: 'idx_title_name', note: 'ÇİFT KOPYA: idx_cadre_title_name_lower ile BİREBİR AYNI tanım (aynı tablo, aynı ifade). Host ta iki farklı adla duruyor; replika sadakati adına 005 ile alındı.']
+  }
 }
 
 // Oturum açan kişinin HESABI (003). id hem PK hem staff a FK: hesap <-> personel 1:1.
@@ -115,6 +136,9 @@ Ref: rolerightmapping.role_id  > role.id
 Ref: rolepermissions.role_id   > role.id
 Ref: "user".id                 > staff.staff_id
 Ref: "user".role_id            > role.id
+// Host taki constraint adı "staff_title_FK" (004). ON DELETE/UPDATE davranışı host
+// dump ında BELİRTİLMEMİŞ -> varsayılan NO ACTION; uydurma davranış yazılmadı.
+Ref: staff.cadre_title_id      > cadre_title.title_id
 
 // Öz-ilişki (üretimde var, replikada FK yok — görünsün diye yorumda)
 // Ref: staff.manager_id > staff.staff_id

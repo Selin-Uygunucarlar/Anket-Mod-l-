@@ -1,8 +1,8 @@
 // Anket soruları API erişim noktası — sunum katmanının backend'e bakan TEK yeri.
 // UI bileşenleri doğrudan istek atmaz; buradaki fonksiyonları çağırır. Backend
-// endpoint'leri (GET /api/sorular, POST /api/sorular, GET /api/sorular/{soru_id},
-// PUT /api/sorular/{soru_id}, DELETE /api/sorular/{soru_id}, GET
-// /api/sorular/sablon, POST /api/sorular/toplu-yukle) burada bağlıdır;
+// endpoint'leri (GET /soru/get, POST /soru/post, GET /soru/get/{soru_id},
+// PUT /soru/put/{soru_id}, DELETE /soru/delete/{soru_id}, GET
+// /soru/get/sablon, POST /soru/post/toplu-yukle) burada bağlıdır;
 // istek/yanıt şekli ~/Desktop/kontratlar.txt "ANKET SORULARI LİSTESİ", "ANKET
 // SORUSU EKLEME" ve "ANKET SORUSU DETAY + GÜNCELLEME" bloklarıyla birebir. Oturum
 // httpOnly cookie ile taşındığından credentials:'include' zorunludur.
@@ -31,7 +31,7 @@ const AG_HATA_MESAJI = 'Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deney
 export async function sorulariGetir() {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/sorular`, {
+    yanit = await fetch(`${API_BASE}/soru/get`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -64,7 +64,7 @@ export async function sorulariGetir() {
 export async function soruEkle(payload) {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/sorular`, {
+    yanit = await fetch(`${API_BASE}/soru/post`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -98,7 +98,7 @@ export async function soruSil(soruId) {
   let yanit
   try {
     yanit = await fetch(
-      `${API_BASE}/api/sorular/${encodeURIComponent(soruId)}`,
+      `${API_BASE}/soru/delete/${encodeURIComponent(soruId)}`,
       {
         method: 'DELETE',
         credentials: 'include',
@@ -133,7 +133,7 @@ export async function soruDetayGetir(soruId) {
   let yanit
   try {
     yanit = await fetch(
-      `${API_BASE}/api/sorular/${encodeURIComponent(soruId)}`,
+      `${API_BASE}/soru/get/${encodeURIComponent(soruId)}`,
       {
         method: 'GET',
         credentials: 'include',
@@ -161,7 +161,7 @@ export async function soruDetayGetir(soruId) {
 
 // soruGuncelle: verilen soru_id'ye ait soruyu backend'de günceller (yalnızca admin;
 // yetki ve asıl doğrulama sunucuda). payload = { soru_tipi, konu, amac, soru_metni,
-// secenekler } — POST /api/sorular (ekleme) ile birebir aynı şekil; hazirlayan
+// secenekler } — POST /soru/post (ekleme) ile birebir aynı şekil; hazirlayan
 // GÖNDERİLMEZ (güncellemede değişmez). Başarıda sessizce döner; başarısız durumlarda
 // backend'in güvenli mesajını taşıyan Error fırlar (ağ/parse hatasında da güvenli
 // jenerik mesaj).
@@ -169,7 +169,7 @@ export async function soruGuncelle(soruId, payload) {
   let yanit
   try {
     yanit = await fetch(
-      `${API_BASE}/api/sorular/${encodeURIComponent(soruId)}`,
+      `${API_BASE}/soru/put/${encodeURIComponent(soruId)}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -206,7 +206,7 @@ export async function soruGuncelle(soruId, payload) {
 export async function soruSablonuIndir() {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/sorular/sablon`, {
+    yanit = await fetch(`${API_BASE}/soru/get/sablon`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -250,7 +250,7 @@ export async function sorulariExcelIleYukle(dosya) {
 
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/sorular/toplu-yukle`, {
+    yanit = await fetch(`${API_BASE}/soru/post/toplu-yukle`, {
       method: 'POST',
       body: govdeVerisi,
       credentials: 'include',

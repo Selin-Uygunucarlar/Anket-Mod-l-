@@ -439,7 +439,7 @@ def sil_secenek(
     return yanit
 
 
-@app.get("/api/sorular")
+@app.get("/soru/get")
 def list_sorular(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     """Oturumdaki admin için tüm anket sorularını döndürür (yalnızca protokol).
 
@@ -455,16 +455,17 @@ def list_sorular(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     return yanit
 
 
-@app.post("/api/sorular")
+@app.post("/soru/post")
 def ekle_soru(
     istek: SoruEkleIstegi, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
     """Oturumdaki admin için BAĞIMSIZ yeni bir anket sorusu ekler (yalnızca protokol).
 
     Gövde alanları Controller'a iletilir; oturum/yetki/doğrulama/sanitize
-    Controller/Service'te. hazirlayan_kodu gövdede yoktur, oturumdan alınır. Aynı
-    path'teki GET (liste) ve DELETE (sil) uçlarından method ile ayrışır. Başarılı
-    yanıtta (soru_id dahil güvenli sözlük) kayan pencere için cookie yenilenir.
+    Controller/Service'te. hazirlayan_kodu gövdede yoktur, oturumdan alınır. Fiil
+    yolda taşındığından liste (`GET /soru/get`) ve silme (`DELETE /soru/delete/{soru_id}`)
+    uçları AYRI path'lerdir; method ile ayrışma yoktur. Başarılı yanıtta (soru_id dahil
+    güvenli sözlük) kayan pencere için cookie yenilenir.
     """
     sonuc = soru_controller.ekle_soru(
         oturum,
@@ -481,11 +482,11 @@ def ekle_soru(
     return yanit
 
 
-@app.get("/api/sorular/sablon")
+@app.get("/soru/get/sablon")
 def indir_soru_sablonu(oturum: str | None = Cookie(default=None)) -> Response:
     """Oturumdaki admin için toplu yükleme Excel şablonunu indirir (yalnızca protokol).
 
-    ROTA SIRASI ÖNEMLİ: bu SABİT path, `GET /api/sorular/{soru_id}` tanımından ÖNCE
+    ROTA SIRASI ÖNEMLİ: bu SABİT path, `GET /soru/get/{soru_id}` tanımından ÖNCE
     gelmelidir; aksi halde "sablon" int'e parse edilmeye çalışılır. Başarıda xlsx
     baytları dosya olarak (attachment) döner, hatada mevcut JSON kalıbı kullanılır.
     Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
@@ -506,7 +507,7 @@ def indir_soru_sablonu(oturum: str | None = Cookie(default=None)) -> Response:
     return yanit
 
 
-@app.post("/api/sorular/toplu-yukle")
+@app.post("/soru/post/toplu-yukle")
 async def yukle_sorular(
     dosya: UploadFile = File(...), oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -515,7 +516,8 @@ async def yukle_sorular(
     Dosya multipart gövdeden okunur ve Controller'a bayt + dosya adı olarak geçilir
     (Controller/Service Excel taşıma detayını değil, içeriği görür). Uzantı/boyut
     doğrulaması, iş kuralları, yetki ve atomik yazma Controller/Service'tedir. Rota
-    sırası: SABİT path, `GET /api/sorular/{soru_id}` tanımından ÖNCE gelir. Hatalı
+    sırası: SABİT path, `GET /soru/get/{soru_id}` tanımından ÖNCE gelir (segment sayısı
+    farklı olduğundan `POST /soru/post` ile de çakışmaz). Hatalı
     satırlar yanıtta `satir_hatalari` olarak döner. Başarılı yanıtta cookie yenilenir.
     """
     dosya_baytlari = await dosya.read()
@@ -529,7 +531,7 @@ async def yukle_sorular(
     return yanit
 
 
-@app.get("/api/sorular/{soru_id}")
+@app.get("/soru/get/{soru_id}")
 def get_soru_detay(
     soru_id: int, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -538,8 +540,10 @@ def get_soru_detay(
     soru_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
     Controller oturumu doğrular, yetkiyi (yalnızca admin) uygular; kayıt yok -> 404.
     soru_metni/şıklar Service'te sanitize edilmiş HTML'dir (düzenleme ön-doldurma).
-    Sabit `GET /api/sorular` (liste) ile çakışmaz; DELETE/PUT aynı path'te method ile
-    ayrışır. Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
+    Sabit `GET /soru/get` (liste) ve `GET /soru/get/sablon` (şablon) ile çakışmaz;
+    güncelleme/silme uçları fiil yolda olduğundan AYRI path'lerdir
+    (`PUT /soru/put/{soru_id}`, `DELETE /soru/delete/{soru_id}`). Başarılı yanıtta
+    kayan pencere için cookie aynı bayraklarla yenilenir.
     """
     sonuc = soru_controller.get_soru_detay(oturum, soru_id)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
@@ -549,7 +553,7 @@ def get_soru_detay(
     return yanit
 
 
-@app.put("/api/sorular/{soru_id}")
+@app.put("/soru/put/{soru_id}")
 def guncelle_soru(
     soru_id: int,
     istek: SoruEkleIstegi,
@@ -559,8 +563,9 @@ def guncelle_soru(
 
     soru_id path segment'inden alınır (int); gövde SoruEkleIstegi (ekleme ile aynı
     model). Oturum/yetki/doğrulama/sanitize/varlık kontrolü Controller/Service'te;
-    hazirlayan_kodu gövdede yoktur. Kayıt yok -> NOT_FOUND -> 404. GET/PUT/DELETE
-    aynı path'te method ile ayrışır. Başarılı yanıtta kayan pencere için cookie yenilenir.
+    hazirlayan_kodu gövdede yoktur. Kayıt yok -> NOT_FOUND -> 404. Detay/silme uçları
+    fiil yolda olduğundan AYRI path'lerdir (`GET /soru/get/{soru_id}`,
+    `DELETE /soru/delete/{soru_id}`). Başarılı yanıtta kayan pencere için cookie yenilenir.
     """
     sonuc = soru_controller.guncelle_soru(
         oturum,
@@ -578,7 +583,7 @@ def guncelle_soru(
     return yanit
 
 
-@app.delete("/api/sorular/{soru_id}")
+@app.delete("/soru/delete/{soru_id}")
 def sil_soru(
     soru_id: int, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -596,7 +601,7 @@ def sil_soru(
     return yanit
 
 
-@app.get("/api/anketler")
+@app.get("/anket/get")
 def list_anketler(
     oturum: str | None = Cookie(default=None),
     anket_tipi: str | None = Query(default=None),
@@ -611,8 +616,8 @@ def list_anketler(
     (yalnızca admin) uygular. İsteğe bağlı filtreler query parametresi olarak alınır
     (anket_tipi/durum/tarih_araligi/baslangic_tarih/bitis_tarih; hepsi opsiyonel);
     değer/enum/tarih doğrulaması Controller/Service'e aittir, burada yalnızca taşınır.
-    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir. Aynı path'teki
-    POST (ekle) uçundan method ile ayrışır.
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir. Ekleme ucu
+    fiil yolda olduğundan AYRI bir path'tir (`POST /anket/post`).
     """
     sonuc = anket_controller.list_anketler(
         oturum, anket_tipi, durum, tarih_araligi, baslangic_tarih, bitis_tarih
@@ -624,14 +629,14 @@ def list_anketler(
     return yanit
 
 
-@app.get("/api/anketlerim")
+@app.get("/anketlerim/get")
 def list_anketlerim(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     """Oturumdaki kullanıcının ana ekran bekleyen anket listesini döndürür (yalnızca protokol).
 
     Jeton `oturum` cookie'sinden okunur; Controller oturumu doğrular. KİŞİYE ÖZEL
     panel: admin/user ayrımı yoktur, sicil oturumdan çözülür (client'a güvenilmez).
     Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir. Sabit
-    `GET /api/anketler` (admin liste) ile ayrı bir path'tir; çakışmaz.
+    `GET /anket/get` (admin liste) ile ayrı bir path'tir; çakışmaz.
     """
     sonuc = anket_controller.list_atanmis_anketler(oturum)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
@@ -641,7 +646,7 @@ def list_anketlerim(oturum: str | None = Cookie(default=None)) -> JSONResponse:
     return yanit
 
 
-@app.post("/api/anketler")
+@app.post("/anket/post")
 def ekle_anket(
     istek: AnketEkleIstegi, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -675,7 +680,7 @@ def ekle_anket(
     return yanit
 
 
-@app.get("/api/anketler/{anket_id}")
+@app.get("/anket/get/{anket_id}")
 def get_anket_detay(
     anket_id: int, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -684,9 +689,10 @@ def get_anket_detay(
     anket_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
     Controller oturumu doğrular, yetkiyi (yalnızca admin) ve "görebilen görebilir"
     görünürlüğünü uygular; görünmüyor/yok -> 404. Bağlı soru metinleri Service'te
-    sanitize edilmiş HTML'dir (düzenleme ön-doldurma). Sabit `GET /api/anketler`
-    (liste) ile çakışmaz; PUT aynı path'te method ile ayrışır. Başarılı yanıtta kayan
-    pencere için cookie aynı bayraklarla yenilenir.
+    sanitize edilmiş HTML'dir (düzenleme ön-doldurma). Sabit `GET /anket/get`
+    (liste) ile çakışmaz; güncelleme ucu fiil yolda olduğundan AYRI bir path'tir
+    (`PUT /anket/put/{anket_id}`). Başarılı yanıtta kayan pencere için cookie aynı
+    bayraklarla yenilenir.
     """
     sonuc = anket_controller.get_anket_detay(oturum, anket_id)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
@@ -696,7 +702,7 @@ def get_anket_detay(
     return yanit
 
 
-@app.put("/api/anketler/{anket_id}")
+@app.put("/anket/put/{anket_id}")
 def guncelle_anket(
     anket_id: int,
     istek: AnketEkleIstegi,
@@ -708,8 +714,8 @@ def guncelle_anket(
     model). Oturum/yetki/doğrulama/tarih hesabı/atama farkı ve "görebilen
     güncelleyebilir" görünürlük kontrolü Controller/Service'te. olusturan_kodu ve
     erişim grubu gövdede yoktur, oturumdan çözülür. Görünmüyor/yok -> NOT_FOUND -> 404.
-    GET/PUT aynı path'te method ile ayrışır. Başarılı yanıtta kayan pencere için
-    cookie yenilenir.
+    Detay ucu fiil yolda olduğundan AYRI bir path'tir (`GET /anket/get/{anket_id}`).
+    Başarılı yanıtta kayan pencere için cookie yenilenir.
     """
     sonuc = anket_controller.guncelle_anket(
         oturum,
@@ -736,7 +742,7 @@ def guncelle_anket(
     return yanit
 
 
-@app.post("/api/anketler/{anket_id}/durum")
+@app.put("/anket/put/{anket_id}/durum")
 def degistir_anket_durumu(
     anket_id: int, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -746,8 +752,8 @@ def degistir_anket_durumu(
     GÖVDE YOKTUR: hedef durum client'tan alınmaz, "Aktif <-> Pasif" kararı Service'te
     verilir. Yetki (yalnızca admin) ve "görebilen güncelleyebilir" görünürlüğü de
     Controller/Service'te; görünmüyor/yok -> 404. Ek `/durum` segmenti taşıdığından
-    GET/PUT `/api/anketler/{anket_id}` (detay/güncelleme) ile ÇAKIŞMAZ. Başarılı
-    yanıtta kayan pencere için cookie aynı bayraklarla YENİDEN set edilir.
+    `PUT /anket/put/{anket_id}` (güncelleme) ile ÇAKIŞMAZ. Başarılı yanıtta kayan
+    pencere için cookie aynı bayraklarla YENİDEN set edilir.
     """
     sonuc = anket_controller.degistir_anket_durumu(oturum, anket_id)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
@@ -757,7 +763,7 @@ def degistir_anket_durumu(
     return yanit
 
 
-@app.get("/api/anketler/{anket_id}/doldur")
+@app.get("/anketlerim/get/{anket_id}")
 def get_anket_doldur(
     anket_id: int, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -765,9 +771,10 @@ def get_anket_doldur(
 
     anket_id path segment'inden alınır (int); jeton `oturum` cookie'sinden okunur.
     Admin-only DEĞİL: sahiplik/yetki ("bu anket bana atanmış mı") ve metin sanitizasyonu
-    Controller/Service'te; atanmamış/yok -> 404 (varlık sızmaz). `/doldur` alt segmenti
-    admin detay `GET /api/anketler/{anket_id}` ile ÇAKIŞMAZ. Başarılı yanıtta kayan
-    pencere için cookie aynı bayraklarla yenilenir.
+    Controller/Service'te; atanmamış/yok -> 404 (varlık sızmaz). Kişiye özel
+    `/anketlerim` öneki taşıdığından admin detay `GET /anket/get/{anket_id}` ile
+    ÇAKIŞMAZ; sabit `GET /anketlerim/get` (liste) ile de segment sayısı farklıdır.
+    Başarılı yanıtta kayan pencere için cookie aynı bayraklarla yenilenir.
     """
     sonuc = anket_doldur_controller.get_anket_doldur(oturum, anket_id)
     durum = 200 if sonuc.get("basari") else _kod_to_http_durum(sonuc.get("kod", ""))
@@ -777,7 +784,7 @@ def get_anket_doldur(
     return yanit
 
 
-@app.post("/api/anketler/{anket_id}/cevaplar")
+@app.post("/anketlerim/post/{anket_id}")
 def gonder_anket_cevaplari(
     anket_id: int,
     istek: AnketCevapIstegi,
@@ -800,7 +807,7 @@ def gonder_anket_cevaplari(
     return yanit
 
 
-@app.get("/api/anketler/{anket_id}/atamalar")
+@app.get("/anket/get/{anket_id}/atamalar")
 def list_anket_atamalari(
     anket_id: int, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -809,7 +816,7 @@ def list_anket_atamalari(
     Liste ekranındaki "Atanan / Yanıtlayan Kullanıcı Sayısı" hücrelerinin arkasındaki
     kişi listesidir; yanitladi_mi Service türetimidir. Yetki (admin) ve görünürlük
     Controller/Service'te; görünmüyor/yok -> 404. `/atamalar` alt segmenti admin detay
-    `GET /api/anketler/{anket_id}` ile ÇAKIŞMAZ. Başarılı yanıtta kayan pencere için
+    `GET /anket/get/{anket_id}` ile ÇAKIŞMAZ. Başarılı yanıtta kayan pencere için
     cookie aynı bayraklarla yenilenir.
     """
     sonuc = anket_sonuc_controller.list_anket_atamalari(oturum, anket_id)
@@ -820,7 +827,7 @@ def list_anket_atamalari(
     return yanit
 
 
-@app.get("/api/anketler/{anket_id}/cevaplar/{kullanici_kodu}")
+@app.get("/anket/get/{anket_id}/cevaplar/{kullanici_kodu}")
 def get_kullanici_cevaplari(
     anket_id: int, kullanici_kodu: str, oturum: str | None = Cookie(default=None)
 ) -> JSONResponse:
@@ -829,9 +836,9 @@ def get_kullanici_cevaplari(
     "Cevapları Gör" ucudur. anket_id ve kullanici_kodu path segment'lerinden alınır;
     biçim doğrulaması, yetki (admin), görünürlük ve soru↔cevap montajı + sanitizasyon
     Controller/Service'te. Anket görünmüyor/yok ya da kişi ankete atanmamış -> 404
-    (ayrım yapılmaz). GET olduğundan POST `/api/anketler/{anket_id}/cevaplar` (cevap
-    gönderme) ile method ve segment sayısı bakımından ÇAKIŞMAZ. Başarılı yanıtta kayan
-    pencere için cookie yenilenir.
+    (ayrım yapılmaz). Kişinin kendi cevabını gönderdiği uç kişiye özel `/anketlerim`
+    öneki taşıdığından (`POST /anketlerim/post/{anket_id}`) AYRI bir path'tir;
+    çakışmaz. Başarılı yanıtta kayan pencere için cookie yenilenir.
     """
     sonuc = anket_sonuc_controller.get_kullanici_cevaplari(
         oturum, anket_id, kullanici_kodu

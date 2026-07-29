@@ -1,14 +1,14 @@
 // Anket API erişim noktası — sunum katmanının backend'e bakan TEK yeri. UI
 // bileşenleri doğrudan istek atmaz; buradaki fonksiyonları çağırır. Backend
-// endpoint'leri (GET /api/anketler, POST /api/anketler, GET /api/anketler/{id},
-// PUT /api/anketler/{id}, POST /api/anketler/{id}/durum, GET /api/anketlerim,
-// GET /api/anketler/{id}/doldur, POST /api/anketler/{id}/cevaplar,
-// GET /api/anketler/{id}/atamalar,
-// GET /api/anketler/{id}/cevaplar/{kullanici_kodu}) burada bağlıdır; istek/yanıt
+// endpoint'leri (GET /anket/get, POST /anket/post, GET /anket/get/{id},
+// PUT /anket/put/{id}, PUT /anket/put/{id}/durum, GET /anketlerim/get,
+// GET /anketlerim/get/{id}, POST /anketlerim/post/{id},
+// GET /anket/get/{id}/atamalar,
+// GET /anket/get/{id}/cevaplar/{kullanici_kodu}) burada bağlıdır; istek/yanıt
 // şekli ~/Desktop/kontratlar.txt "ANKET OLUŞTURMA + LİSTELEME (Faz 1)", "ANKET
 // DETAY + GÜNCELLEME", "Ana ekran bekleyen anketler", "ANKET DOLDURMA (cevaplama)"
 // ve "ANKET SONUÇLARI" bloklarıyla birebir. Anket yönetim ve sonuç uçları
-// admin-only'dir; /api/anketlerim ve doldurma/cevaplama uçları ise her giriş yapmış
+// admin-only'dir; /anketlerim/* uçları ise her giriş yapmış
 // kullanıcının KENDİ (kendisine atanmış) anketleri içindir (yetki sunucuda, sahiplik
 // üzerinden). Oturum httpOnly cookie ile taşındığından tüm çağrılarda
 // credentials:'include' zorunludur.
@@ -37,7 +37,7 @@ const AG_HATA_MESAJI = 'Sunucuya ulaşılamadı. Lütfen daha sonra tekrar deney
 // anketleriGetir: anketleri liste ekranı için backend'den çeker. filtreler, dolu
 // olan alanları query parametresi olarak taşınan bir nesnedir (anket_tipi, durum,
 // tarih_araligi, baslangic_tarih, bitis_tarih); boş/eksik alanlar URL'ye EKLENMEZ,
-// hiç filtre yoksa çıplak /api/anketler istenir. Süzme SUNUCUDA yapılır; burası
+// hiç filtre yoksa çıplak /anket/get istenir. Süzme SUNUCUDA yapılır; burası
 // yalnızca seçimi taşır. Başarılıysa [{ anket_id, ad, durum, olusturan_ad,
 // olusturan_soyad, olusturma_tarihi, atanan_sayisi, yanitlayan_sayisi }] dizisini
 // döndürür. Başarısızsa backend'in güvenli mesajını (ör. 403 yetki, 401 oturum)
@@ -52,7 +52,7 @@ export async function anketleriGetir(filtreler = {}) {
     }
   }
   const sorguMetni = sorguParametreleri.toString()
-  const url = sorguMetni ? `${API_BASE}/api/anketler?${sorguMetni}` : `${API_BASE}/api/anketler`
+  const url = sorguMetni ? `${API_BASE}/anket/get?${sorguMetni}` : `${API_BASE}/anket/get`
 
   let yanit
   try {
@@ -90,7 +90,7 @@ export async function anketleriGetir(filtreler = {}) {
 export async function atanmisAnketleriGetir() {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketlerim`, {
+    yanit = await fetch(`${API_BASE}/anketlerim/get`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -127,7 +127,7 @@ export async function atanmisAnketleriGetir() {
 export async function ekleAnket(govde) {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketler`, {
+    yanit = await fetch(`${API_BASE}/anket/post`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(govde),
@@ -164,7 +164,7 @@ export async function ekleAnket(govde) {
 export async function anketDetayGetir(anketId) {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketler/${anketId}`, {
+    yanit = await fetch(`${API_BASE}/anket/get/${anketId}`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -200,7 +200,7 @@ export async function anketDetayGetir(anketId) {
 export async function guncelleAnket(anketId, govde) {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketler/${anketId}`, {
+    yanit = await fetch(`${API_BASE}/anket/put/${anketId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(govde),
@@ -237,9 +237,9 @@ export async function anketDurumuDegistir(anketId) {
   let yanit
   try {
     yanit = await fetch(
-      `${API_BASE}/api/anketler/${encodeURIComponent(anketId)}/durum`,
+      `${API_BASE}/anket/put/${encodeURIComponent(anketId)}/durum`,
       {
-        method: 'POST',
+        method: 'PUT',
         credentials: 'include',
       },
     )
@@ -275,7 +275,7 @@ export async function anketDurumuDegistir(anketId) {
 export async function anketDoldurGetir(anketId) {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketler/${anketId}/doldur`, {
+    yanit = await fetch(`${API_BASE}/anketlerim/get/${anketId}`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -309,7 +309,7 @@ export async function anketDoldurGetir(anketId) {
 export async function anketCevaplariGonder(anketId, cevaplar) {
   let yanit
   try {
-    yanit = await fetch(`${API_BASE}/api/anketler/${anketId}/cevaplar`, {
+    yanit = await fetch(`${API_BASE}/anketlerim/post/${anketId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cevaplar }),
@@ -347,7 +347,7 @@ export async function anketAtamalariniGetir(anketId) {
   let yanit
   try {
     yanit = await fetch(
-      `${API_BASE}/api/anketler/${encodeURIComponent(anketId)}/atamalar`,
+      `${API_BASE}/anket/get/${encodeURIComponent(anketId)}/atamalar`,
       {
         method: 'GET',
         credentials: 'include',
@@ -383,7 +383,7 @@ export async function anketAtamalariniGetir(anketId) {
 // detay sızdırmadan güvenli Error yükselir.
 export async function kullaniciCevaplariniGetir(anketId, kullaniciKodu) {
   const yol =
-    `${API_BASE}/api/anketler/${encodeURIComponent(anketId)}` +
+    `${API_BASE}/anket/get/${encodeURIComponent(anketId)}` +
     `/cevaplar/${encodeURIComponent(kullaniciKodu)}`
 
   let yanit

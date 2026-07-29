@@ -22,8 +22,8 @@
 // ile çekilip alanlar tipe göre ÖN-DOLDURULUR (skala'da yalnız uçlar; ara noktalar yok
 // sayılır). Zorunlu alanlar ZORUNLU işaretlidir (yalnızca görsel; asıl doğrulama
 // sunucuda). KAYIT: "Kaydet"/"Güncelle" butonu, toplanan alanları eklemede
-// soruApi.soruEkle ile POST /api/sorular, düzenlemede soruApi.soruGuncelle ile
-// PUT /api/sorular/{soru_id} ucuna iletir (backend hazır; payload şekli her tipte
+// soruApi.soruEkle ile POST /soru/post, düzenlemede soruApi.soruGuncelle ile
+// PUT /soru/put/{soru_id} ucuna iletir (backend hazır; payload şekli her tipte
 // aynı: { soru_tipi, konu, amac, soru_metni, secenekler }). Zorunlu alanlar boşken
 // buton yalnızca UX amaçlı pasiftir (basit presence guard; iş kuralı/karar sunucuda).
 // Başarıda liste tazelenip listeye dönülür; hata durumunda backend'in güvenli mesajı
@@ -282,7 +282,7 @@ function SoruEkleForm({ onGeriDon, duzenlenecekSoru }) {
     <section className="kullanici-ekle">
       <h2 className="kullanici-ekle-baslik">{baslik}</h2>
 
-      {/* Form gönderimi Kaydet ile POST /api/sorular'a gider; alanlar saf UI
+      {/* Form gönderimi Kaydet ile POST /soru/post'a gider; alanlar saf UI
           state'inde toplanır, gönderim ve doğrulama sunucuda tamamlanır. */}
       <form className="kullanici-ekle-form" onSubmit={handleGonder} noValidate>
         <div className="kullanici-ekle-izgara">

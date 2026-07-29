@@ -5,20 +5,19 @@
 // "Yanıtladı mı" bilgisi SUNUCUDA türetilir (yanitladi_mi); UI yalnızca bu bayrakla
 // süzer, durum metnine bakıp kendi kararını VERMEZ.
 // Aynı anket için iki mod (atanan / yanıtlayan) TEK React Query anahtarını
-// paylaşır; hücreler arasında geçişte ikinci kez istek atılmaz.
-// Perde, kart ve butonlar onay-kutusu.css'ten, tablo kullanici-listesi.css'ten,
-// "Cevapları Gör" butonu soru-listesi.css'ten PAYLAŞILIR (DRY); yalnızca bu kutuya
-// özgü ekler anket-sonuc-kutusu.css'tedir. Escape / perdeye tıklama / "Kapat" ile
-// kapanır; üstünde cevap kutusu açıkken kapatma en üsttekine aittir.
+// paylaşır; hücreler arasında geçişte liste cache'ten gelir.
+// Görünüm Ant Design bileşenleriyle kurulur (Modal + Table); tema ConfigProvider
+// token'larından gelir, bu kutuya ait özel CSS dosyası YOKTUR.
+// Escape / perdeye tıklama / "Kapat" ile kapanır; üstünde cevap kutusu açıkken
+// (ustKutuAcik) Escape ve perde bu kutuyu KAPATMAZ — kapatma en üsttekine aittir.
 
-import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Alert, Button, Modal, Table } from 'antd'
 import { anketAtamalariniGetir } from '../api/anketApi.js'
 import { adSoyadBirlestir, tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
-import '../styles/kullanici-listesi.css'
-import '../styles/soru-listesi.css'
-import '../styles/onay-kutusu.css'
-import '../styles/anket-sonuc-kutusu.css'
+
+// Kutunun genişliği: ad soyad + e-posta + durum/tarih sütunları rahat sığsın.
+const KUTU_GENISLIGI = 900
 
 // Moda göre değişen sunum metinleri ve son bilgi kolonu. Kutunun iki kullanımı
 // (tüm atananlar / yalnızca yanıtlayanlar) arasındaki tek fark budur.
@@ -35,44 +34,59 @@ const MOD_AYARLARI = {
   },
 }
 
-// AtamaSatiri: tek bir kişinin satırını çizer. Yanıtlayan modunda tamamlanma
-// tarihi ve "Cevapları Gör" butonu, atanan modunda ham atama durumu gösterilir.
-function AtamaSatiri({ atama, yanitlayanModu, onCevaplariGor }) {
-  const adSoyad = adSoyadBirlestir(atama.ad, atama.soyad)
-
-  return (
-    <tr>
-      <td>{adSoyad}</td>
-      <td>{atama.email || '-'}</td>
-      <td>
-        {yanitlayanModu
+// atamaSutunlariniKur: kişi listesi tablosunun sütunlarını moda göre üretir.
+// Yanıtlayan modunda son kolon tamamlanma tarihi olur ve satır sonuna "Cevapları
+// Gör" butonu eklenir; atanan modunda ham atama durumu gösterilir.
+function atamaSutunlariniKur({ yanitlayanModu, sonKolonBasligi, onCevaplariGor }) {
+  const sutunlar = [
+    {
+      title: 'Ad Soyad',
+      key: 'ad_soyad',
+      render: (_, atama) => adSoyadBirlestir(atama.ad, atama.soyad),
+    },
+    {
+      title: 'E-posta',
+      dataIndex: 'email',
+      key: 'email',
+      render: (email) => email || '-',
+    },
+    {
+      title: sonKolonBasligi,
+      key: 'son_bilgi',
+      render: (_, atama) =>
+        yanitlayanModu
           ? tarihSaatBicimlendir(atama.tamamlanma_tarihi)
-          : atama.durum}
-      </td>
-      {yanitlayanModu ? (
-        <td>
-          <div className="soru-islem-hucre">
-            {/* Cevapları Gör: üst bileşene haber vererek bu kişinin cevap
-                kutusunu açar. Stil soru listesi İşlem butonlarıyla paylaşılır. */}
-            <button
-              type="button"
-              className="soru-islem-buton soru-guncelle-buton"
-              onClick={() =>
-                onCevaplariGor({
-                  kullanici_kodu: atama.kullanici_kodu,
-                  ad: atama.ad,
-                  soyad: atama.soyad,
-                })
-              }
-              aria-label={`${adSoyad} kişisinin cevaplarını gör`}
-            >
-              Cevapları Gör
-            </button>
-          </div>
-        </td>
-      ) : null}
-    </tr>
-  )
+          : atama.durum,
+    },
+  ]
+
+  if (yanitlayanModu) {
+    sutunlar.push({
+      title: 'İşlem',
+      key: 'islem',
+      // Cevapları Gör: üst bileşene haber vererek bu kişinin cevap kutusunu açar.
+      render: (_, atama) => {
+        const adSoyad = adSoyadBirlestir(atama.ad, atama.soyad)
+        return (
+          <Button
+            size="small"
+            onClick={() =>
+              onCevaplariGor({
+                kullanici_kodu: atama.kullanici_kodu,
+                ad: atama.ad,
+                soyad: atama.soyad,
+              })
+            }
+            aria-label={`${adSoyad} kişisinin cevaplarını gör`}
+          >
+            Cevapları Gör
+          </Button>
+        )
+      },
+    })
+  }
+
+  return sutunlar
 }
 
 // AnketAtamaKutusu: ankete atanmış kişileri (moda göre süzülmüş) modal içinde
@@ -88,7 +102,6 @@ function AnketAtamaKutusu({
   onKapat,
   onCevaplariGor,
 }) {
-  const kapatButonRef = useRef(null)
   const ayar = MOD_AYARLARI[mod]
   const yanitlayanModu = mod === 'yanitlayan'
 
@@ -103,34 +116,6 @@ function AnketAtamaKutusu({
     queryFn: () => anketAtamalariniGetir(anket.anket_id),
   })
 
-  // Kutu en üstteyken "Kapat" butonuna odaklan ve Escape'i dinle (klavye
-  // erişilebilirliği). Üstte cevap kutusu varken dinlemez; böylece Escape iki
-  // kutuyu birden kapatmaz. Yalnızca UX'tir, güvenlik sınırı değildir.
-  useEffect(() => {
-    if (ustKutuAcik) {
-      return undefined
-    }
-    kapatButonRef.current?.focus()
-
-    // kapatEscape: Escape tuşuna basılınca kapatma akışını tetikler.
-    function kapatEscape(olay) {
-      if (olay.key === 'Escape') {
-        onKapat()
-      }
-    }
-
-    document.addEventListener('keydown', kapatEscape)
-    return () => document.removeEventListener('keydown', kapatEscape)
-  }, [ustKutuAcik, onKapat])
-
-  // perdeyeTiklandi: yalnızca perdenin kendisine (kutunun dışına) tıklanınca
-  // kapatır; kutu içine yapılan tıklamalar yayılmaz.
-  function perdeyeTiklandi(olay) {
-    if (olay.target === olay.currentTarget && !ustKutuAcik) {
-      onKapat()
-    }
-  }
-
   // Yanıtlayan modunda liste sunucudan gelen yanitladi_mi bayrağıyla süzülür;
   // "yanıtladı mı" kararı UI'da ÜRETİLMEZ.
   const tumAtamalar = atamalar ?? []
@@ -138,81 +123,40 @@ function AnketAtamaKutusu({
     ? tumAtamalar.filter((atama) => atama.yanitladi_mi === true)
     : tumAtamalar
 
-  const kolonBasliklari = ['Ad Soyad', 'E-posta', ayar.sonKolonBasligi]
-  if (yanitlayanModu) {
-    kolonBasliklari.push('İşlem')
-  }
+  const sutunlar = atamaSutunlariniKur({
+    yanitlayanModu,
+    sonKolonBasligi: ayar.sonKolonBasligi,
+    onCevaplariGor,
+  })
 
   return (
-    <div className="onay-perde" onClick={perdeyeTiklandi}>
-      <div
-        className="onay-kutu anket-sonuc-kutu"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${ayar.baslik} — ${anket.ad}`}
-      >
-        <h3 className="onay-kutu-baslik">{ayar.baslik}</h3>
-        <p className="onay-kutu-mesaj">{anket.ad}</p>
-
-        {isPending && <p className="kullanici-liste-durum">Yükleniyor...</p>}
-
-        {/* error.message backend'in güvenli mesajıdır; teknik detay sızmaz. */}
-        {isError && (
-          <p
-            className="kullanici-liste-durum kullanici-liste-hata"
-            role="alert"
-          >
-            {error.message}
-          </p>
-        )}
-
-        {!isPending && !isError && (
-          <div className="anket-sonuc-tablo-alan kullanici-tablo-sarmalayici">
-            <table className="kullanici-tablo">
-              <thead>
-                <tr>
-                  {kolonBasliklari.map((baslik) => (
-                    <th key={baslik}>{baslik}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {satirlar.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={kolonBasliklari.length}
-                      className="kullanici-liste-durum liste-bos-hucre"
-                    >
-                      {ayar.bosMesaj}
-                    </td>
-                  </tr>
-                ) : (
-                  satirlar.map((atama) => (
-                    <AtamaSatiri
-                      key={atama.kullanici_kodu}
-                      atama={atama}
-                      yanitlayanModu={yanitlayanModu}
-                      onCevaplariGor={onCevaplariGor}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="onay-kutu-butonlar">
-          <button
-            type="button"
-            className="onay-vazgec-buton"
-            onClick={onKapat}
-            ref={kapatButonRef}
-          >
-            Kapat
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open
+      title={`${ayar.baslik} — ${anket.ad}`}
+      width={KUTU_GENISLIGI}
+      onCancel={onKapat}
+      // Üstte cevap kutusu varken Escape ve perde bu kutuyu kapatmaz; kapatma
+      // en üstteki kutuya aittir (salt UX kuralı).
+      keyboard={!ustKutuAcik}
+      mask={{ closable: !ustKutuAcik }}
+      footer={<Button onClick={onKapat}>Kapat</Button>}
+    >
+      {/* error.message backend'in güvenli mesajıdır; teknik detay sızmaz. */}
+      {isError ? (
+        <Alert type="error" showIcon title={error.message} role="alert" />
+      ) : (
+        <Table
+          rowKey="kullanici_kodu"
+          columns={sutunlar}
+          dataSource={satirlar}
+          loading={isPending}
+          pagination={false}
+          size="small"
+          scroll={{ x: 'max-content', y: 420 }}
+          locale={{ emptyText: ayar.bosMesaj }}
+        />
+      )}
+    </Modal>
   )
 }
 

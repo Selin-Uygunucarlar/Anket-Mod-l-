@@ -1,29 +1,26 @@
 // Anket listesi bileşeni. Admin panelinden "Anket Listesi" seçilince anasayfa
 // içerik alanında render edilir. Yalnızca sunum sorumluluğundadır: veriyi anketApi
 // üzerinden ister ve tabloda gösterir; iş kuralı, yetki kontrolü veya hesaplama
-// İÇERMEZ (yetki sunucuda uygulanır). Yükleniyor, hata ve boş durumları kullanıcı
-// listesi üslubunda ele alınır; kullanıcıya yalnızca güvenli mesaj gösterilir.
-// Tasarımı kişi (kullanıcı) listesiyle BİREBİR aynı olsun ve tek kaynaktan
-// gelsin diye kullanici-listesi.css içeri alınır ve MEVCUT liste düzeni sınıfları
-// (kullanici-liste, kullanici-liste-baslik-satiri, kullanici-liste-baslik-grup,
-// kullanici-liste-baslik, kullanici-arama-*, kullanici-ekle-buton,
-// kullanici-liste-durum) paylaşılır. Sınıflardaki "kullanici-" öneki bu paylaşım
-// yüzünden burada da kullanılır; kopya CSS yazılmaz (DRY) ve kullanıcı listesi
-// tasarımı hiç değişmez. "Anket Ekle" butonu üst bileşene (onAnketEkle) haber
-// vererek içerik alanında anket oluşturma formunu açar; kişi listesindeki
-// "Kullanıcı Ekle" ile aynı kalıptadır. Filtre kartı (AnketFiltre) GERÇEK
-// filtrelemeye bağlıdır: seçilen anket tipi/durum/oluşturulma tarih aralığı bu
-// bileşende state'te tutulur ve uygulanacakFiltre ile sunucuya taşınır; seçim
-// değişince liste React Query üzerinden anında yeniden çekilir (süzme SUNUCUDA,
-// iş kuralı/tarih hesabı UI'a KONMAZ). Arama kutusu (aramaMetni) bu işin kapsamı
-// DIŞINDADIR: tasarım paritesi için durur, gerçek arama YAPMAZ. "İşlem" sütunundaki "Güncelle"
-// butonu, üst bileşene (onAnketDuzenle) haber vererek içerik alanında anket
-// güncelleme görünümünü açar (satır özetini taşır; form detayı backend'den kendisi
-// çeker). Yanındaki "Pasife Al" / "Aktife Al" butonu ise önce onay kutusu açar,
-// onaylanınca anketin durumunu sunucuya tersine çevirtir ve listeyi tazeler; buton
-// etiketi satırdaki duruma bakan SALT GÖSTERİMDİR, hedef durumu ve yetkiyi SUNUCU
-// belirler. Buton stili SoruListesi'nin İşlem butonlarıyla paylaşılır (soru-listesi.css,
-// DRY); yeni CSS yazılmaz.
+// İÇERMEZ (yetki sunucuda uygulanır). Yükleniyor, hata ve boş durumlarının üçü de
+// ayrı ayrı ele alınır; kullanıcıya yalnızca güvenli mesaj gösterilir.
+// Görünüm Ant Design bileşenleriyle kurulur (Table / Button / Tag / Input / Alert);
+// renk ve köşe değerleri ConfigProvider tema token'larından gelir, bu ekrana ait
+// özel CSS dosyası YOKTUR. Bu nedenle ekran artık kullanıcı/soru listeleriyle
+// birebir aynı görünmez; bu, antd'ye taşımanın bilinçli ve kabul edilmiş sonucudur.
+// "Anket Ekle" butonu üst bileşene (onAnketEkle) haber vererek içerik alanında anket
+// oluşturma formunu açar. Filtre kartı (AnketFiltre) GERÇEK filtrelemeye bağlıdır:
+// seçilen anket tipi/durum/oluşturulma tarih aralığı bu bileşende state'te tutulur
+// ve uygulanacakFiltre ile sunucuya taşınır; seçim değişince liste React Query
+// üzerinden anında yeniden çekilir (süzme SUNUCUDA, iş kuralı/tarih hesabı UI'a
+// KONMAZ). Arama kutusu (aramaMetni) bu işin kapsamı DIŞINDADIR: tasarım bütünlüğü
+// için durur, gerçek arama YAPMAZ. "İşlem" sütunundaki "Güncelle" butonu, üst
+// bileşene (onAnketDuzenle) haber vererek içerik alanında anket güncelleme
+// görünümünü açar (satır özetini taşır; form detayı backend'den kendisi çeker).
+// Yanındaki "Pasife Al" / "Aktife Al" butonu ise önce onay kutusu açar (antd
+// App.useApp().modal.confirm — tema ve Türkçe metinleri görsün diye statik çağrı
+// KULLANILMAZ), onaylanınca anketin durumunu sunucuya tersine çevirtir ve listeyi
+// tazeler; buton etiketi satırdaki duruma bakan SALT GÖSTERİMDİR, hedef durumu ve
+// yetkiyi SUNUCU belirler.
 // "Atanan Kullanıcı Sayısı" ve "Yanıtlayan Kullanıcı Sayısı" hücreleri sayı 0'dan
 // büyükken tıklanabilir birer butondur: ilki ankete atanmış herkesi, ikincisi
 // yalnızca yanıtlayanları AnketAtamaKutusu'nda gösterir; oradaki "Cevapları Gör"
@@ -38,79 +35,24 @@ import {
   useQueryClient,
   keepPreviousData,
 } from '@tanstack/react-query'
+import { Alert, App, Button, Flex, Input, Table, Typography } from 'antd'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { anketleriGetir, anketDurumuDegistir } from '../api/anketApi.js'
-import { adSoyadBirlestir, tarihSaatBicimlendir } from '../common/metinBicimlendir.js'
 import {
   BOS_ANKET_FILTRESI,
   uygulanacakFiltre,
 } from '../common/anketFiltreAlanlari.js'
+import { anketSutunlariniKur } from './AnketListesiSutunlari.jsx'
 import AnketFiltre from './AnketFiltre'
 import AnketAtamaKutusu from './AnketAtamaKutusu'
 import AnketKullaniciCevaplariKutusu from './AnketKullaniciCevaplariKutusu'
-import OnayKutusu from './OnayKutusu.jsx'
-import '../styles/kullanici-listesi.css'
-import '../styles/soru-listesi.css'
 
-// ArtiIcon: artı (+) simgesini çizer. Başlık satırındaki "Anket Ekle" butonunda
-// kullanılır (kişi listesindeki "Kullanıcı Ekle" ile aynı görünüm).
-function ArtiIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
+const { Title } = Typography
 
-// BuyutecIcon: büyüteç (arama) simgesini çizer. Başlık yanındaki arama kutusunun
-// içinde görsel ipucu olarak durur (tasarım paritesi için).
-function BuyutecIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <line x1="16.5" y1="16.5" x2="21" y2="21" />
-    </svg>
-  )
-}
+// Arama kutusunun genişliği (kapsam dışı, dekoratif alan; bkz. dosya başı yorumu).
+const ARAMA_KUTUSU_GENISLIGI = 420
 
-// Tablo kolon başlıkları (bu sırayla). Kişi listesindeki tablo çerçevesiyle
-// birebir aynı görünsün diye tanımlanır; "İşlem" sütunu kişi listesindeki
-// "İşlemler" karşılığıdır ve satır başına "Güncelle" butonu taşır.
-const ANKET_KOLON_BASLIKLARI = [
-  'Anket Adı',
-  'Durum',
-  'Oluşturan',
-  'Oluşturma Tarihi',
-  'Atanan Kullanıcı Sayısı',
-  'Yanıtlayan Kullanıcı Sayısı',
-  'İşlem',
-]
-
-// olusturanAdiBicimlendir: anketi oluşturanın ad ve soyadını tek okunur metinde
-// birleştirir (ortak biçimlendirici üzerinden; ikisi de yoksa tire döner).
-function olusturanAdiBicimlendir(anket) {
-  return adSoyadBirlestir(anket.olusturan_ad, anket.olusturan_soyad)
-}
-
-// Sunucunun "yayında" anlamına gelen durum metni. Yalnızca buton/onay metnini
+// Sunucunun "yayında" anlamına gelen durum metni. Yalnızca onay/buton metnini
 // seçmek için karşılaştırılır; hangi durumun yazılacağına SUNUCU karar verir.
 const AKTIF_DURUM = 'Aktif'
 
@@ -128,28 +70,6 @@ function durumOnayMesaji(anket) {
     : `"${anket.ad}" anketini aktife almak istediğinize emin misiniz?`
 }
 
-// SayiHucresi: atanan/yanıtlayan sayısını gösterir. Sayı 0'dan büyükken ilgili
-// kişi listesini açan gerçek bir <button> (klavyeyle erişilebilir), 0 iken düz
-// metindir (açılacak liste yoktur). Gösterme/gizleme salt UX'tir; yetki sunucuda.
-// props: sayi -> gösterilecek adet; ariaEtiketi -> butonun okunur açıklaması;
-// onAc() -> butona basılınca ilgili kutuyu açar.
-function SayiHucresi({ sayi, ariaEtiketi, onAc }) {
-  const deger = sayi ?? 0
-  if (deger <= 0) {
-    return <span>{deger}</span>
-  }
-  return (
-    <button
-      type="button"
-      className="kisi-ad-buton"
-      onClick={onAc}
-      aria-label={ariaEtiketi}
-    >
-      {deger}
-    </button>
-  )
-}
-
 // AnketListesi: anketleri React Query ile çeker ve durumuna göre yükleniyor /
 // hata / boş / tablo gösterir. Veri kaynağı yalnızca anketApi'dir.
 // props: onAnketEkle() -> "Anket Ekle" butonuna tıklanınca çağrılır (üst bileşen
@@ -164,12 +84,13 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
   // Açık cevap kutusu: null = kapalı; { anket, kullanici } = o kişinin cevapları.
   // Kişi listesi kutusu açık kalır; cevap kutusu kapanınca listeye geri dönülür.
   const [cevapKutusu, setCevapKutusu] = useState(null)
-  // Durum değiştirme onayının hedefi olan anket (null iken onay kutusu kapalı).
-  const [durumHedefi, setDurumHedefi] = useState(null)
   // Durum değiştirme başarısız olursa gösterilecek güvenli, kısa mesaj.
   const [islemHatasi, setIslemHatasi] = useState('')
 
   const queryClient = useQueryClient()
+  // Onay kutusu ConfigProvider'ın teması ve Türkçe metinleriyle çıksın diye
+  // statik Modal.confirm yerine App bağlamından alınır.
+  const { modal } = App.useApp()
 
   // onFiltreDegis: filtre kartındaki tek bir alanın değerini günceller (kontrollü).
   // Değişiklik queryKey'i değiştireceğinden liste anında yeniden çekilir.
@@ -189,15 +110,15 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
     queryKey: ['anketler', uygulanan],
     queryFn: () => anketleriGetir(uygulanan),
     // Filtre değişince önceki listeyi ekranda tut: isPending yalnızca ilk yüklemede
-    // true olur, sonraki filtrelemelerde "Yükleniyor..." sıçraması ve filtre kartının
+    // true olur, sonraki filtrelemelerde tablonun boşalıp dolması ve filtre kartının
     // unmount olması engellenir (arka planda sessizce yeniden çekilir).
     placeholderData: keepPreviousData,
   })
 
   // Durum değiştirme isteği: gövdesizdir, yeni durumu SUNUCU belirler. Başarıda
-  // liste (filtreli tüm varyantlarıyla) tazelenir ve onay kutusu kapanır; hatada
-  // onay kutusu kapanır ve backend'in güvenli mesajı ekrana yansıtılır (hata
-  // sessizce yutulmaz, teknik detay sızmaz). Yetki sunucuda uygulanır.
+  // liste (filtreli tüm varyantlarıyla) tazelenir; hatada backend'in güvenli mesajı
+  // ekrana yansıtılır (hata sessizce yutulmaz, teknik detay sızmaz). Yetki sunucuda
+  // uygulanır.
   // Ana ekranın atanmış anket paneli (AtanmisAnketPaneli) React Query CACHE'i
   // KULLANMAZ; her mount olduğunda kendisi yeniden çeker. Bu yüzden burada onun
   // için geçersiz kılınacak bir anahtar yoktur (ana ekrana dönünce zaten güncel).
@@ -205,157 +126,97 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
     mutationFn: anketDurumuDegistir,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['anketler'] })
-      setDurumHedefi(null)
     },
     onError: (hata) => {
-      setDurumHedefi(null)
       setIslemHatasi(hata.message)
     },
   })
 
-  // durumDegistirmeyeBasla: satırın durum butonu tıklanınca varsa önceki hatayı
-  // temizler ve seçilen anket için onay kutusunu açar (istek henüz ATILMAZ).
-  function durumDegistirmeyeBasla(anket) {
+  // durumDegistirmeyiSor: satırın durum butonu tıklanınca varsa önceki hatayı
+  // temizler ve onay kutusunu açar (istek henüz ATILMAZ). Onaylanırsa isteği
+  // bekletir; böylece istek sürerken onay butonu kilitli/yüklenir görünür.
+  function durumDegistirmeyiSor(anket) {
     setIslemHatasi('')
-    setDurumHedefi(anket)
+    modal.confirm({
+      title: 'Anket durumunu değiştir',
+      content: durumOnayMesaji(anket),
+      okText: durumButonEtiketi(anket),
+      cancelText: 'Vazgeç',
+      onOk: () =>
+        durumMutation.mutateAsync(anket.anket_id).catch(() => {
+          // Hata mutation'ın onError'ında yakalanıp ekrandaki uyarı alanına
+          // yazılır; buradaki yakalamanın TEK amacı onay kutusunun kapanmasıdır
+          // (hata yutulmaz, kullanıcıya güvenli mesajla gösterilir).
+        }),
+    })
   }
 
-  // durumDegistirmeyiOnayla: onay kutusundaki onay butonuna basılınca hedef
-  // anketin durum değiştirme isteğini tetikler.
-  function durumDegistirmeyiOnayla() {
-    durumMutation.mutate(durumHedefi.anket_id)
-  }
-
-  if (isPending) {
-    return <p className="kullanici-liste-durum">Yükleniyor...</p>
-  }
-
-  if (isError) {
-    // error.message backend'in güvenli mesajıdır (ör. 403 yetki mesajı);
-    // teknik detay sızmaz.
-    return (
-      <p className="kullanici-liste-durum kullanici-liste-hata">
-        {error.message}
-      </p>
-    )
-  }
+  // Tablo sütunları ayrı dosyadadır (dosya boyutu/SRP); satır eylemleri buradan
+  // geçirilir, sütunlar yalnızca gösterim yapar.
+  const sutunlar = anketSutunlariniKur({
+    onAnketDuzenle,
+    onDurumDegistir: durumDegistirmeyiSor,
+    durumButonEtiketi,
+    onAtananlariAc: (anket) => setAtamaKutusu({ anket, mod: 'atanan' }),
+    onYanitlayanlariAc: (anket) => setAtamaKutusu({ anket, mod: 'yanitlayan' }),
+  })
 
   const anketListesi = anketler ?? []
 
   return (
-    <section className="kullanici-liste">
-      <div className="kullanici-liste-baslik-satiri">
-        <div className="kullanici-liste-baslik-grup">
-          <h2 className="kullanici-liste-baslik">Anket Listesi</h2>
-          <div className="kullanici-arama-sarmalayici">
-            <span className="kullanici-arama-ikon">
-              <BuyutecIcon />
-            </span>
-            <input
-              type="search"
-              className="kullanici-arama-kutusu"
-              value={aramaMetni}
-              onChange={(olay) => setAramaMetni(olay.target.value)}
-              placeholder="Ara: anket"
-              aria-label="Anket listesinde ara"
-            />
-          </div>
-        </div>
-        {/* "Anket Ekle": kişi listesindeki "Kullanıcı Ekle" kalıbıyla üst bileşene
-            haber verir ve içerik alanında anket oluşturma formunu açar. */}
-        <button
-          type="button"
-          className="kullanici-ekle-buton"
-          onClick={onAnketEkle}
-        >
-          <ArtiIcon />
-          <span>Anket Ekle</span>
-        </button>
-      </div>
+    <Flex vertical gap={16}>
+      <Flex align="center" justify="space-between" gap={12} wrap="wrap">
+        <Flex align="center" gap={12} wrap="wrap">
+          <Title level={2} style={{ margin: 0, fontSize: 20 }}>
+            Anket Listesi
+          </Title>
+          {/* Arama kutusu: tasarım bütünlüğü için durur, gerçek arama YAPMAZ. */}
+          <Input
+            style={{ width: ARAMA_KUTUSU_GENISLIGI }}
+            prefix={<SearchOutlined />}
+            value={aramaMetni}
+            onChange={(olay) => setAramaMetni(olay.target.value)}
+            placeholder="Ara: anket"
+            aria-label="Anket listesinde ara"
+          />
+        </Flex>
+        {/* "Anket Ekle": üst bileşene haber vererek içerik alanında anket
+            oluşturma formunu açar. */}
+        <Button type="primary" icon={<PlusOutlined />} onClick={onAnketEkle}>
+          Anket Ekle
+        </Button>
+      </Flex>
+
       {/* Durum değiştirme başarısız olursa tek hata alanı: backend'in güvenli
-          mesajı gösterilir (SoruListesi ile aynı kalıp); teknik detay sızmaz. */}
+          mesajı gösterilir; teknik detay sızmaz. */}
       {islemHatasi && (
-        <p className="kullanici-liste-durum kullanici-liste-hata" role="alert">
-          {islemHatasi}
-        </p>
+        <Alert type="error" showIcon title={islemHatasi} role="alert" />
       )}
+
       {/* Başlıksız filtre kartı: arama satırının hemen altında, tablonun üstünde.
           Kontrollü bileşen: seçimi filtre propundan okur, değişikliği onFiltreDegis
           ile bildirir; süzme sunucuda yapılır (queryKey değişince yeniden çekilir). */}
       <AnketFiltre filtre={filtre} onFiltreDegis={onFiltreDegis} />
-      {/* Tablo çerçevesi kişi listesiyle birebir aynı sınıflarla kurulur. Anket
-          yoksa başlıklı çerçeve boş görünmesin diye tek satırlık bir boş-durum
-          hücresi konur; colSpan tüm kolonları kaplar (liste-bos-hucre ile ortalanır). */}
-      <div className="kullanici-tablo-sarmalayici">
-        <table className="kullanici-tablo">
-          <thead>
-            <tr>
-              {ANKET_KOLON_BASLIKLARI.map((baslik) => (
-                <th key={baslik}>{baslik}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {anketListesi.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={ANKET_KOLON_BASLIKLARI.length}
-                  className="kullanici-liste-durum liste-bos-hucre"
-                >
-                  Kayıtlı anket bulunamadı.
-                </td>
-              </tr>
-            ) : (
-              anketListesi.map((anket) => (
-                <tr key={anket.anket_id}>
-                  <td>{anket.ad}</td>
-                  <td>{anket.durum}</td>
-                  <td>{olusturanAdiBicimlendir(anket)}</td>
-                  <td>{tarihSaatBicimlendir(anket.olusturma_tarihi)}</td>
-                  <td>
-                    <SayiHucresi
-                      sayi={anket.atanan_sayisi}
-                      ariaEtiketi={`${anket.ad} anketine atanan kullanıcıları göster`}
-                      onAc={() => setAtamaKutusu({ anket, mod: 'atanan' })}
-                    />
-                  </td>
-                  <td>
-                    <SayiHucresi
-                      sayi={anket.yanitlayan_sayisi}
-                      ariaEtiketi={`${anket.ad} anketini yanıtlayan kullanıcıları göster`}
-                      onAc={() => setAtamaKutusu({ anket, mod: 'yanitlayan' })}
-                    />
-                  </td>
-                  <td>
-                    <div className="soru-islem-hucre">
-                      {/* Güncelle: üst bileşene haber vererek bu anket için güncelleme
-                          görünümünü açar (form alanları backend'den çekilir). Stil
-                          SoruListesi'nin İşlem butonlarıyla paylaşılır (DRY). */}
-                      <button
-                        type="button"
-                        className="soru-islem-buton soru-guncelle-buton"
-                        onClick={() => onAnketDuzenle(anket)}
-                      >
-                        Güncelle
-                      </button>
-                      {/* Durum değiştirme: doğrudan istek atmaz, önce onay kutusu
-                          açar. Etiket satırın durumuna bakan salt gösterimdir;
-                          hedef durumu ve yetkiyi sunucu belirler. */}
-                      <button
-                        type="button"
-                        className="soru-islem-buton soru-guncelle-buton"
-                        onClick={() => durumDegistirmeyeBasla(anket)}
-                      >
-                        {durumButonEtiketi(anket)}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+
+      {/* Liste çekilemezse tablo yerine güvenli hata mesajı gösterilir
+          (error.message backend'in güvenli metnidir; teknik detay sızmaz).
+          Filtre kartı ekranda kalır ki kullanıcı seçimini geri alabilsin. */}
+      {isError ? (
+        <Alert type="error" showIcon title={error.message} role="alert" />
+      ) : (
+        <Table
+          rowKey="anket_id"
+          columns={sutunlar}
+          dataSource={anketListesi}
+          // Yalnızca İLK yüklemede döner; filtre değişiminde önceki liste
+          // ekranda kalır (keepPreviousData).
+          loading={isPending}
+          pagination={false}
+          scroll={{ x: 'max-content' }}
+          locale={{ emptyText: 'Kayıtlı anket bulunamadı.' }}
+        />
+      )}
+
       {/* Kişi listesi kutusu: hangi anket ve hangi mod için açıldığı state'te
           tutulur. Cevap kutusu açıkken bu kutu açık KALIR (kullanıcı listeyi
           kaybetmesin) ama kapatma en üstteki kutuya aittir. */}
@@ -370,18 +231,7 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
           }
         />
       )}
-      {/* Durum değiştirme onayı: hedef anket seçiliyken açılır. Onaylanmadan
-          hiçbir istek atılmaz; istek sürerken butonlar kilitlenir (islemAktif). */}
-      {durumHedefi && (
-        <OnayKutusu
-          baslik="Anket durumunu değiştir"
-          mesaj={durumOnayMesaji(durumHedefi)}
-          onaylaMetni={durumButonEtiketi(durumHedefi)}
-          onOnayla={durumDegistirmeyiOnayla}
-          onVazgec={() => setDurumHedefi(null)}
-          islemAktif={durumMutation.isPending}
-        />
-      )}
+
       {/* Cevap kutusu listenin ÜSTÜNDE açılır; kapanınca kişi listesine dönülür. */}
       {cevapKutusu && (
         <AnketKullaniciCevaplariKutusu
@@ -390,7 +240,7 @@ function AnketListesi({ onAnketEkle, onAnketDuzenle }) {
           onKapat={() => setCevapKutusu(null)}
         />
       )}
-    </section>
+    </Flex>
   )
 }
 

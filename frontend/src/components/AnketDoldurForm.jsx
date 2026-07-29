@@ -4,15 +4,14 @@
 // alan uyarısı burada YALNIZCA erken bir UX geri bildirimidir (basit boş kontrolü);
 // asıl doğrulama (kardinalite, aidiyet, tarih/durum, zorunluluk) SUNUCUDADIR ve
 // sunucu yanıtı esas alınır. Gönderim @tanstack/react-query mutation'ı ile yapılır.
+// Görünüm Ant Design bileşenleriyle kurulur (Alert/Button/Empty); tema
+// ConfigProvider token'larından gelir, bu bileşene ait özel CSS dosyası YOKTUR.
 
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { Alert, Button, Empty, Flex } from 'antd'
 import { anketCevaplariGonder } from '../api/anketApi.js'
 import AnketDoldurSoruKarti from './AnketDoldurSoruKarti'
-import '../styles/anket-doldur.css'
-// Gönder butonu paylaşılan .birincil-buton sınıfını kullanır; taban stili burada
-// tanımlıdır (kopya CSS yazılmaz, DRY).
-import '../styles/kullanici-ekle.css'
 
 // sorulariSirala: soruları sira_no'ya göre (boş sona) kararlı sıralar. Backend
 // zaten sıralı gönderir; görünüm tutarlılığı için yeniden sıralanır (stabil).
@@ -108,51 +107,44 @@ function AnketDoldurForm({ anket, onBasarili, saltOkunur = false }) {
   const girdilerKilitli = gonderMutation.isPending || saltOkunur
 
   return (
-    <form className="anket-doldur-form" onSubmit={gonderimiBaslat} noValidate>
-      {sorular.length === 0 ? (
-        <p className="anket-doldur-bos">Bu ankette gösterilecek soru bulunmuyor.</p>
-      ) : (
-        <ol className="anket-doldur-soru-listesi">
-          {sorular.map((soru) => (
-            <AnketDoldurSoruKarti
-              key={soru.soru_id}
-              soru={soru}
-              deger={cevaplar[soru.soru_id]}
-              onDegis={(yeniDeger) => soruCevabiniGuncelle(soru.soru_id, yeniDeger)}
-              hataVar={eksikSoruIdler.includes(soru.soru_id)}
-              saltOkunur={girdilerKilitli}
-            />
-          ))}
-        </ol>
-      )}
+    <form onSubmit={gonderimiBaslat} noValidate>
+      <Flex vertical gap={16}>
+        {sorular.length === 0 ? (
+          <Empty description="Bu ankette gösterilecek soru bulunmuyor." />
+        ) : (
+          <Flex vertical gap={16} component="ol" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+            {sorular.map((soru, index) => (
+              <AnketDoldurSoruKarti
+                key={soru.soru_id}
+                sira={index + 1}
+                soru={soru}
+                deger={cevaplar[soru.soru_id]}
+                onDegis={(yeniDeger) => soruCevabiniGuncelle(soru.soru_id, yeniDeger)}
+                hataVar={eksikSoruIdler.includes(soru.soru_id)}
+                saltOkunur={girdilerKilitli}
+              />
+            ))}
+          </Flex>
+        )}
 
-      {/* İstemci tarafı erken uyarı (yalnız UX). */}
-      {uyariMetni ? (
-        <p className="anket-doldur-uyari" role="alert">
-          {uyariMetni}
-        </p>
-      ) : null}
+        {/* İstemci tarafı erken uyarı (yalnız UX). */}
+        {uyariMetni ? <Alert type="error" showIcon title={uyariMetni} role="alert" /> : null}
 
-      {/* Sunucudan gelen güvenli hata mesajı (400/409/404 anlamlı Türkçe metni). */}
-      {gonderMutation.isError ? (
-        <p className="anket-doldur-hata" role="alert">
-          {gonderMutation.error.message}
-        </p>
-      ) : null}
+        {/* Sunucudan gelen güvenli hata mesajı (400/409/404 anlamlı Türkçe metni). */}
+        {gonderMutation.isError ? (
+          <Alert type="error" showIcon title={gonderMutation.error.message} role="alert" />
+        ) : null}
 
-      {/* Anket tamamlandıysa Gönder gizlenir (yeniden gönderim yok); aksi halde
-          gönderim sırasında pasifleşir. */}
-      {sorular.length > 0 && !saltOkunur ? (
-        <div className="anket-doldur-gonder-satiri">
-          <button
-            type="submit"
-            className="birincil-buton anket-doldur-gonder"
-            disabled={gonderMutation.isPending}
-          >
-            {gonderMutation.isPending ? 'Gönderiliyor...' : 'Gönder'}
-          </button>
-        </div>
-      ) : null}
+        {/* Anket tamamlandıysa Gönder gizlenir (yeniden gönderim yok); aksi halde
+            gönderim sırasında pasifleşir. */}
+        {sorular.length > 0 && !saltOkunur ? (
+          <Flex justify="flex-end">
+            <Button type="primary" htmlType="submit" disabled={gonderMutation.isPending}>
+              {gonderMutation.isPending ? 'Gönderiliyor...' : 'Gönder'}
+            </Button>
+          </Flex>
+        ) : null}
+      </Flex>
     </form>
   )
 }

@@ -3,19 +3,30 @@
 // okur, anketi backend'den çeker (React Query) ve durumuna göre yükleniyor / hata /
 // tamamlanmış / doldurulabilir görünümünü gösterir. Cevap toplama ve gönderme işi
 // alt bileşen AnketDoldurForm'a devredilir. İş kuralı, hesaplama veya doğrulama
-// İÇERMEZ (otorite sunucudur); yalnızca gösterim ve alt bileşene veri/callback aktarır.
+// İÇERMEZ (otorite sunucudur); yalnızca gösterim ve alt bileşene veri/callback
+// aktarır. Görünüm Ant Design bileşenleriyle kurulur (Card/Typography/Spin/Alert);
+// tema ConfigProvider token'larından gelir, bu sayfaya ait özel CSS dosyası
+// YOKTUR. Standalone rota olduğu için (bkz. D12) ayrıca ConfigProvider/App
+// sarmalayıcı EKLENMEZ.
 
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Alert, Card, Flex, Spin, Typography, theme } from 'antd'
 import { anketDoldurGetir } from '../api/anketApi.js'
 import AnketDoldurForm from '../components/AnketDoldurForm'
-import '../styles/anket-doldur.css'
+
+const { Title } = Typography
+
+// KART_GENISLIGI: içerik kartının en fazla genişliği; uzun soru metinleri ve
+// şıklar rahat okunsun diye sınırlanır.
+const KART_GENISLIGI = 760
 
 // AnketDoldurPage: anketId'yi rota parametresinden okuyup anketi çeker ve uygun
 // görünümü çizer. Başarılı gönderimde ana ekrana döner (kart panelden düşer).
 function AnketDoldurPage() {
   const { anketId } = useParams()
   const navigate = useNavigate()
+  const { token } = theme.useToken()
 
   const {
     data: anket,
@@ -33,69 +44,72 @@ function AnketDoldurPage() {
     navigate('/')
   }
 
+  const sayfaStili = {
+    minHeight: '100vh',
+    background: token.colorBgLayout,
+    padding: '32px 16px',
+  }
+
   if (isPending) {
     return (
-      <div className="anket-doldur-sayfa">
-        <p className="anket-doldur-durum">Anket yükleniyor...</p>
-      </div>
+      <Flex justify="center" style={sayfaStili}>
+        <Spin size="large" role="status" aria-label="Anket yükleniyor" />
+      </Flex>
     )
   }
 
   if (isError) {
-    // error.message backend'in güvenli mesajıdır (404 -> "Anket bulunamadı."
-    // gibi); teknik detay/stack sızmaz.
     return (
-      <div className="anket-doldur-sayfa">
-        <div className="anket-doldur-kart">
-          <p className="anket-doldur-durum anket-doldur-hata">{error.message}</p>
-          <Link className="anket-doldur-geri" to="/">
-            Ana ekrana dön
-          </Link>
-        </div>
-      </div>
+      <Flex justify="center" style={sayfaStili}>
+        <Card style={{ width: '100%', maxWidth: KART_GENISLIGI }}>
+          <Flex vertical gap={16}>
+            {/* error.message backend'in güvenli mesajıdır (404 -> "Anket
+                bulunamadı." gibi); teknik detay/stack sızmaz. */}
+            <Alert type="error" showIcon title={error.message} role="alert" />
+            <Link to="/" style={{ color: token.colorPrimary }}>
+              Ana ekrana dön
+            </Link>
+          </Flex>
+        </Card>
+      </Flex>
     )
   }
 
   return (
-    <div className="anket-doldur-sayfa">
-      <div className="anket-doldur-kart">
-        <div className="anket-doldur-ust">
-          <Link className="anket-doldur-geri" to="/">
+    <Flex justify="center" style={sayfaStili}>
+      <Card style={{ width: '100%', maxWidth: KART_GENISLIGI }}>
+        <Flex vertical gap={16}>
+          <Link to="/" style={{ color: token.colorPrimary, fontSize: 14 }}>
             ← Ana ekrana dön
           </Link>
-        </div>
 
-        <h1 className="anket-doldur-baslik">{anket.ad}</h1>
+          <Title level={3} style={{ margin: 0 }}>
+            {anket.ad}
+          </Title>
 
-        {/* Anket açılış metni (varsa) sunucuda sanitize edilmiş HTML olabilir. */}
-        {anket.on_yazi ? (
-          <div
-            className="anket-doldur-on-yazi"
-            dangerouslySetInnerHTML={{ __html: anket.on_yazi }}
+          {/* Anket açılış metni (varsa) sunucuda sanitize edilmiş HTML olabilir. */}
+          {anket.on_yazi ? <div dangerouslySetInnerHTML={{ __html: anket.on_yazi }} /> : null}
+
+          {anket.tamamlandi_mi ? (
+            <Alert
+              type="info"
+              showIcon
+              role="status"
+              title="Bu anketi zaten tamamladınız. Cevaplarınız kaydedildi."
+            />
+          ) : null}
+
+          <AnketDoldurForm
+            anket={anket}
+            onBasarili={onGonderimBasarili}
+            saltOkunur={anket.tamamlandi_mi}
           />
-        ) : null}
 
-        {anket.tamamlandi_mi ? (
-          <p className="anket-doldur-bilgi" role="status">
-            Bu anketi zaten tamamladınız. Cevaplarınız kaydedildi.
-          </p>
-        ) : null}
-
-        <AnketDoldurForm
-          anket={anket}
-          onBasarili={onGonderimBasarili}
-          saltOkunur={anket.tamamlandi_mi}
-        />
-
-        {/* Kapanış metni (varsa) sunucuda sanitize edilmiş HTML olabilir. */}
-        {anket.son_yazi ? (
-          <div
-            className="anket-doldur-son-yazi"
-            dangerouslySetInnerHTML={{ __html: anket.son_yazi }}
-          />
-        ) : null}
-      </div>
-    </div>
+          {/* Kapanış metni (varsa) sunucuda sanitize edilmiş HTML olabilir. */}
+          {anket.son_yazi ? <div dangerouslySetInnerHTML={{ __html: anket.son_yazi }} /> : null}
+        </Flex>
+      </Card>
+    </Flex>
   )
 }
 

@@ -4,12 +4,16 @@
 // toplar ve açan sekmeye postMessage ile geri gönderip kendini kapatır; iş kuralı,
 // yetki veya hesaplama İÇERMEZ (yetki sunucuda). Mevcut KullaniciListesi bilinçli
 // olarak DEĞİŞTİRİLMEZ/yeniden kullanılmaz: orada düzenle/durum işlemleri vardır,
-// seçim modu o bileşeni karmaşıklaştırırdı (SRP). SoruSecPage ile aynı kalıp:
-// yükleniyor / hata / boş durumları ele alınır, yalnızca güvenli mesaj gösterilir,
-// açan sekme yoksa buton yerine bilgilendirme çıkar.
+// seçim modu o bileşeni karmaşıklaştırırdı (SRP).
+// Görünüm Ant Design bileşenleriyle kurulur (Table + rowSelection / Button / Alert /
+// Typography); tema ConfigProvider token'larından gelir, bu sayfaya ait özel CSS
+// dosyası YOKTUR (styles/soru-sec.css antd'ye geçişte silindi). SoruSecPage ile aynı
+// kalıp: yükleniyor / hata / boş durumları ele alınır, yalnızca güvenli mesaj
+// gösterilir, açan sekme yoksa buton yerine bilgilendirme çıkar.
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Alert, Button, Flex, Table, Typography } from 'antd'
 import { listKullanicilar } from '../api/kullaniciApi.js'
 import { buyukHarfeCevir } from '../common/metinBicimlendir.js'
 import {
@@ -17,12 +21,34 @@ import {
   acanSekmeVarMi,
   secimiAcanSekmeyeGonder,
 } from '../common/secimSekmesi.js'
-import '../styles/kullanici-listesi.css'
-import '../styles/kullanici-ekle.css'
-import '../styles/soru-sec.css'
 
-// Tablo kolon başlıkları (bu sırayla). İlk kolon seçim kutusudur.
-const SECIM_KOLON_BASLIKLARI = ['Seç', 'Sicil', 'Ad Soyad', 'E-posta']
+const { Title, Text } = Typography
+
+// Sayfa çerçevesi: tek başına açılan sekmede zemin ve nefes payı anasayfa içerik
+// alanıyla aynı olsun diye tam yükseklik + 24px iç boşluk (yeni CSS dosyası
+// açılmaz, inline stille kurulur).
+const SAYFA_STILI = { padding: 24, background: '#ffffff', minHeight: '100vh' }
+
+// Tablo sütunları: sicil, ad soyad ve e-posta. Seçim kolonu antd'nin
+// rowSelection'ından gelir.
+const SUTUNLAR = [
+  {
+    title: 'Sicil',
+    dataIndex: 'kullanici_kodu',
+    key: 'kullanici_kodu',
+  },
+  {
+    title: 'Ad Soyad',
+    key: 'ad_soyad',
+    render: (_, kullanici) =>
+      `${buyukHarfeCevir(kullanici.ad)} ${buyukHarfeCevir(kullanici.soyad)}`,
+  },
+  {
+    title: 'E-posta',
+    dataIndex: 'email',
+    key: 'email',
+  },
+]
 
 // AnketKullaniciSecPage: kullanıcı listesini gösterir ve işaretlenenleri açan
 // sekmeye aktarır.
@@ -44,17 +70,9 @@ function AnketKullaniciSecPage() {
   // aktarılacak bir hedef yoktur; buton yerine bilgilendirme gösterilir.
   const acanSekmeVar = acanSekmeVarMi()
 
-  // secimiDegistir: bir kullanıcının işaretini açar/kapatır (işaretliyse çıkarır).
-  function secimiDegistir(kullaniciKodu) {
-    setSecililer((oncekiler) =>
-      oncekiler.includes(kullaniciKodu)
-        ? oncekiler.filter((kod) => kod !== kullaniciKodu)
-        : [...oncekiler, kullaniciKodu],
-    )
-  }
-
   // secilenleriAktar: işaretli kullanıcıları açan sekmeye (anket formuna) gönderir
-  // ve sekmeyi kapatır. Yalnızca formun gösterdiği alanlar taşınır.
+  // ve sekmeyi kapatır. Yalnızca formun gösterdiği alanlar taşınır; sıra listedeki
+  // görünüm sırasıdır, işaretleme sırası değildir.
   function secilenleriAktar() {
     const secilenKullanicilar = (kullanicilar ?? [])
       .filter((kullanici) => secililer.includes(kullanici.kullanici_kodu))
@@ -70,91 +88,50 @@ function AnketKullaniciSecPage() {
     })
   }
 
-  if (isPending) {
-    return (
-      <section className="soru-sec-sayfa">
-        <p className="kullanici-liste-durum">Yükleniyor...</p>
-      </section>
-    )
-  }
-
-  if (isError) {
-    // error.message backend'in güvenli mesajıdır; teknik detay sızmaz.
-    return (
-      <section className="soru-sec-sayfa">
-        <p className="kullanici-liste-durum kullanici-liste-hata" role="alert">
-          {error.message}
-        </p>
-      </section>
-    )
-  }
-
   const kullaniciListesi = kullanicilar ?? []
 
   return (
-    <section className="soru-sec-sayfa">
-      <div className="kullanici-liste-baslik-satiri">
-        <h2 className="kullanici-liste-baslik">
-          Ankete Eklenecek Kullanıcıları Seçin
-        </h2>
-      </div>
+    <Flex vertical gap={16} style={SAYFA_STILI}>
+      <Title level={2} style={{ margin: 0, fontSize: 20 }}>
+        Ankete Eklenecek Kullanıcıları Seçin
+      </Title>
 
-      {kullaniciListesi.length === 0 ? (
-        <p className="kullanici-liste-durum">Kayıtlı kullanıcı bulunamadı.</p>
+      {/* error.message backend'in güvenli mesajıdır; teknik detay sızmaz. */}
+      {isError ? (
+        <Alert type="error" showIcon title={error.message} role="alert" />
       ) : (
-        <div className="kullanici-tablo-sarmalayici">
-          <table className="kullanici-tablo">
-            <thead>
-              <tr>
-                {SECIM_KOLON_BASLIKLARI.map((baslik) => (
-                  <th key={baslik}>{baslik}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {kullaniciListesi.map((kullanici) => (
-                <tr key={kullanici.kullanici_kodu}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      className="soru-sec-kutu"
-                      checked={secililer.includes(kullanici.kullanici_kodu)}
-                      onChange={() => secimiDegistir(kullanici.kullanici_kodu)}
-                      aria-label="Bu kullanıcıyı ankete ekle"
-                    />
-                  </td>
-                  <td>{kullanici.kullanici_kodu}</td>
-                  <td>
-                    {`${buyukHarfeCevir(kullanici.ad)} ${buyukHarfeCevir(
-                      kullanici.soyad,
-                    )}`}
-                  </td>
-                  <td>{kullanici.email}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          rowKey="kullanici_kodu"
+          columns={SUTUNLAR}
+          dataSource={kullaniciListesi}
+          rowSelection={{
+            selectedRowKeys: secililer,
+            onChange: setSecililer,
+            getCheckboxProps: () => ({ 'aria-label': 'Bu kullanıcıyı ankete ekle' }),
+          }}
+          loading={isPending}
+          pagination={false}
+          locale={{ emptyText: 'Kayıtlı kullanıcı bulunamadı.' }}
+        />
       )}
 
-      <div className="soru-sec-alt-cubuk">
+      <Flex justify={acanSekmeVar ? 'flex-end' : 'flex-start'}>
         {acanSekmeVar ? (
-          <button
-            type="button"
-            className="birincil-buton"
+          <Button
+            type="primary"
             disabled={secililer.length === 0}
             onClick={secilenleriAktar}
           >
             Seçilenleri Ekle
-          </button>
+          </Button>
         ) : (
-          <p className="kullanici-liste-durum">
+          <Text type="secondary">
             Bu ekran, anket formundaki "Listeden seç" bağlantısıyla açıldığında
             kullanıcı ekleyebilir. Lütfen anket formuna dönüp oradan açın.
-          </p>
+          </Text>
         )}
-      </div>
-    </section>
+      </Flex>
+    </Flex>
   )
 }
 

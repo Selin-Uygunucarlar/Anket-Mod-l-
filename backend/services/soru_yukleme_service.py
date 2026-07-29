@@ -4,11 +4,12 @@ Neden ayrı dosya: soru_service tek soru ekleme/güncelleme/silme sorumluluğuyl
 zaten doludur (SRP + dosya boyutu). Toplu yükleme AYRI bir iş akışıdır: çok
 satırlı girdi, satır bazlı hata raporu ve atomik yazma.
 
-Sorumluluk: yetki (yalnız admin), Excel'in kullanıcıya görünen Türkçe soru tipi
-etiketini teknik tip kimliğine (slug) çevirme, düz metin soru gövdesini güvenli
-HTML'e dönüştürme, her satırı doğrulama ve TÜM hataları toplayıp tek seferde
-bildirme. Doğrulama/sanitizasyon/şık kuralları KOPYALANMAZ; soru_service'in
-ortak hazirla_soru_alanlari fonksiyonu yeniden kullanılır (DRY) — kural tek yerde.
+Sorumluluk: yetki (anket yönetimi sayfa hakkı), Excel'in kullanıcıya görünen
+Türkçe soru tipi etiketini teknik tip kimliğine (slug) çevirme, düz metin soru
+gövdesini güvenli HTML'e dönüştürme, her satırı doğrulama ve TÜM hataları
+toplayıp tek seferde bildirme. Doğrulama/sanitizasyon/şık kuralları
+KOPYALANMAZ; soru_service'in ortak hazirla_soru_alanlari fonksiyonu yeniden
+kullanılır (DRY) — kural tek yerde.
 
 Atomiklik: tek satır bile hatalıysa Repository HİÇ çağrılmaz; hiçbir kayıt
 yazılmaz (TopluYuklemeDogrulamaHatasi). Hatasız durumda tüm kayıtlar Repository'nin
@@ -21,18 +22,16 @@ fırlatılır; loglama yalnızca sınır katmanında bir kez yapılır.
 
 import html
 
+from common import izinler
 from common.errors import (
     TopluYuklemeDogrulamaHatasi,
     ValidationError,
-    YetkiYokError,
 )
 from models.oturum import OturumSahibi
 from models.secenek import SecenekKaydi
 from models.soru import YuklenecekSoru
 from repositories import soru_repository
-from services import secenek_service, soru_service
-
-_ADMIN_TURU = "admin"
+from services import secenek_service, soru_service, yetki_service
 
 # Excel ile YÜKLENEMEYEN soru tipi: grid çok boyutlu bir yapı olduğundan tek
 # satır + 15 şık sütunlu şablona sığmaz. Şablon listesinde görünmez, gelirse
@@ -172,7 +171,7 @@ def _satirlari_dogrula(
 def yukle_sorular(talep_eden: OturumSahibi, satirlar: list[dict]) -> int:
     """Excel'den çözümlenmiş soru satırlarını doğrulayıp TOPLU ekler; eklenen sayıyı döner.
 
-    Yalnızca admin çağırabilir (talep_eden'e göre; client'tan gelen role/id'ye
+    Anket yönetimi sayfa hakkı gerekir (talep_eden'e göre; client'tan gelen role/id'ye
     güvenilmez) ve yetki kontrolü veri erişimine geçmeden ÖNCE yapılır. `satirlar`
     her öğesi {"satir_no", "soru_tipi", "konu", "amac", "soru_metni", "secenekler"}
     olan sözlüktür; satir_no kullanıcının Excel'de gördüğü GERÇEK satır numarasıdır.
@@ -183,8 +182,7 @@ def yukle_sorular(talep_eden: OturumSahibi, satirlar: list[dict]) -> int:
     (atomiklik). Hatasızsa kayıtlar Repository'nin tek transaction'ında yazılır;
     hazirlayan_kodu OTURUMDAN alınır. Hata burada loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     if not satirlar:
         raise ValidationError("Yüklenecek soru bulunamadı.")
@@ -212,7 +210,7 @@ def _kategori_degerleri(
 
 
 def uret_sablon_verisi(talep_eden: OturumSahibi) -> dict:
-    """Excel şablonunun dropdown içeriğini döner; yalnızca admin çağırabilir.
+    """Excel şablonunun dropdown içeriğini döner; anket yönetimi sayfa hakkı gerekir.
 
     İçerik: import edilebilir soru tipi ETİKETLERİ (yükleme sırasında kabul edilen
     etiketlerle AYNI kaynaktan — böylece şablon ile doğrulama ayrışamaz) + tanımlı
@@ -220,8 +218,7 @@ def uret_sablon_verisi(talep_eden: OturumSahibi) -> dict:
     (mevcut yetki + kategori mantığı yeniden kullanılır; yeni kod türetilmez).
     Excel biçimi/dosya üretimi bu katmanın işi DEĞİLDİR (sınır katmanına aittir).
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     secenekler = secenek_service.list_secenekler(talep_eden)
     return {

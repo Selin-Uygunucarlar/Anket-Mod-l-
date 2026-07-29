@@ -1,7 +1,8 @@
 """Anket (oluşturma + listeleme + detay + güncelleme + durum değiştirme) iş katmanı.
 
 Neden: Anket oluşturma/listeleme/detay/güncelleme ve durum değiştirme birer YÖNETİM
-ucudur; yalnızca admin çağırabilir. Yetki, client'tan gelen role/id'ye değil, sunucu
+ucudur; anket yönetimi sayfa hakkı gerektirir (tek karar noktası: yetki_service).
+Yetki, client'tan gelen role/id'ye değil, sunucu
 tarafı oturumun sahibine (OturumSahibi) göre belirlenir. Formun "ne zaman başlar/biter"
 seçimleri birer İŞ KURALIDIR ve gerçek tarihe sunucuda çevrilir (bkz. anket_tarih).
 
@@ -34,12 +35,13 @@ LOGLANMAZ, yukarı fırlatılır; loglama yalnızca sınır katmanında bir kez 
 
 import dataclasses
 
-from common.errors import NotFoundError, ValidationError, YetkiYokError
+from common import izinler
+from common.errors import NotFoundError, ValidationError
 from common.html_temizle import temizle_html
 from models.anket import AnketDetay, AnketOzeti, AtanmisAnketKarti
 from models.oturum import OturumSahibi
 from repositories import anket_repository, grup_repository
-from services import anket_tarih
+from services import anket_tarih, yetki_service
 from services.anket_alan_hazirla import (
     ANKET_AKTIF_DURUM,
     ANKET_PASIF_DURUM,
@@ -48,8 +50,6 @@ from services.anket_alan_hazirla import (
     bos_ise_none,
     hazirla_anket_alanlari,
 )
-
-_ADMIN_TURU = "admin"
 
 
 def list_anketler(
@@ -61,10 +61,10 @@ def list_anketler(
     bitis_tarih: str | None = None,
 ) -> list[AnketOzeti]:
     """Talep edenin GÖREBİLDİĞİ (ve istenirse süzülmüş) anketleri liste özeti olarak
-    döner; yalnızca admin çağırabilir.
+    döner; anket yönetimi sayfa hakkı gerekir.
 
-    Yetki talep edenin (doğrulanmış oturum sahibi) kullanici_turu'ne göre belirlenir;
-    admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. Admin olmak tüm
+    Yetki talep edenin (doğrulanmış oturum sahibi) kimliğine göre belirlenir; hakkı
+    yoksa veri erişimine geçilmeden YetkiYokError fırlatılır. Hakkı olmak tüm
     anketleri görmeye yetmez: görünürlük ayrıca anketin erisim_seviyesi'ne bağlıdır.
     'herkes' -> herkese görünür; 'grup' -> yalnızca anketin erisim_grup_id'si talep
     edenin KENDİ grubuyla aynıysa; 'ben'/NULL -> yalnızca anketi kendisi oluşturduysa.
@@ -77,8 +77,7 @@ def list_anketler(
     ile somut (alt, üst) oluşturulma sınırlarına çevrilir (üst sınır dışlayıcı). Hata
     loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     tip_filtre = bos_ise_none(anket_tipi)
     if tip_filtre is not None and tip_filtre not in GECERLI_ANKET_TIPLERI:
@@ -105,7 +104,7 @@ def list_anketler(
 def list_atanmis_anketler(talep_eden: OturumSahibi) -> list[AtanmisAnketKarti]:
     """Talep edenin ana ekranına düşen bekleyen anketleri döner (kişiye özel panel).
 
-    Yönetim ucu DEĞİLDİR: admin/user ayrımı YOKTUR, her giriş yapmış kullanıcı
+    Yönetim ucu DEĞİLDİR: sayfa hakkı SORULMAZ, her giriş yapmış kullanıcı
     yalnızca KENDİ atanmış, aktif ve henüz tamamlamadığı anketlerini görür (hangi
     anketlerin "bekleyen" sayılacağı Repository'nin süzgecindedir). IDOR koruması:
     süzme sicili client'tan ALINMAZ, doğrulanmış oturum sahibinden geçirilir; kimse
@@ -118,14 +117,13 @@ def list_atanmis_anketler(talep_eden: OturumSahibi) -> list[AtanmisAnketKarti]:
 def get_anket(talep_eden: OturumSahibi, anket_id: int) -> AnketDetay:
     """Tek anketi düzenleme formunu ön-doldurmaya yeten tam görünümüyle döner.
 
-    Yalnızca admin çağırabilir; admin değilse veri erişimine geçilmeden YetkiYokError.
-    "Görebilen güncelleyebilir/görebilir": anket OTURUM SAHİBİNİN sicili + grubuyla
-    çekilir; görünmüyorsa NotFoundError (varlık/içerik sızmaz). Dönen anketin bağlı
-    soru metinleri okuma sınırında sanitize edilir (defense-in-depth; frontend HTML
-    olarak render eder). Hata loglanmaz, YUKARI FIRLAR.
+    Anket yönetimi sayfa hakkı gerekir; hakkı yoksa veri erişimine geçilmeden
+    YetkiYokError. "Görebilen güncelleyebilir/görebilir": anket OTURUM SAHİBİNİN
+    sicili + grubuyla çekilir; görünmüyorsa NotFoundError (varlık/içerik sızmaz).
+    Dönen anketin bağlı soru metinleri okuma sınırında sanitize edilir
+    (defense-in-depth; frontend HTML olarak render eder). Hata loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     anket = _getir_gorunur_anket(talep_eden, anket_id)
     return _sanitize_anket_detay(anket)
@@ -150,14 +148,13 @@ def ekle_anket(
 ) -> int:
     """Yeni anketi soru bağları ve kullanıcı atamalarıyla oluşturur; anket_id döner.
 
-    Yalnızca admin çağırabilir. Tüm ortak iş kuralları hazirla_anket_alanlari'nda
+    Anket yönetimi sayfa hakkı gerekir. Tüm ortak iş kuralları hazirla_anket_alanlari'nda
     (guncelle_anket ile paylaşılan) uygulanır: zorunlu ad, geçerli durum/anket_tipi,
     erişim seviyesi, tarih hesabı ve bitiş > başlangıç, soruların/grupların/
     kullanıcıların varlığı, atanacak kişilerin çözümü. olusturan_kodu ve (seviye
     'grup' ise) erişim grubu OTURUMDAN çözülür. Hata loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     hazir = hazirla_anket_alanlari(
         talep_eden,
@@ -215,15 +212,14 @@ def guncelle_anket(
 ) -> None:
     """Var olan bir anketi (alanlar + soru bağları + atamalar) günceller.
 
-    Yalnızca admin çağırabilir. "Görebilen güncelleyebilir": önce anket OTURUM
+    Anket yönetimi sayfa hakkı gerekir. "Görebilen güncelleyebilir": önce anket OTURUM
     SAHİBİNİN sicili + grubuyla çekilir; görünmüyorsa NotFoundError (varlık sızmaz).
     Ortak iş kuralları ekle_anket ile AYNI hazirla_anket_alanlari'ndan geçer.
     Atamalara FARK uygulanır: mevcut atananlarla istenen liste karşılaştırılıp yalnız
     eklenecek/çıkarılacak kişiler belirlenir (kalan kişiye dokunulmaz). son_tarih
     anketin YENİ bitiş tarihidir; olusturan_kodu DEĞİŞMEZ. Hata loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     # Varlık + görünürlük ("görebilen güncelleyebilir"); None -> NotFoundError.
     _getir_gorunur_anket(talep_eden, anket_id)
@@ -273,16 +269,15 @@ def guncelle_anket(
 def degistir_anket_durumu(talep_eden: OturumSahibi, anket_id: int) -> str:
     """Anketin yayın durumunu tersine çevirir (Aktif <-> Pasif); YENİ durumu döner.
 
-    Yalnızca admin çağırabilir; yetki client'ın role'üne değil doğrulanmış oturum
-    sahibine göre verilir (admin değil -> YetkiYokError, veri erişimine GEÇMEDEN).
+    Anket yönetimi sayfa hakkı gerekir; yetki client'ın role'üne değil doğrulanmış
+    oturum sahibine göre verilir (hakkı yok -> YetkiYokError, veri erişimine GEÇMEDEN).
     "Görebilen güncelleyebilir": anket oturum sahibinin sicili + grubuyla çekilir,
     görünmüyorsa NotFoundError (varlık sızmaz, IDOR'a kapalı). HEDEF DURUM CLIENT'TAN
     ALINMAZ: mevcut durum 'Aktif' ise 'Pasif', değilse 'Aktif' olur (kullanıcı
     aktiflik toggle'ı ile aynı kalıp) -> geçersiz durum Repository'ye hiç gitmez.
     Anketin diğer alanlarına dokunulmaz. Hata loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     anket = _getir_gorunur_anket(talep_eden, anket_id)
     yeni_durum = (

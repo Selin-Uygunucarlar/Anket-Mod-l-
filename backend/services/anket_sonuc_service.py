@@ -4,9 +4,10 @@ Neden ayrı dosya: anket_service.py 500 satır sınırına yakın olduğundan, a
 listesi ekranından açılan SONUÇ okumalarının iş kuralları buraya alındı (SRP +
 dosya boyutu; anket_doldur_service.py ile aynı kalıp).
 
-Yetki: Bu bir YÖNETİM ucudur -> yalnızca admin. Rol client'tan gelen değere değil,
-doğrulanmış oturum sahibine (OturumSahibi.kullanici_turu) göre belirlenir; admin
-değilse veri erişimine GEÇMEDEN YetkiYokError fırlar. Admin olmak tek başına yetmez:
+Yetki: Bu bir YÖNETİM ucudur -> anket yönetimi sayfa hakkı gerekir (tek karar
+noktası: yetki_service). Yetki client'tan gelen değere değil, doğrulanmış oturum
+sahibine göre belirlenir; hakkı yoksa veri erişimine GEÇMEDEN YetkiYokError fırlar.
+Hakkı olmak tek başına yetmez:
 görünürlük anketin erisim_seviyesi'ne de bağlıdır ve süzme değerleri (sicil + grup)
 OTURUMDAN çözülür, client'tan ALINMAZ (IDOR'a kapalı). Repository None dönerse
 NotFoundError verilir: "anket yok" ile "bana görünmüyor" (ve cevap ucunda "kişi bu
@@ -20,7 +21,8 @@ Bu katman HTTP ve SQL bilmez; veriye Repository üzerinden erişir. Hatalar bura
 LOGLANMAZ, yukarı fırlatılır; loglama yalnızca sınır katmanında bir kez yapılır.
 """
 
-from common.errors import NotFoundError, YetkiYokError
+from common import izinler
+from common.errors import NotFoundError
 from common.html_temizle import temizle_html
 from models.anket_sonuc import (
     AnketAtamaGorunumu,
@@ -33,8 +35,7 @@ from models.anket_sonuc import (
 from models.oturum import OturumSahibi
 from repositories import anket_sonuc_repository, grup_repository
 from repositories.anket_sorgulari import ATAMA_TAMAMLANDI_DURUMU
-
-_ADMIN_TURU = "admin"
+from services import yetki_service
 
 # Aynı soruya birden çok açık uçlu satır yazılması KURAMSALDIR (cevaplama akışı yorum
 # tipinde tek satır üretir). Veride yine de birden çok satır varsa hiçbiri gizlenmez;
@@ -48,7 +49,7 @@ def list_anket_atamalari(
     """Bir ankete atanmış kişileri, yanıtlayıp yanıtlamadıkları bilgisiyle döner.
 
     Liste ekranındaki "Atanan / Yanıtlayan Kullanıcı Sayısı" hücrelerinin arkasındaki
-    kişi listesidir. Yalnızca admin çağırabilir; görünürlük süzgeci oturum sahibinin
+    kişi listesidir. Anket yönetimi sayfa hakkı gerekir; görünürlük süzgeci oturum sahibinin
     kendi sicili + kendi grubuyla kurulur (client'tan gelen id/role güvenilmez).
     Anket görünmüyor/yok -> NotFoundError (varlık sızmaz). Anket görünüyor ama kimse
     atanmamışsa boş liste döner. ad/soyad/email düz metindir -> sanitize gerekmez.
@@ -82,7 +83,7 @@ def get_kullanici_cevaplari(
     """Tek kişinin bir ankete verdiği cevapları soru↔cevap eşleştirilmiş halde döner.
 
     "Cevapları Gör" akışıdır. Yetki ve görünürlük kuralı atama listesiyle AYNIDIR
-    (yalnızca admin + oturumdan çözülen görünürlük). Anket görünmüyor/yok ya da kişi
+    (sayfa hakkı + oturumdan çözülen görünürlük). Anket görünmüyor/yok ya da kişi
     bu ankete atanmamışsa Repository None döner ve tek bir NotFoundError'a çevrilir
     (iki durum AYRILMAZ; hangi anketin/kişinin var olduğu sızmaz). Kişi anketi
     tamamlamadan bıraktıysa cevaplar kısmi olabilir; tamamlandi_mi bunu bildirir.
@@ -106,12 +107,11 @@ def get_kullanici_cevaplari(
 def _dogrula_yetki_ve_coz_grup(talep_eden: OturumSahibi) -> int | None:
     """Yönetim yetkisini doğrular ve görünürlük süzgecinin grup kimliğini çözer.
 
-    İki ucun ortak kapısıdır (DRY): admin değilse veri erişimine GEÇMEDEN
-    YetkiYokError; adminse görünürlük grubu client'tan değil oturum sahibinin KENDİ
-    kaydından okunur (grupsuzsa None -> 'grup' seviyeli anketler görünmez).
+    İki ucun ortak kapısıdır (DRY): sayfa hakkı yoksa veri erişimine GEÇMEDEN
+    YetkiYokError; hakkı varsa görünürlük grubu client'tan değil oturum sahibinin
+    KENDİ kaydından okunur (grupsuzsa None -> 'grup' seviyeli anketler görünmez).
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
     return grup_repository.kullanici_grup_id_getir(talep_eden.kullanici_kodu)
 
 

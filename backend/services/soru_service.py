@@ -1,7 +1,8 @@
 """Anket soruları (ekleme + listeleme + silme) iş katmanı.
 
-Neden: Soru ekleme/listeleme/silme bir YÖNETİM ucudur; yalnızca admin
-çağırabilir. Yetki, client'tan gelen role değil, sunucu tarafı oturumun sahibine
+Neden: Soru ekleme/listeleme/silme bir YÖNETİM ucudur; anket yönetimi sayfa hakkı
+gerektirir (tek karar noktası: yetki_service).
+Yetki, client'tan gelen role değil, sunucu tarafı oturumun sahibine
 (OturumSahibi) göre belirlenir. soru_metni biçimli HAM HTML olduğundan XSS'e karşı
 SUNUCU TARAFI sanitizasyon (migration 007/009) burada, kayda/gösterime çıkmadan
 önce yapılır. Ekleme akışında şık metinleri (secenek_metni) de artık BİÇİMLİ HTML
@@ -26,13 +27,13 @@ import dataclasses
 import html
 import re
 
-from common.errors import NotFoundError, ValidationError, YetkiYokError
+from common import izinler
+from common.errors import NotFoundError, ValidationError
 from common.html_temizle import temizle_html
 from models.oturum import OturumSahibi
 from models.soru import SoruKaydi
 from repositories import soru_repository
-
-_ADMIN_TURU = "admin"
+from services import yetki_service
 
 # Şık normalizasyonunda özel davranışa sahip tip kimlikleri (aşağıdaki kümenin
 # üyeleri). Bu üç tip _secenekleri_tipe_gore_hazirla'da ayrı dallanır.
@@ -177,8 +178,8 @@ def hazirla_soru_alanlari(
     boşluk/etiket -> reddedilir). Şıklar TİPE GÖRE _secenekleri_tipe_gore_hazirla ile
     normalize edilir ve adedi orada doğrulanır (evet_hayir kanonik, skala_5 uç+ara,
     yorum şıksız, kalanlar 2–15 serbest). Yetki
-    kontrolü BURADA DEĞİL, çağıran public fonksiyondadır (admin kontrolü doğrulamadan
-    önce yapılır). Döner: (konu_temiz, amac_temiz, sanitize_soru_metni,
+    kontrolü BURADA DEĞİL, çağıran public fonksiyondadır (sayfa hakkı doğrulamadan
+    önce sorulur). Döner: (konu_temiz, amac_temiz, sanitize_soru_metni,
     hazir_secenekler). İhlalde ValidationError fırlatılır (loglanmaz, yukarı çıkar).
     """
     if soru_tipi not in GECERLI_SORU_TIPLERI:
@@ -210,14 +211,13 @@ def ekle_soru(
 ) -> int:
     """BAĞIMSIZ (ankete bağlı olmayan) yeni bir soru ekler; yeni soru_id döner.
 
-    Yalnızca admin çağırabilir (talep_eden'e göre; client'tan gelen role/id'ye
+    Anket yönetimi sayfa hakkı gerekir (talep_eden'e göre; client'tan gelen role/id'ye
     güvenilmez). İş kuralları (tip kümesi, konu/amac dolu, XSS sanitizasyonu +
     boş-içerik kontrolü) hazirla_soru_alanlari'nda ortaktır (guncelle_soru ile
     paylaşılır). hazirlayan_kodu OTURUMDAN alınır. anket_id=None (bağımsız),
     sira_no=None, zorunlu_mu=False sabit geçilir. Hata burada loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     konu_temiz, amac_temiz, soru_metni, secenekler = hazirla_soru_alanlari(
         soru_tipi, konu, amac, soru_metni_ham, secenek_metinleri
@@ -259,30 +259,28 @@ def _sanitize_soru_kaydi(soru: SoruKaydi) -> SoruKaydi:
 
 
 def list_sorular(talep_eden: OturumSahibi) -> list[SoruKaydi]:
-    """Tüm anketlerin tüm sorularını döner; yalnızca admin çağırabilir.
+    """Tüm anketlerin tüm sorularını döner; anket yönetimi sayfa hakkı gerekir.
 
-    admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. Admin ise
+    Hakkı yoksa veri erişimine geçilmeden YetkiYokError fırlatılır. Hakkı varsa
     Repository'den sorular çekilir; her sorunun soru_metni HEM de her şıkkın
     secenek_metni HTML'i sunucu tarafında sanitize edilir (XSS). Seçenekler de
     biçimli HTML'dir; frontend HTML olarak render ettiğinden okuma sınırında
     temizlenir (defense-in-depth; eski/güvenilmez satırlar da kapsanır).
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     sorular = soru_repository.sorulari_getir()
     return [_sanitize_soru_kaydi(soru) for soru in sorular]
 
 
 def sil_soru(talep_eden: OturumSahibi, soru_id: int) -> None:
-    """Verilen soruyu siler; yalnızca admin çağırabilir. Silme idempotenttir.
+    """Verilen soruyu siler; anket yönetimi sayfa hakkı gerekir. Silme idempotenttir.
 
-    admin değilse veri erişimine geçilmeden YetkiYokError fırlatılır. Admin ise
+    Hakkı yoksa veri erişimine geçilmeden YetkiYokError fırlatılır. Hakkı varsa
     Repository'de silme yapılır; şıklar ve verilmiş cevaplar DB tarafında CASCADE
     ile birlikte gider. Kayıt yoksa da başarı sayılır (Repository sessizce döner).
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     soru_repository.soru_sil(soru_id)
 
@@ -290,14 +288,13 @@ def sil_soru(talep_eden: OturumSahibi, soru_id: int) -> None:
 def get_soru(talep_eden: OturumSahibi, soru_id: int) -> SoruKaydi:
     """Tek bir soruyu tüm alanları + şıklarıyla döner (düzenleme ön-doldurma için).
 
-    Yalnızca admin çağırabilir; admin değilse veri erişimine geçilmeden
+    Anket yönetimi sayfa hakkı gerekir; hakkı yoksa veri erişimine geçilmeden
     YetkiYokError fırlatılır. Repository soru_getir None dönerse "bulunamadı" iş
     kararı burada verilir -> NotFoundError. Bulunan kaydın soru_metni ve her şıkkın
     secenek_metni okuma sınırında _sanitize_soru_kaydi ile sanitize edilir
     (defense-in-depth; list_sorular ile aynı üslup). Hata loglanmaz, YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     soru = soru_repository.soru_getir(soru_id)
     if soru is None:
@@ -316,7 +313,7 @@ def guncelle_soru(
 ) -> None:
     """Var olan bir soruyu (metin/kategori/tip + şıklar) günceller.
 
-    Yalnızca admin çağırabilir; admin değilse veri erişimine geçilmeden
+    Anket yönetimi sayfa hakkı gerekir; hakkı yoksa veri erişimine geçilmeden
     YetkiYokError. İş kuralları (tip kümesi, konu/amac dolu, XSS sanitizasyonu +
     boş-içerik kontrolü) ekle_soru ile ORTAK hazirla_soru_alanlari'ndan geçer.
     Güncellemeden ÖNCE soru_repository.soru_getir ile varlık doğrulanır; kayıt yoksa
@@ -325,8 +322,7 @@ def guncelle_soru(
     anket_id/sira_no/zorunlu_mu/hazirlayan_kodu düzenlemeyle DEĞİŞMEZ. Hata loglanmaz,
     YUKARI FIRLAR.
     """
-    if talep_eden.kullanici_turu != _ADMIN_TURU:
-        raise YetkiYokError()
+    yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
 
     konu_temiz, amac_temiz, soru_metni, secenekler = hazirla_soru_alanlari(
         soru_tipi, konu, amac, soru_metni_ham, secenek_metinleri

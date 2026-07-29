@@ -1,0 +1,826 @@
+================================================================================
+ANT DESIGN — ANKET EKRANLARI TAKİP DOSYASI
+================================================================================
+KAPSAM : ANKETLE İLGİLİ TÜM EKRANLAR Ant Design'a taşınacak.
+         Frontend'in anket DIŞINDAKİ kısmı (kullanıcı listesi/formu, soru
+         listesi/formu, gruplar, ayarlar, giriş ekranı, ana ekran kabuğu)
+         OLDUĞU GİBİ KALIR.
+Durum  : DEVAM EDİYOR — Adım 0-6 (altyapı + Anket Listesi + sonuç kutuları +
+         ana ekran anket kutuları + seçme ekranları + anket doldurma) BİTTİ
+         ve doğrulandı. Adım 7-8 (oluştur/güncelle formu, kapanış) BEKLİYOR.
+Tarih  : 2026-07-28 (kapsam genişletildi: 2026-07-28)
+
+KAPSAM GENİŞLEMESİ NOTU
+  Bu dosya ilk olarak YALNIZCA "Anket Listesi" ekranı için açılmıştı ve o iş
+  Adım 0-3 ile tamamlandı. Kullanıcının kararıyla kapsam, anketle ilgili BÜTÜN
+  sayfaları içerecek şekilde genişletildi (Adım 4-8). Adım 0-3'ün kayıtları
+  GEÇMİŞ KAYDI olarak aynen durur; geriye dönük düzenlenmez.
+  Sıradaki iş her zaman "İLERLEME ÖZETİ" bölümündeki ilk [ ] / [~] adımdır;
+  yeni bir session bu dosyayı okuyup oradan devam edebilir.
+
+--------------------------------------------------------------------------------
+BU DOSYA NASIL KULLANILIR (ajanlar için)
+--------------------------------------------------------------------------------
+- Kutular:  [ ] yapılmadı   [~] üzerinde çalışılıyor   [x] bitti VE doğrulandı
+- TİK ATMA KURALI: [x] koymak için kod yazılmış olması YETMEZ. Uygulama
+  ayağa kaldırılıp (/verify) ekran gerçekten sürülmüş olmalı. "Derleniyor"
+  doğrulama DEĞİLDİR. Doğrulanmamış iş [~] kalır ve nedeni NOTLAR'a yazılır.
+- Tik atarken satır sonuna kısa iz bırakılır:   [x] AnketFiltre.jsx (2026-07-28)
+- Beklenmedik bir şey çıkarsa (bozulan başka ekran, çalışmayan davranış)
+  ilgili adımın NOTLAR bölümüne yazılır. Sessizce geçilmez.
+
+--------------------------------------------------------------------------------
+KAPSAM İÇİ — ANKET EKRANLARI (Adım 4-8'in dosyaları)
+--------------------------------------------------------------------------------
+  A) Anket oluştur/güncelle formu (Adım 7)
+       components/AnketEkleForm.jsx (440 satır)  components/AnketKart.jsx
+       components/AnketBilgileriKarti.jsx        components/AnketSorulariKarti.jsx
+       components/AnketTarihleriKarti.jsx        components/AnketKullanicilariKarti.jsx
+       components/AnketMesajAyarlariKarti.jsx    components/AnketIslemleriKarti.jsx
+       -> özel CSS: styles/anket-ekle.css
+  B) Anket doldurma / cevaplama (Adım 6)
+       pages/AnketDoldurPage.jsx                 components/AnketDoldurForm.jsx
+       components/AnketDoldurSoruKarti.jsx
+       -> özel CSS: styles/anket-doldur.css
+  C) Ana ekran anket kutuları (Adım 4)
+       components/AtanmisAnketPaneli.jsx
+       -> özel CSS: styles/atanmis-anket-paneli.css
+  D) Yeni sekmede açılan seçme ekranları (Adım 5)
+       pages/SoruSecPage.jsx                     pages/AnketKullaniciSecPage.jsx
+       pages/AnketGrupSecPage.jsx
+       -> özel CSS: styles/soru-sec.css
+
+Bu dört CSS dosyasının TEK kullanıcıları yukarıdaki ekranlardır (2026-07-28'de
+grep ile doğrulandı) -> geçiş bitince silinebilirler (bkz. D1 + Adım 8).
+
+--------------------------------------------------------------------------------
+KAPSAM DIŞI — DOKUNULMAYACAK DOSYALAR
+--------------------------------------------------------------------------------
+Aşağıdakiler ÇALIŞIR DURUMDA VE DEĞİŞMEDEN kalır; iyileştirme/temizlik
+bahanesiyle bile açılmaz:
+
+  components/KullaniciListesi.jsx      components/SoruListesi.jsx
+  components/OnayKutusu.jsx            components/SatirIslemMenu.jsx
+  components/SoruExcel*.jsx            components/SoruEkleForm.jsx
+  components/SoruMetniKart.jsx         components/SoruSecenekAlani.jsx
+  components/Kullanici*.jsx            components/Grup*.jsx
+  components/AyarlarSayfasi.jsx        components/LoginCard / PasswordField
+  components/Topbar / KisiMenu / AdminPaneli / KirintiYolu / KisiDetayPaneli
+  pages/AnaSayfaPage.jsx (kabuk)       pages/LoginPage / SifreBelirle / OturumSonaErdi
+  routes/ , auth/ , api/ , common/ (yalnızca bileşen içi biçim dönüşümü değişebilir;
+                                    ÇIKTI SÖZLEŞMELERİ değişmez — bkz. D9)
+  backend/  ve  database/  klasörleri  -> TEK SATIR dokunulmaz
+
+--------------------------------------------------------------------------------
+KABUL EDİLEN SONUÇ: KARMA GÖRÜNÜM
+--------------------------------------------------------------------------------
+Anket ekranlarının tasarımı BİLEREK kullanıcı/soru ekranlarıyla aynı yapılmıştı
+(aynı CSS sınıfları paylaşılıyordu). Anket ekranları antd'ye geçince o PARİTE
+BOZULUR: anket ekranları ile kullanıcı/soru/grup/ayarlar ekranları artık
+birbirinin aynısı görünmeyecek. Adım 5'ten sonra en görünür örnek:
+SoruSecPage (antd) ile SoruListesi (eski CSS) benzemeyecek.
+
+Tema token'ları mevcut paleti koruduğu için renkler/yazı tipi aynı kalır; fark
+tablo çizgileri, satır aralıkları ve girdi kutularının biçiminde olur. Bu
+BİLİNÇLİ bir kabuldür, hata değildir. Rahatsız edici bulunursa çözüm, kapsamı
+kullanıcı ve soru ekranlarını da içerecek şekilde genişletmektir.
+
+--------------------------------------------------------------------------------
+SÜRÜMLER
+--------------------------------------------------------------------------------
+antd               6.5.2   -> React 19'u YERELDEN destekler (peer: react>=18).
+                             @ant-design/v5-patch-for-react-19 GEREKMEZ.
+@ant-design/icons  6.3.2
+dayjs              1.11.x  -> DatePicker'ın tarih nesnesi (antd bağımlılığı)
+
+--------------------------------------------------------------------------------
+TEMA EŞLEMESİ — mevcut palet korunuyor
+--------------------------------------------------------------------------------
+Kaynak: frontend/src/styles/login.css  :root
+Hedef : frontend/src/common/antdTema.js  (ConfigProvider theme token'ları)
+
+  #0072CE (--renk-marka-mavi)  -> colorPrimary
+  #005ba6 (mevcut hover)       -> colorPrimaryHover
+  #1f2530 (--renk-lacivert)    -> colorText / colorTextHeading
+  #6b7385 (--renk-metin-soluk) -> colorTextSecondary
+  #d5dae4 (--renk-kenarlik)    -> colorBorder
+  #eef1f6 (--renk-zemin-acik)  -> colorBgLayout
+  #ffffff (--renk-beyaz)       -> colorBgContainer
+  #c0392b (--renk-hata)        -> colorError
+  #0080ff (--renk-vurgu)       -> colorPrimaryBorderHover (odak halkası)
+  10px  (CSS'te baskın radius) -> borderRadius
+  system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif -> fontFamily
+
+DİKKAT: login.css'teki :root değişkenleri YERİNDE KALIR (uygulamanın geri
+kalanı onlara bağlı). antdTema.js onları KOPYALAR; ikisi tutarsız hale
+getirilmez. Renk değişecekse iki yerde birden değişir.
+
+================================================================================
+DİKKAT NOTLARI — TÜM ADIMLARDA GEÇERLİ
+================================================================================
+
+D1. HİÇBİR CSS DOSYASI SİLİNMEZ (iki istisna hariç)
+    Vite'ta CSS import'u GLOBAL'dir; paylaşılan bir dosyanın import'u düşerse
+    başka ekranlar HATA VERMEDEN bozulur.
+      kullanici-listesi.css -> AnketListesi import'unu bırakabilir. Dosya
+        KullaniciListesi, SoruListesi, SoruExcelYukleKutusu ve 2 seçme
+        sayfası tarafından hâlâ import ediliyor -> DOSYA SİLİNMEZ.
+      soru-listesi.css -> AnketListesi import'unu bırakabilir. SoruListesi,
+        AnketSorulariKarti, SoruSecPage, AnketDoldurForm hâlâ kullanıyor
+        -> DOSYA SİLİNMEZ.
+      onay-kutusu.css -> bu ekran artık kullanmayacak ama OnayKutusu.jsx ve
+        SoruExcelYukleKutusu.jsx import ediyor -> DOSYA SİLİNMEZ.
+    SİLİNEBİLECEK TEK İKİ DOSYA (yalnızca bu ekrana ait):
+      anket-filtre.css        (tek kullanıcı: AnketFiltre.jsx)
+      anket-sonuc-kutusu.css  (tek kullanıcılar: AnketAtamaKutusu +
+                               AnketKullaniciCevaplariKutusu)
+    Silmeden önce yine de doğrula:
+      grep -rln "styles/<dosya>.css" frontend/src --include=*.jsx
+
+D2. ".ant-" SEÇİCİSİ YAZMAK YASAK
+    antd v6 CSS-in-JS kullanır. Özel CSS ile .ant-* sınıflarının üzerine
+    yazılmaz. Görünüm ayarı ConfigProvider tema token'ı veya bileşen token'ı
+    (theme.components) ile yapılır.
+
+D3. ONAY KUTUSU: OnayKutusu.jsx'E DOKUNULMAZ
+    OnayKutusu 3 ekran tarafından paylaşılıyor (KullaniciListesi, SoruListesi,
+    AnketListesi). antd Modal'a çevirmek kapsam dışı 2 ekranın görünümünü de
+    değiştirirdi.
+    -> KARAR: OnayKutusu.jsx AYNEN KALIR. AnketListesi ondan vazgeçip antd'nin
+       modal.confirm'ünü kullanır. Böylece bu ekran tümüyle antd olur, kapsam
+       dışı ekranlar HİÇ etkilenmez.
+    -> Bu, geçici olarak iki farklı onay mekanizması demektir; BİLİNÇLİ bir
+       geçiş kararıdır ve kapsam genişlerse tek mekanizmaya indirilir.
+
+D4. STATİK antd FONKSİYONLARI TEMAYI GÖRMEZ
+    antd v5/v6'da statik `Modal.confirm` / `message.x` çağrıları
+    ConfigProvider'ın TEMA VE LOCALE'İNİ OKUMAZ (ayrı React ağacında çalışır)
+    -> ağaç <App> ile de sarılır ve onay için `App.useApp().modal.confirm`
+    kullanılır. Aksi halde onay kutusu varsayılan mavi ve İngilizce çıkar.
+
+D5. SÜZME SUNUCUDA KALIR
+    Anket listesinin filtresi SUNUCUDA çalışıyor. antd Table'ın kendi filtre
+    menüsüne DEVREDİLMEZ; AnketFiltre kontrollü bileşen olarak kalır,
+    uygulanacakFiltre çıktısı queryKey'i beslemeye devam eder.
+
+D6. ARAMA KUTUSU DEKORATİFTİR
+    AnketListesi'ndeki arama kutusu, dosya başı yorumunda yazdığı gibi tasarım
+    paritesi için duruyor ve GERÇEK ARAMA YAPMIYOR.
+    -> antd Input'a çevrilirken "çalışıyormuş gibi" hale GETİRİLMEZ. Davranış
+       aynen korunur (kapsam dışı bir özellik sessizce eklenmez).
+
+D7. İŞ KURALI UI'YA TAŞINMAZ
+    Yetki, durum toggle kararı ve görünürlük süzgeci SUNUCUDADIR.
+    - "Pasife Al"/"Aktife Al" etiketi SALT GÖSTERİMDİR; hedef durumu sunucu
+      belirler ve istek GÖVDESİZ POST olarak kalır.
+    - `yanitladi_mi` SUNUCUDA türetilir; UI yeniden hesaplamaz.
+
+D8. KATMAN VE DOSYA KURALLARI (CLAUDE.md)
+    - Bu iş TÜMÜYLE Sunum katmanıdır: src/api/ sözleşmesi, backend ve database
+      DEĞİŞMEZ.
+    - 500 satır sınırı geçerlidir. AnketListesi.jsx bugün 397 satır; Table
+      sütun tanımları eklenince sınırı zorlarsa sütunlar ayrı bir dosyaya
+      çıkarılır (ör. components/AnketListesiSutunlari.jsx).
+    - Adım 7'de aynı risk AnketEkleForm.jsx'tedir (bugün 440 satır). antd ile
+      sınırı zorlarsa istek gövdesi dönüşümü (formuIstekGovdesineCevir +
+      atamaSecenegiIsaretle) common/anketFormAlanlari.js'e taşınır — ters yönü
+      (anketDetayindanForm) zaten oradadır, doğal yeri orası.
+
+D9. VERİ AKIŞI VE SÖZLEŞMELER DEĞİŞMEZ  (Adım 4-8'de en kritik kural)
+    Bu iş SALT GÖRÜNÜMDÜR. Aşağıdakiler tek karakter değişmez:
+    - src/api/anketApi.js, soruApi.js, kullaniciApi.js, grupApi.js — istek
+      yolları, parametreler, gövde şekilleri.
+    - common/secimSekmesi.js mesaj tipleri ve postMessage gövdeleri
+      (SORU_/KULLANICI_/GRUP_SECIM_MESAJ_TIPI + origin doğrulaması).
+    - common/anketFormAlanlari.js'in ÇIKTI SÖZLEŞMESİ: BOS_ANKET_FORMU'nun
+      alan şekli, anketDetayindanForm'un ürettiği form state'i, tarihlerin
+      'YYYY-MM-DD' METİN olması.
+    - react-query anahtarları ve invalidate davranışı (['anketler'],
+      ['anket-detay'], ['anketDoldur', anketId], ['sorular'], ['kullanicilar']).
+    - Hangi seçimin sunucuya gideceği kuralı (ör. atama listesi YALNIZCA kutusu
+      işaretliyken gönderilir) aynen korunur.
+
+D10. ERİŞİLEBİLİRLİK GERİLEMESİ YOK
+    Bugün var olan davranışlar korunur: role="alert" / role="status" uyarı
+    yuvaları, aria-label'lı girdiler, anket kutularının Enter/Space ile
+    açılması, radyo gruplarının name ile gruplanması. antd bileşenine geçerken
+    bunların karşılığı verilir; "antd zaten hallediyor" varsayımıyla atılmaz.
+
+D11. SANITIZE HTML AYNEN BASILIR
+    soru_metni / secenek_metni / on_yazi / son_yazi SUNUCUDA sanitize edilmiş
+    HTML'dir ve dangerouslySetInnerHTML ile basılır. UI'da ne EK sanitizasyon
+    eklenir ne var olan KALDIRILIR. antd bileşenlerinin label/title proplarına
+    HTML basılmaya çalışılmaz; HTML gereken yerde children içinde <span
+    dangerouslySetInnerHTML> kullanılır. <option> HTML gösteremediği için
+    AnketDoldurSoruKarti'ndaki htmlDenDuzMetin düz-metin indirgemesi KORUNUR.
+
+D12. STANDALONE ROTALAR
+    Seçme ekranları (/anket-sorulari-sec, /anket-kullanicilari-sec,
+    /anket-gruplari-sec) ve /anket/:anketId ana ekran kabuğunun DIŞINDA açılır.
+    Tema ve locale main.jsx'teki KÖK ConfigProvider'dan gelir; bu sayfalara
+    ayrıca ConfigProvider/App sarmalayıcı EKLENMEZ.
+
+D13. CHECKBOX KÖŞE YARIÇAPI — BİLİNEN KUSUR (Adım 7'de giderilecek)
+    Adım 6'da tespit edildi: antdTema.js'teki genel `borderRadius: 10` token'ı
+    küçük checkbox kutusunu YUVARLAK gösteriyor (eski CSS'te kareye yakındı).
+    Etkilenen yerler: Adım 5'in Table rowSelection kutuları, Adım 6'nın çoklu
+    seçim şıkları, Adım 7'nin checkbox dolu kartları. İşlevsel sorun YOK, salt
+    görünüm. ÇÖZÜM (Adım 7'de, tek yerde): antdTema.js'e bileşen token'ı
+    eklenir -> components: { Checkbox: { borderRadiusSM: 3 } }. Radio'nun daire
+    olması DOĞRUDUR, ona dokunulmaz. Bu tema dosyası ORTAK olduğundan değişiklik
+    sonrası antd'ye geçmiş TÜM ekranlar gözle kontrol edilir.
+
+================================================================================
+ADIM 0 — ALTYAPI  (görünüm hiç değişmez)                       DURUM: [x]
+================================================================================
+[x] frontend/package.json           antd + @ant-design/icons eklenir (2026-07-28)
+[x] frontend/src/common/antdTema.js YENİ DOSYA — yukarıdaki tema eşlemesi (2026-07-28)
+[x] frontend/src/main.jsx           ağaç <ConfigProvider theme locale={trTR}>
+                                    VE <App> ile sarılır (bkz. D4);
+                                    antd/dist/reset.css proje CSS'lerinden
+                                    ÖNCE import edilir (2026-07-28)
+[x] DOĞRULAMA: npm run dev sonrası TÜM ekranlar bugünküyle AYNI görünür (2026-07-28)
+
+DİKKAT:
+- locale trTR verilmezse Table "No data", Modal "OK/Cancel", DatePicker ay
+  adları İngilizce çıkar. Uygulama tamamen Türkçe; bu şart.
+- reset.css SIRASI: antd reset ÖNCE, login.css SONRA. Ters olursa login.css'in
+  body / "* box-sizing" kuralları ezilir ve TÜM ekranlar etkilenir.
+- Bu adımda hiçbir bileşen değiştirilmez. Adım 0'ın kanıtı "hiçbir şeyin
+  değişmemesi"dir. Özellikle giriş ekranı ve ana ekran kabuğu kontrol edilir.
+
+NOTLAR:
+- DOĞRULAMA NASIL YAPILDI (2026-07-28): antd eklenmeden ÖNCE ve SONRA aynı 6 ekranın
+  (giriş, ana ekran, kullanıcı listesi, soru listesi, anket listesi, kullanıcı
+  grupları) tam sayfa ekran görüntüsü alınıp piksel farkı ölçüldü. Yapısal/renk/
+  yazı tipi farkı YOK; fark yalnızca antd reset.css'in html satır yüksekliğinden
+  gelen 1-2 px'lik kaymalar (ör. "Kullanıcı Ekle" butonu birkaç px genişledi).
+  Kabul edildi.
+- antd App'e `component={false}` verildi. Varsayılan davranışta App ekstra bir
+  <div class="ant-app"> basar ve o div TÜM ağaca 14px yazı boyu dayatır; bu, antd'ye
+  taşınmayan ekranların görünümünü değiştirirdi (Adım 0'ın kanıtına aykırı).
+  Bedeli: antd geliştirme konsolunda "[antd: App] When using cssVar, ensure
+  `component` is assigned..." uyarısı basıyor. YALNIZCA geliştirme uyarısıdır,
+  üretim paketine girmez ve modal teması/locale'i doğru çalışıyor (Adım 1'de
+  onay kutusu Türkçe ve marka mavisiyle doğrulandı).
+- dayjs, package.json'a AÇIK bağımlılık olarak eklendi (antd zaten getiriyor ama
+  AnketFiltre.jsx doğrudan import ediyor; dolaylı bağımlılığa yaslanılmadı).
+
+================================================================================
+ADIM 1 — ANKET LİSTESİ (tablo + filtre)                        DURUM: [x]
+================================================================================
+Rota: / -> Yönetim > Anketler
+
+[x] components/AnketListesi.jsx (2026-07-28)
+      Table  -> sütunlar: Ad | Durum | Oluşturan | Oluşturma Tarihi |
+                Atanan Sayısı | Yanıtlayan Sayısı | İşlem
+      Tag    -> Durum (Aktif / Pasif)
+      Button -> "Anket Ekle" (type="primary", icon=PlusOutlined),
+                satır içi "Güncelle" ve "Pasife Al"/"Aktife Al"
+      Input  -> arama kutusu (DEKORATİF, bkz. D6)
+      Alert  -> islemHatasi ve yükleme hatası
+      Table loading + locale.emptyText -> yükleniyor / boş durumları
+      Elle çizilmiş <svg> (ArtiIcon, BuyutecIcon) -> @ant-design/icons
+      OnayKutusu yerine App.useApp().modal.confirm (bkz. D3/D4)
+[x] components/AnketListesiSutunlari.jsx — YENİ DOSYA (2026-07-28); sütun
+      tanımları + SayiHucresi buraya alındı (bkz. D8, dosya boyutu/SRP)
+[x] components/AnketFiltre.jsx (2026-07-28)
+      Select (anket tipi, durum, tarih aralığı) + DatePicker (başlangıç/bitiş)
+      KONTROLLÜ kalır: filtre + onFiltreDegis prop arayüzü DEĞİŞMEZ
+[x] styles/anket-filtre.css   -> silindi (tek kullanıcısı AnketFiltre, bkz. D1) (2026-07-28)
+[x] AnketListesi'nin kullanici-listesi.css + soru-listesi.css import'ları
+    kaldırıldı — DOSYALAR SİLİNMEDİ (bkz. D1) (2026-07-28)
+[x] DOĞRULAMA (2026-07-28):
+      - liste yüklenir, boş sonuçta boş durum metni çıkar
+      - filtre değişince liste SUNUCUDAN yeniden çekilir
+      - yeniden çekerken ÖNCEKİ LİSTE ekranda kalır ("Yükleniyor..." sıçraması
+        OLMAMALI — keepPreviousData davranışı)
+      - "Anket Ekle" formu açar, "Güncelle" düzenleme görünümünü açar
+      - "Pasife Al" onay sorar; onaylanınca durum değişir ve liste tazelenir;
+        vazgeçince HİÇBİR ŞEY olmaz
+      - hata durumunda güvenli mesaj görünür (teknik detay sızmaz)
+
+DİKKAT:
+- placeholderData: keepPreviousData KORUNUR. Table'a `loading` verilirken bu
+  bozulmamalı; aksi halde her filtre değişiminde tablo boşalıp doluyor gibi
+  görünür (bugünkü davranışın gerilemesi olur).
+- Sayı hücreleri kuralı korunur: sayı > 0 iken TIKLANABİLİR buton, 0 iken düz
+  metin. Hangi kutunun hangi anket/kişi için açık olduğu yine bu bileşende saf
+  UI state'te tutulur (atamaKutusu / cevapKutusu).
+- DatePicker dayjs nesnesi verir; anketFiltreAlanlari.js'teki uygulanacakFiltre
+  bugün 'YYYY-MM-DD' STRING bekliyor -> dönüşüm sunum katmanında yapılır,
+  common/anketFiltreAlanlari.js'in ÇIKTI SÖZLEŞMESİ ve api/anketApi.js
+  DEĞİŞMEZ.
+- "tarih_sec"te iki takvim de dolu değilse tarihler isteğe EKLENMEZ kuralı
+  (uygulanacakFiltre) aynen korunur; eksik girdiyle istek atılmaz.
+- Yükleniyor/hata/boş üç durumu da ayrı ayrı ele alınmaya devam eder; biri
+  atlanmaz.
+
+NOTLAR:
+- DOĞRULAMA NASIL YAPILDI (2026-07-28, gerçek tarayıcı + gerçek backend):
+  * Liste yüklendi (6 anket), tüm sütunlar ekrana sığdı, Durum "Aktif" yeşil Tag.
+  * Durum filtresi "Pasif" seçildi -> SUNUCUYA `GET /api/anketler?durum=Pasif`
+    gitti (istek/parametre sözleşmesi aynı) ve sonuç boşken tablo
+    "Kayıtlı anket bulunamadı." gösterdi.
+  * keepPreviousData ölçüldü: filtre değişiminden 50 ms sonra ÖNCEKİ 6 satır hâlâ
+    ekrandaydı ve spinner çıkmadı; satırlar yalnızca yeni yanıt gelince değişti.
+  * "Tarih Seç" -> yalnız Başlangıç doldurulunca HİÇ istek atılmadı; Bitiş de
+    dolunca `GET /api/anketler?tarih_araligi=tarih_sec&baslangic_tarih=2026-07-01
+    &bitis_tarih=2026-07-28` gitti. DatePicker dayjs veriyor, sözleşme hâlâ
+    'YYYY-MM-DD' METİN (dönüşüm AnketFiltre.jsx içinde).
+  * "Anket Ekle" -> /yonetim/anketler/ekle ; "Güncelle" -> /yonetim/anketler/35/duzenle.
+  * "Pasife Al" onay kutusu Türkçe ve marka mavisiyle açıldı. "Vazgeç" -> HİÇ istek
+    atılmadı. "Pasife Al" -> gövdesiz `POST /api/anketler/35/durum` + ardından liste
+    tazelendi; satır "Pasif"e döndü ve buton "Aktife Al" oldu. Test verisi aynı
+    yolla "Aktif"e geri alındı.
+  * Hata yolları: durum ucu 403'e zorlandığında ekranda yalnızca "Anket durumu
+    değiştirilemedi. Lütfen tekrar deneyin." çıktı, onay kutusu kapandı, liste
+    yerinde kaldı. Liste ucu 500'e zorlandığında "Anketler yüklenemedi. Lütfen
+    tekrar deneyin." göründü. Teknik detay/stack sızmadı.
+- BİLİNÇLİ TEK DAVRANIŞ FARKI: hata durumunda eskiden BÜTÜN ekran tek satırlık
+  hata metniyle değişiyordu; artık başlık + filtre kartı ekranda kalıyor ve tablo
+  yerine hata uyarısı (Alert) çıkıyor. Böylece kullanıcı hatalı filtresini geri
+  alabiliyor. Veri/istek davranışı değişmedi.
+- Onay hedefini tutan `durumHedefi` state'i kalktı: onay artık modal.confirm ile
+  imperatif açılıyor (D3). Diğer state'ler (arama, filtre, atamaKutusu, cevapKutusu,
+  islemHatasi) aynen duruyor.
+
+================================================================================
+ADIM 2 — LİSTEDEN AÇILAN SONUÇ KUTULARI                        DURUM: [x]
+================================================================================
+Bu iki kutu Anket Listesi'nin parçasıdır (sayı hücrelerinden açılır); ekran
+onlarsız bitmiş sayılmaz.
+
+[x] components/AnketAtamaKutusu.jsx (2026-07-28)
+      Modal + Table (atanan/yanıtlayan listesi)
+      'atanan' modu: tüm satırlar + Durum kolonu
+      'yanitlayan' modu: yalnız yanitladi_mi===true + Tamamlanma Tarihi +
+                         satır sonunda "Cevapları Gör" butonu
+[x] components/AnketKullaniciCevaplariKutusu.jsx (2026-07-28)
+      Modal + soru/cevap listesi (şık listesi / metin bloğu / "Cevaplanmamış")
+      tamamlandi_mi===false ise "cevaplar eksik olabilir" bilgi notu (Alert)
+[x] styles/anket-sonuc-kutusu.css -> silindi (tek kullanıcıları bu iki kutu) (2026-07-28)
+[x] İkisinin onay-kutusu.css / kullanici-listesi.css / soru-listesi.css
+    import'ları kaldırıldı — DOSYALAR SİLİNMEDİ (bkz. D1) (2026-07-28)
+[x] DOĞRULAMA (2026-07-28):
+      - "Atanan" sayısına tıklayınca kutu açılır ve doğru kişileri gösterir
+      - "Yanıtlayan" sayısına tıklayınca YALNIZCA yanıtlayanlar listelenir
+      - "Cevapları Gör" ikinci kutuyu ÜSTTE açar
+      - Escape ve perdeye tıklama YALNIZCA en üstteki kutuyu kapatır
+      - cevapsız soru listede "Cevaplanmamış" olarak KALIR
+
+DİKKAT:
+- ÜST ÜSTE KUTU KURALI (ustKutuAcik): iki kutu açıkken Escape/perde yalnız en
+  üsttekini kapatır. antd Modal'da maskClosable/keyboard ayarları ve z-index
+  bunu bozmayacak şekilde verilmeli. Bu davranış bugün ÇALIŞIYOR; gerilemesi
+  kabul edilemez.
+- İki mod AYNI React Query anahtarını paylaşıyor (['anket-atamalari', anket_id])
+  ve ikinci istek atılmıyor. Modal'a geçerken bu korunur; Modal'ın
+  destroyOnClose gibi ayarları gereksiz yeniden istek TETİKLEMEMELİ.
+- Cevap metinleri SUNUCUDA sanitize edilmiş HTML'dir ve dangerouslySetInnerHTML
+  ile basılıyor. Bu aynen korunur: UI'da ek sanitizasyon EKLENMEZ, var olan
+  KALDIRILMAZ. antd bileşen etiketine (label) HTML basılmaya çalışılmaz.
+- Bu iki kutu salt sunumdur: iş kuralı ve yetki kararı YOK, öyle kalır.
+
+NOTLAR:
+- DOĞRULAMA NASIL YAPILDI (2026-07-28, gerçek tarayıcı + gerçek backend):
+  * "Eğitim Değerlendirme Anketi" satırında Atanan=6'ya tıklandı: kutu
+    "Atanan Kullanıcılar — ..." başlığıyla açıldı, 6 satır + [Ad Soyad, E-posta,
+    Durum] kolonları geldi, tek istek `GET /api/anketler/33/atamalar` atıldı.
+  * Escape ile kapandı. Ardından Yanıtlayan=1'e tıklandı: kutu AÇILIR AÇILMAZ
+    (300 ms) 1 satır ekrandaydı — veri cache'ten geldi, yükleniyor görünmedi;
+    kolonlar [Ad Soyad, E-posta, Tamamlanma Tarihi, İşlem].
+  * "Cevapları Gör" ikinci kutuyu ÜSTTE açtı (iki kutunun başlığı da DOM'da).
+  * ÜST ÜSTE KUTU KURALI ölçüldü: Escape -> yalnız "Cevaplar" kutusu kapandı,
+    atama kutusu kaldı. Yeniden açılıp perdeye tıklandı -> yine yalnız üstteki
+    kapandı. Sonraki Escape alttakini kapattı.
+  * Cevapsız soru gösterimi: sunucu yanıtı taklit edilerek (cevapsız soru +
+    tamamlandi_mi=false) kutu açıldı; soru listede KALDI ve "Cevaplanmamış"
+    yazdı, üstte "Bu kişi anketi tamamlamamış..." bilgi uyarısı çıktı,
+    sanitize HTML (<b>) HTML olarak basıldı (dangerouslySetInnerHTML korundu).
+- İki kutu da aynı z-index ile üst üste ortalanır; üstteki alttakini kapatır.
+  Eski (özel CSS'li) davranış da böyleydi, gerileme yok.
+- antd v6 uyarıları giderildi: Modal'da `maskClosable` yerine `mask.closable`,
+  Alert'te `message` yerine `title` kullanıldı; `List` bileşeni v6'da
+  "deprecated" olduğu için cevap listesi düz Flex + Divider ile çizildi.
+  Konsolda kalan TEK uyarı Adım 0'daki bilinen cssVar uyarısıdır.
+
+================================================================================
+ADIM 3 — KAPANIŞ                                               DURUM: [x]
+================================================================================
+[x] CLAUDE.md "Proje Haritası" güncellendi (2026-07-28):
+      - yeni dosyalar: frontend/src/common/antdTema.js +
+        components/AnketListesiSutunlari.jsx
+      - frontend bağımlılıkları: antd + @ant-design/icons + dayjs; main.jsx'in
+        ConfigProvider/App/reset.css sarmalaması
+      - silinen CSS: anket-filtre.css, anket-sonuc-kutusu.css
+      - AnketListesi/AnketFiltre/AnketAtamaKutusu/AnketKullaniciCevaplariKutusu
+        açıklamalarındaki CSS paylaşımı notları düzeltildi (artık yanıltıcı değil)
+[x] Değişen bileşenlerin DOSYA BAŞI YORUMLARI güncellendi (2026-07-28); özellikle
+    AnketListesi'nin "kullanici-listesi.css paylaşılır / tasarım paritesi" anlatan
+    bölümü çıkarıldı, yerine "özel CSS yok, tema token'larından gelir + parite
+    bilinçli olarak bozuldu" notu kondu
+[x] Kapsam dışı ekranlarda gerileme kontrolü (2026-07-28)
+[x] Dosya boyutu kontrolü: AnketListesi.jsx 247 satır (sütunlar ayrı dosyada),
+    AnketListesiSutunlari 121, AnketFiltre 151, AnketAtamaKutusu 163,
+    AnketKullaniciCevaplariKutusu 142, antdTema 38, main 45 — hepsi sınırın
+    çok altında (2026-07-28)
+
+NOTLAR:
+- GERİLEME KONTROLÜ NASIL YAPILDI (2026-07-28): Adım 0 sonrası ile iş bittikten
+  sonraki hâlin tam sayfa ekran görüntüleri PİKSEL PİKSEL karşılaştırıldı;
+  ana ekran, kullanıcı listesi, soru listesi, kullanıcı grupları ve giriş ekranı
+  için fark BÖLGESİ "None" (birebir aynı). Ayrıca elle sürüldü:
+  Soru listesindeki "Excel ile Yükle" kutusu (onay-kutusu.css + kullanici-listesi.css
+  paylaşımı) ve soru "Sil" onayı (paylaşılan OnayKutusu.jsx) açıldı-kapatıldı,
+  ikisi de eski görünüm ve davranışıyla çalışıyor.
+- Konsolda kalan tek uyarı, Adım 0 NOTLAR'ında açıklanan cssVar uyarısıdır.
+
+================================================================================
+ADIM 4 — ANA EKRAN ANKET KUTULARI (C)                          DURUM: [x]
+================================================================================
+Rota: /  (ana ekran index görünümü)
+
+[x] components/AtanmisAnketPaneli.jsx (2026-07-28)
+      Card + Flex  -> yatay kutu ızgarası (Card hoverable; cover=anket.png)
+      Spin (role="status") -> yükleniyor
+      Alert (title, role="alert") -> hata (yalnız güvenli mesaj)
+      Empty        -> "Size atanmış bekleyen anket yok."
+      Typography.Title -> "Anketler" başlığı
+      Odak halkası: antd Card'ın kendi odak stili olmadığından odaklanan kutu
+      id'si state'te tutulup token.colorPrimary ile inline outline verildi
+      (theme.useToken(); yeni CSS dosyası açılmadı, D2'ye uyulur).
+[x] styles/atanmis-anket-paneli.css -> SİLİNDİ (2026-07-28; tek kullanıcısı bu
+      bileşendi, grep ile doğrulandı)
+[x] DOĞRULAMA (/verify ile gerçek arayüzde, 2026-07-28):
+      - atanmış anketi olan kullanıcıda kutular çıkar, anket adı görünür
+      - kutuya TIKLAYINCA /anket/{anket_id} açılır
+      - kutu odaktayken ENTER ve SPACE de açar (Space sayfayı kaydırmaz)
+      - atanmış anket yokken boş durum metni çıkar
+      - uç 500'e zorlandığında güvenli hata mesajı çıkar (teknik detay yok)
+
+DİKKAT:
+- Kutu görseli anket.png'dir ve tek sabitte (KUTU_GORSELI) durur; bu korunur.
+- Bu bileşen veriyi react-query ile DEĞİL, useEffect + useState ile çekiyor.
+  Bu geçişin konusu DEĞİLDİR; veri çekme biçimi OLDUĞU GİBİ bırakılır
+  (görünüm işiyle veri akışı değişimi aynı adımda karıştırılmaz).
+- Panel ana ekran kabuğunun (AnaSayfaPage) içinde render edilir; kabuğa ve
+  anasayfa.css'e DOKUNULMAZ.
+
+NOTLAR:
+- DOĞRULAMA NASIL YAPILDI (2026-07-28, gerçek tarayıcı [Playwright/Chromium] +
+  gerçek backend + gerçek MariaDB, /verify yordamıyla): backend
+  `uvicorn api.http_app:app --port 8000` ve `npm run dev` (5173) ayağa
+  kaldırıldı; `oturum_service.oturum_olustur` ile kullanıcı 20 (Buğra, atanmış
+  anketi VAR: "Eğitim Değerlendirme Anketi", anket_id=33) ve kullanıcı 1600
+  (Selin, atanmış anketi YOK) için gerçek oturum jetonları üretilip
+  httpOnly cookie olarak tarayıcı bağlamına eklendi.
+  * DOLU DURUM: `GET /api/anketlerim` 1 kayıt döndü, kutu + "Eğitim
+    Değerlendirme Anketi" metni ekranda GÖRÜNDÜ (ekran görüntüsü alındı).
+  * TIKLAMA: kutuya click() -> URL `/anket/33`'e değişti.
+  * KLAVYE: kutu `.focus()` ile odaklandı (document.activeElement ile
+    doğrulandı), Enter -> `/anket/33`'e gitti; ayrı bir denemede Space ->
+    yine `/anket/33`'e gitti VE `window.scrollY` tuştan önce/sonra 0/0 kaldı
+    (sayfa kaymadı). Odak halkası ekran görüntüsünde mavi (colorPrimary)
+    olarak görünür durumda.
+  * BOŞ DURUM: kullanıcı 1600 ile `GET /api/anketlerim` boş dizi döndü;
+    ekranda Empty bileşeni + "Size atanmış bekleyen anket yok." metni çıktı.
+  * HATA DURUMU: Playwright `page.route` ile YALNIZ `**/api/anketlerim`
+    isteği durum kodu 500 + `{"basari":false,"mesaj":"Anketler
+    yuklenemedi..."}` gövdesiyle sahteleştirildi (gerçek backend'e
+    dokunulmadı). Ekranda YALNIZ Alert içinde bu güvenli mesaj çıktı; sayfa
+    HTML'inde "Traceback" veya stack izi ARANDI, BULUNAMADI.
+  * KABUK REGRESYONU: hamburger menüsünden Anketler > Anket Listesi'ne
+    gidildi; Topbar, yan çubuk ve kırıntı yolu (Anketler > Anket Listesi)
+    sorunsuz çalıştı, tablo/filtre (Adım 1'in işi) etkilenmedi.
+  * KONSOL: sayfa yüklenirken TEK uyarı, Adım 0 NOTLAR'ında belgelenen
+    bilinen "[antd: App] cssVar" uyarısıydı; bileşene özgü yeni bir uyarı/hata
+    çıkmadı (ör. bilinmeyen DOM prop uyarısı yok).
+  * Doğrulama sonunda test oturum jetonları `oturum_sonlandir` ile temizlendi;
+    DB'ye kalıcı veri EKLENMEDİ.
+- Dosya boyutu: AtanmisAnketPaneli.jsx 144 satır (sınırın çok altında).
+
+================================================================================
+ADIM 5 — SEÇME EKRANLARI, 3 SAYFA (D)                          DURUM: [x]
+================================================================================
+Rotalar: /anket-sorulari-sec , /anket-kullanicilari-sec , /anket-gruplari-sec
+
+[x] pages/SoruSecPage.jsx (2026-07-28)
+[x] pages/AnketKullaniciSecPage.jsx (2026-07-28)
+[x] pages/AnketGrupSecPage.jsx (2026-07-28)
+      Table + rowSelection (elle çizilen "Seç" checkbox kolonu YERİNE)
+      Button   -> "Seçilenleri Ekle" (seçim yokken disabled)
+      Alert    -> hata;  Table loading + locale.emptyText -> yükleniyor/boş
+      Typography.Title -> sayfa başlığı
+[x] styles/soru-sec.css -> SİLİNDİ (tek kullanıcıları bu 3 sayfaydı, 2026-07-28)
+      İçindeki `.soru-sec-alt-cubuk .birincil-buton` kuralı DESCENDANT
+      kapsamlıdır; silinmesi başka ekranı etkilemedi (2026-07-28'de doğrulandı).
+[x] kullanici-listesi.css / kullanici-ekle.css import'ları kaldırıldı —
+    DOSYALAR SİLİNMEDİ (bkz. D1) (2026-07-28)
+[x] SoruSecPage'in soru-listesi.css import'u KALDI: soru gövdesi
+    .soru-metni-icerik ile SoruListesi'yle aynı görünsün diye (DRY, bilinçli) (2026-07-28)
+[x] DOĞRULAMA (/verify, 2026-07-28):
+      - üç sayfa da anket formundaki bağlantıdan YENİ SEKMEDE açılır
+      - seçim yapılıp "Seçilenleri Ekle" -> açan sekmedeki forma seçimler
+        DÜŞER ve sekme kapanır (postMessage sözleşmesi bozulmadı)
+      - kullanıcı/grup seçiminde formun ilgili checkbox'ı işaretlenir
+      - sayfa DOĞRUDAN adresten açıldığında buton yerine bilgilendirme çıkar
+      - boş liste ve hata durumları ayrı ayrı görünür
+
+DİKKAT:
+- Seçim SIRASI liste sırasıdır (işaretleme sırası değil). rowSelection'a
+  geçerken bu korunur: aktarılacak kayıtlar listeden süzülerek üretilir.
+- rowKey doğru verilmeli (soru_id / kullanici_kodu / grup_id); aksi halde
+  seçim yanlış satıra bağlanır.
+- Üç sayfa aynı kalıptadır; ortak bir "seçme sayfası" bileşeni ÇIKARILMAZ
+  (over-engineering yasağı) — bugün istenmeyen bir soyutlamadır.
+
+NOTLAR:
+- KOD: üç sayfa da AnketListesi/AnketAtamaKutusu kalıbını izler: satır seçimi
+  antd Table'ın rowSelection'ına devredildi (selectedRowKeys + onChange), ayrı
+  bir "Seç" sütunu YAZILMADI (antd kendi checkbox sütununu ekliyor).
+  getCheckboxProps ile eski aria-label'lar ("Bu soruyu ankete ekle" vb.) AYNEN
+  korundu. secilenleriAktar hâlâ TAM LİSTEYİ (sorular/kullanicilar/gruplar)
+  secililer.includes(...) ile süzüyor -> aktarım sırası her zaman liste
+  sırasıdır, rowSelection'ın kendi selectedRowKeys sırası ÖNEMSİZDİR (D9
+  "hangi seçimin sunucuya gideceği" kuralı ile aynı gerekçe). Sayfa çerçevesi
+  (padding 24 + beyaz zemin + tam yükseklik) yeni CSS dosyası açılmadan tek bir
+  SAYFA_STILI inline style sabitiyle kuruldu (D2/D8'e uygun). Açan sekme yokken
+  gösterilen bilgilendirme metni Flex justify="flex-start" ile SOLA, buton
+  varken justify="flex-end" ile SAĞA hizalanır (eski CSS'teki margin-right:auto
+  davranışının doğrudan karşılığı).
+- DOĞRULAMA NASIL YAPILDI (2026-07-28, gerçek tarayıcı [Playwright/Chromium,
+  scratch venv'e `pip install playwright` ile kuruldu; tarayıcı binary'si
+  ~/.cache/ms-playwright altında hazırdı] + gerçek backend + gerçek MariaDB):
+  backend `uvicorn api.http_app:app --port 8000` ve `npm run dev` (5173) ayağa
+  kaldırıldı; `oturum_service.oturum_olustur('20')` ile Buğra için gerçek oturum
+  jetonu üretilip httpOnly cookie olarak tarayıcı bağlamına eklendi.
+  * DOĞRUDAN AÇILIŞ (opener yok): üç sayfa da `/anket-sorulari-sec`,
+    `/anket-kullanicilari-sec`, `/anket-gruplari-sec` adreslerine DOĞRUDAN
+    gidildi; üçünde de "Seçilenleri Ekle" butonu YOKTU, yerine "Lütfen anket
+    formuna dönüp oradan açın." bilgilendirmesi ekrandaydı.
+  * GERÇEK AKIŞ: `/yonetim/anketler/ekle` formu açıldı; "Yüklemek için
+    tıklayınız" tıklanınca YENİ SEKME açıldı (window.opener DOLU), 1 soru
+    işaretlenip "Seçilenleri Ekle" tıklandı -> sekme KAPANDI ve form
+    tarafında `.anket-secili-soru` 1 öğe olarak GÖRÜNDÜ (Grid Sorusu).
+    Aynı akış "Sabit liste" kutusu işaretlenip "Listeden seç" ile kullanıcı
+    (Ahmet Yılmaz, sicil 205) ve "Kullanıcı Grupları" kutusu işaretlenip
+    "Listeden seç" ile grup (ÇKT, 1 üye) için tekrarlandı; her ikisinde de
+    sekme kapandı, ilgili checkbox İŞARETLİ KALDI ve seçim satırı forma
+    düştü (ekran görüntüsüyle doğrulandı: form_sonuc.png).
+  * HATA DURUMU: `/api/sorular` isteği Playwright `page.route` ile 500 +
+    `{"basari":false,"mesaj":"Sorular yuklenemedi. Lutfen tekrar deneyin."}`
+    gövdesiyle sahteleştirildi (gerçek backend'e dokunulmadı); ekranda
+    YALNIZCA bu güvenli mesaj çıktı, "Traceback"/"Exception" arandı, YOK.
+  * BOŞ LİSTE: `/api/gruplar` isteği `[]` döndürecek şekilde sahteleştirildi;
+    "Kayıtlı grup bulunamadı." metni göründü.
+  * SoruSecPage'de soru metni HTML olarak (biçimli, `.soru-metni-icerik`
+    içinde) göründü — sanitize HTML aynen basıldı.
+  * KAPSAM DIŞI GERİLEME KONTROLÜ: soru-sec.css SİLİNDİKTEN SONRA "Anket
+    Soruları" (SoruListesi) ve "Kullanıcı Listesi" ekranları tam sayfa
+    ekran görüntüsüyle kontrol edildi; ikisi de eski görünümüyle (tablo,
+    arama kutusu, "Şablon İndir"/"Excel ile Yükle"/"Yeni Soru Ekle" /
+    "Kullanıcı Ekle" butonları) sorunsuz duruyor; `.birincil-buton`
+    kuralının kaldırılmasının global bir etkisi YOK.
+  * Test oturum jetonu iş bitince `oturum_service.oturum_sonlandir` ile
+    temizlendi; form hiçbir zaman "Kaydet" edilmedi (zorunlu alanlar boş
+    bırakıldı) -> DB'ye kalıcı veri EKLENMEDİ.
+- BEKLENMEDİK DURUM (araç sorunu, kod sorunu DEĞİL): scratch ortamında
+  Playwright'ın Chromium'u bazen `args=["--no-sandbox"]` verilmeden çok yavaş
+  başlayıp `is_checked()` gibi çağrılarda 30 sn zaman aşımına uğradı; bu bir
+  UI/kod kusuru değil, sanal ortamın sandbox ek yüküydü. `--no-sandbox
+  --disable-dev-shm-usage` eklenince doğrulama saniyeler içinde tamamlandı.
+- Dosya boyutu: SoruSecPage 142, AnketKullaniciSecPage 138, AnketGrupSecPage
+  130 satır (hepsi sınırın çok altında).
+
+================================================================================
+ADIM 6 — ANKET DOLDURMA / CEVAPLAMA (B)                        DURUM: [x]
+================================================================================
+Rota: /anket/:anketId
+
+[x] pages/AnketDoldurPage.jsx (2026-07-28)
+      Card + Typography -> sayfa çerçevesi ve başlık
+      Spin -> yükleniyor;  Alert -> hata (404 "bulunamadı" dahil)
+      Alert(info) -> "Bu anketi zaten tamamladınız."
+      Link/Button -> "Ana ekrana dön"
+[x] components/AnketDoldurForm.jsx (2026-07-28)
+      Alert  -> istemci uyarısı + sunucu hata mesajı
+      Button -> "Gönder" (isPending'de "Gönderiliyor..." + disabled)
+      saltOkunur=true iken girdiler kilitli + Gönder GİZLİ (korunur)
+[x] components/AnketDoldurSoruKarti.jsx (2026-07-28)
+      Card/liste öğesi + tipe göre girdi:
+        coktan_secmeli_tek / evet_hayir / skala_5 -> Radio.Group
+        coktan_secmeli_coklu -> Checkbox.Group
+        listeden_secmeli     -> Select (option DÜZ METİN, bkz. D11)
+        yorum                -> Input.TextArea
+      zorunlu (*) vurgusu ve "Bu soru zorunludur." uyarısı korunur
+[x] styles/anket-doldur.css -> SİLİNDİ (tek kullanıcıları bu 3 dosyaydı,
+      grep ile doğrulandı) (2026-07-28)
+      DİKKAT: bu dosya .zorunlu-yildiz'ı da tanımlıyordu; aynı sınıf
+      kullanici-ekle.css'te DE tanımlı olduğundan kapsam dışı ekranlar
+      etkilenmedi (aşağıdaki DOĞRULAMA'da elle kontrol edildi).
+[x] kullanici-ekle.css import'u AnketDoldurForm'dan kaldırıldı (Gönder artık
+      antd Button, .birincil-buton'a ihtiyaç yok) — DOSYA SİLİNMEDİ (bkz. D1).
+      Zorunlu yıldız artık antd Typography.Text type="danger" ile çizilir
+      (AnketDoldurSoruKarti'de); paylaşılan .zorunlu-yildiz sınıfına
+      bağımlılık KALMADI (2026-07-28)
+[x] DOĞRULAMA (/verify, gerçek tarayıcı [Playwright/Chromium, --no-sandbox
+    --disable-dev-shm-usage] + gerçek backend + gerçek MariaDB, 2026-07-28):
+      - ana ekrandan bir ankete girilir; sorular sira_no sırasında çıkar
+      - her soru tipi ekranda doğru girdiyle çıkar (5 tip)
+      - zorunlu soru boşken Gönder -> istek ATILMAZ, uyarı çıkar; doldurunca
+        uyarı düşer
+      - Gönder -> POST /api/anketler/{id}/cevaplar gider, başarıda ana ekrana
+        dönülür ve anket paneldeki kutulardan DÜŞER
+      - tamamlanmış anket yeniden açılınca girdiler KİLİTLİ ve Gönder YOK
+      - sunucu hatası (404 "bulunamadı") güvenli mesajla görünür
+
+DİKKAT:
+- Şık metinleri sanitize HTML'dir: Radio/Checkbox'ın children'ına <span
+  dangerouslySetInnerHTML> olarak basılır (bkz. D11).
+- Yalnızca CEVAPLANMIŞ soruların gönderilmesi ve boş metnin null'a çevrilmesi
+  kuralı (gonderimiBaslat) aynen korunur; gövde şekli değişmez.
+- İstemci tarafı zorunluluk kontrolü SALT UX'tir; sunucu otoritedir. Bu
+  ayrım korunur, UI'ya yeni iş kuralı eklenmez.
+
+NOTLAR:
+- KOD: AnketDoldurPage sayfa çerçevesini Flex(justify="center") + Card(maxWidth
+  760) ile kurar; token.colorBgLayout/colorPrimary theme.useToken()'dan
+  (AtanmisAnketPaneli'ndeki kalıpla aynı, yeni CSS dosyası açılmadı, D2).
+  AnketDoldurForm'da soru listesi artık <ol> yerine Flex'in `component="ol"`
+  prop'uyla çizilir (antd Flex bunu destekliyor); soru sırası state şekli
+  (sorulariSirala/baslangicCevaplari/soruCevaplanmisMi/gonderimiBaslat) TEK
+  KARAKTER değişmeden korundu. AnketDoldurSoruKarti'de RadyoGrubu artık antd
+  Radio.Group (vertical prop; kendi role="radiogroup"'unu ve name gruplamasını
+  ANTD KENDİSİ veriyor, D10 karşılanıyor), CokluSecim Checkbox.Group,
+  ListedenSecim antd Select (options + htmlDenDuzMetin KORUNDU, D11), YorumKutusu
+  Input.TextArea. Zorunlu soru vurgusu Card'ın borderColor/background'ı
+  token.colorError/colorErrorBg ile inline verildi (yeni CSS yok).
+- DOĞRULAMA NASIL YAPILDI: backend `uvicorn api.http_app:app --port 8000` ve
+  `npm run dev` (5173) ayağa kaldırıldı; `oturum_service.oturum_olustur` ile
+  kullanıcı 1750 (Nisa, normal kullanıcı; anket 24/31/32'ye 'atandı' durumunda)
+  ve kullanıcı 20 (Buğra, admin; anket 32'yi ÖNCEDEN 'tamamlandı') için gerçek
+  oturum jetonları üretilip httpOnly cookie olarak tarayıcı bağlamına eklendi.
+  * SIRA + 5 SORU TİPİ: anket 32 (coktan_secmeli_tek + skala_5 + yorum) ve
+    anket 31 (listeden_secmeli + coktan_secmeli_coklu) ve anket 24 (evet_hayir)
+    açıldı; sorular DAİMA sira_no sırasında (1.,2.,3.) göründü; radyo/checkbox/
+    select/textarea hepsi doğru soru tipiyle eşleşti (ekran görüntüleriyle
+    doğrulandı).
+  * ZORUNLU KONTROL: anket 32'de zorunlu (yorum) soru boşken Gönder'e
+    basıldığında AĞ İSTEĞİ ATILMADI (0 istek), soru kartı kırmızı çerçeveyle
+    vurgulandı + "Bu soru zorunludur." + "Lütfen zorunlu (*) soruları
+    cevaplayın." uyarıları çıktı; doldurulunca vurgu/uyarı kalktı. Aynı kontrol
+    anket 31'de (2 zorunlu soru, ikisi de boş) tekrarlandı: 0 istek.
+  * GÖNDERİM GÖVDESİ: anket 32'de yalnız 2 soru cevaplanıp gönderildi ->
+    `POST /api/anketler/32/cevaplar` gövdesi
+    `{"cevaplar":[{"soru_id":4,"secenek_idler":[22],"cevap_metni":null},
+    {"soru_id":11,"secenek_idler":[],"cevap_metni":"Çok faydalı bir
+    etkinlikti."}]}` — cevaplanmayan soru (skala_5) gövdede YOK, boş metin
+    null'a çevrilmiş; sözleşme (D9) birebir korunmuş. Anket 31 ve 24 için de
+    aynı şekilde doğru gövdeler gözlendi (çoklu seçim `secenek_idler:[33,34]`
+    dahil). Gönderim sonrası her seferinde `/` adresine dönüldü ve ana ekran
+    panelinden ilgili anket kutusu DÜŞTÜ (ekran görüntüsüyle doğrulandı).
+  * TAMAMLANMIŞ ANKET: kullanıcı 20 ile anket 32 (önceden tamamlanmış) açıldı;
+    "Bu anketi zaten tamamladınız. Cevaplarınız kaydedildi." bilgi kutusu
+    çıktı, TÜM girdiler disabled, Gönder butonu SAYFADA YOKTU (0 adet).
+  * HATA DURUMU: `/anket/999999` (var olmayan anket) açıldığında backend'den
+    gerçek 404 döndü; ekranda YALNIZ "Anket bulunamadı." + "Ana ekrana dön"
+    çıktı, Traceback/stack aranmadı/bulunmadı. NOT: react-query'nin VARSAYILAN
+    `retry: 3` ayarı (main.jsx'teki paylaşılan QueryClient, bu adımın kapsamı
+    DIŞINDA — dokunulmadı) yüzünden hata görünmeden önce ~7-8 sn üstel geri
+    çekilmeli yeniden deneme süresi geçiyor; bu ADIM 6'nın bir kusuru DEĞİL,
+    değişmeyen mevcut davranıştır (aynı useQuery çağrısı adımdan önce de
+    vardı). Doğrulama buna göre yeterince beklendi.
+  * SANITIZE HTML: `/api/anketler/{id}/doldur` yanıtı Playwright `page.route`
+    ile `<b>`/`<i>`/`<u>` içeren sahte içerikle sahteleştirildi (gerçek
+    backend'e dokunulmadı); on_yazi/son_yazi/soru_metni/secenek_metni HEPSİ
+    gerçek HTML elemanı olarak DOM'a bastı (kaçış/escape YOK) — `<b>`
+    (soru_metni içi + on_yazi), `<i>` (son_yazi), `<u>` (şık metni) locator
+    sayımıyla doğrulandı.
+  * CHECKBOX GÖRÜNÜMÜ (beklenmedik ama KOD KUSURU DEĞİL): antd Checkbox
+    (coktan_secmeli_coklu) global tema token'ı `borderRadius: 10`'un 16px'lik
+    kutuya oranla YUVARLAK görünmesine yol açıyor (antdTema.js Adım 0'da
+    kuruldu, bu adımın kapsamı DIŞINDA — değiştirilmedi). Fonksiyonel olarak
+    DOĞRU çalışıyor (input type="checkbox", çoklu seçim, doğru gövde); yalnız
+    görsel olarak radyo'ya benziyor. "Kabul edilen karma görünüm" ilkesi
+    kapsamında bilinçli kabul edildi, D2 (.ant-* seçicisi yasak) gereği
+    override YAPILMADI.
+  * KAPSAM DIŞI GERİLEME KONTROLÜ: `/yonetim/kullanicilar/ekle` ve
+    `/yonetim/sorular/ekle` ekran görüntüsüyle kontrol edildi; ikisinde de
+    zorunlu (*) yıldızları kırmızı görünmeye devam ediyor (kullanici-ekle.css
+    hâlâ yükleniyor, dosya SİLİNMEDİ).
+  * TEMİZLİK: test sırasında kullanıcı 1750 için anket 24/31/32'ye GERÇEKTEN
+    cevap gönderildi (AnketAtama.durum 'tamamlandı' oldu + Cevap satırları
+    yazıldı); doğrulama bitince bu 3 atama SQL ile 'atandı'ya geri alındı,
+    baslama_tarihi/tamamlanma_tarihi NULL'landı ve yazılan 6 Cevap satırı
+    silindi (DB test öncesi haline döndürüldü). Test oturum jetonları
+    `oturum_service.oturum_sonlandir` ile temizlendi.
+- Dosya boyutu: AnketDoldurPage 116, AnketDoldurForm 152,
+  AnketDoldurSoruKarti 207 satır (hepsi sınırın çok altında).
+
+================================================================================
+ADIM 7 — ANKET OLUŞTUR/GÜNCELLE FORMU (A)                      DURUM: [ ]
+================================================================================
+Rotalar: /yonetim/anketler/ekle , /yonetim/anketler/:anketId/duzenle
+En büyük adım: 8 dosya. Kartlar tek tek geçirilip her biri ekranda görülmeli.
+
+[ ] components/AnketKart.jsx           -> antd Card (title=baslik)
+[ ] components/AnketBilgileriKarti.jsx -> Input, Radio.Group (durum, anket tipi),
+                                          Select (erişim seviyesi)
+[ ] components/AnketSorulariKarti.jsx  -> liste + Button(type="link"),
+                                          boş durum metni; soru gövdesi HTML
+[ ] components/AnketTarihleriKarti.jsx -> Radio.Group + koşullu DatePicker
+                                          (seçeneğin YANINDA kalır)
+[ ] components/AnketKullanicilariKarti.jsx -> Checkbox satırları + seçili
+                                          kullanıcı/grup listeleri + "Kaldır"
+[ ] components/AnketMesajAyarlariKarti.jsx -> Checkbox + Input(rakam) + Select;
+                                          tek uyarı yuvası davranışı korunur
+[ ] components/AnketIslemleriKarti.jsx -> Checkbox grubu + Divider + Radio.Group
+[ ] components/AnketEkleForm.jsx       -> Alert (kayıt/detay hatası),
+                                          Button (Kaydet/Güncelle, Geri Dön),
+                                          Tooltip (disabled Kaydet'in
+                                          "Lütfen zorunlu alanları doldurun"
+                                          ipucu — bugünkü data-uyari yerine)
+[ ] styles/anket-ekle.css -> SİLİNİR (tek kullanıcıları bu 8 dosya)
+[ ] kullanici-ekle.css / soru-listesi.css import'ları gözden geçirilir;
+    soru gövdesi için soru-listesi.css KALABİLİR — DOSYALAR SİLİNMEZ (D1)
+[ ] Dosya boyutu: AnketEkleForm 500'ü aşarsa gövde dönüşümü
+    common/anketFormAlanlari.js'e taşınır (bkz. D8)
+[ ] DOĞRULAMA (/verify):
+      - OLUŞTURMA: tüm alanlar doldurulup Kaydet -> POST /api/anketler gider,
+        liste tazelenir ve listeye dönülür
+      - DÜZENLEME: mevcut anket açılınca alanlar ÖN DOLU gelir (tarih
+        'tarih_sec' + gerçek takvim değeriyle), Güncelle -> PUT gider
+      - Zorunlu alan boşken Kaydet PASİF ve ipucu görünür
+      - Sorular/Kullanıcılar/Gruplar seçme sekmelerinden gelen seçim forma
+        düşer; ilgili checkbox işaretlenir; "Kaldır" satırı siler
+      - Kutusu işaretli DEĞİLKEN yapılan seçim gövdeye GİTMEZ (ağ isteği
+        gövdesi kontrol edilir)
+      - "gün önce" kutusuna harf girilince rakam uyarısı çıkar ve kaybolur
+      - detay yüklenemezse güvenli hata + "Geri Dön" görünür
+
+DİKKAT:
+- DatePicker dayjs nesnesi verir; form state 'YYYY-MM-DD' METİN tutar ->
+  dönüşüm BİLEŞENDE yapılır (AnketFiltre.jsx'teki kalıp). anketFormAlanlari.js'in
+  çıktı sözleşmesi ve anketApi.js DEĞİŞMEZ (bkz. D9).
+- Dekoratif bağlantılar ("Excel ile ekle", "Excel ile yükle") DEKORATİF KALIR;
+  çalışır hale GETİRİLMEZ (D6 ile aynı gerekçe).
+- Mesaj Ayarları ve İşlemler kartlarının seçimleri bugün SUNUCUYA GİTMİYOR;
+  bu durum korunur (gövdeye alan eklenmez).
+- Kaydet'in pasiflik koşulu ve buton metinleri (Kaydediliyor/Güncelleniyor)
+  aynen korunur.
+
+NOTLAR:
+(boş)
+
+================================================================================
+ADIM 8 — KAPANIŞ                                               DURUM: [ ]
+================================================================================
+[ ] Silinen CSS'ler son kez doğrulanır (silmeden önce her biri için):
+      grep -rln "styles/<dosya>.css" frontend/src --include=*.jsx
+    Beklenen silinenler: anket-ekle.css, anket-doldur.css,
+    atanmis-anket-paneli.css, soru-sec.css
+[ ] kullanici-listesi.css / kullanici-ekle.css / soru-listesi.css /
+    onay-kutusu.css YERİNDE DURUYOR mu kontrol edilir (SİLİNMEZ)
+[ ] CLAUDE.md "Proje Haritası" güncellenir: geçen bileşenlerin açıklamaları,
+    silinen CSS listesi, styles/ bölümünün notu
+[ ] Değişen her dosyanın DOSYA BAŞI YORUMU güncellenir (CSS paylaşımını
+    anlatan cümleler yanıltıcı kalmamalı)
+[ ] Kapsam dışı ekranlarda gerileme kontrolü (giriş, ana ekran kabuğu,
+    kullanıcı listesi/formu, soru listesi/formu, gruplar, ayarlar) —
+    Adım 3'teki gibi ekran görüntüsü karşılaştırması
+[ ] Dosya boyutu kontrolü: değişen tüm dosyalar < 500 satır
+
+NOTLAR:
+(boş)
+
+================================================================================
+İLERLEME ÖZETİ
+================================================================================
+Adım 0  Altyapı (antd + tema + locale)          [x] (2026-07-28)
+Adım 1  Anket Listesi (tablo + filtre)          [x] (2026-07-28)
+Adım 2  Sonuç kutuları (2 modal)                [x] (2026-07-28)
+Adım 3  Kapanış - anket listesi işi             [x] (2026-07-28)
+--- kapsam genişletildi: anketle ilgili TÜM ekranlar (2026-07-28) ---
+Adım 4  Ana ekran anket kutuları (C)            [x] (2026-07-28)
+Adım 5  Seçme ekranları, 3 sayfa (D)            [x] (2026-07-28)
+Adım 6  Anket doldurma / cevaplama (B)          [x] (2026-07-28)
+Adım 7  Anket oluştur/güncelle formu (A)        [ ]
+Adım 8  Kapanış (CSS + harita + gerileme)       [ ]
+
+ADIM SIRASININ GEREKÇESİ: küçük ve izole olandan büyüğe. D (seçme ekranları)
+A'dan (form) ÖNCE bitirilir; böylece form geçirildiğinde "seçim -> postMessage
+-> forma düşme" akışı uçtan uca tek seferde doğrulanabilir.
+
+Adım 0-3'te dokunulan: 4 bileşen + main.jsx + package.json + 2 yeni dosya
+                 (common/antdTema.js, components/AnketListesiSutunlari.jsx)
+Adım 0-3'te silinen CSS: anket-filtre.css, anket-sonuc-kutusu.css
+Adım 4'te dokunulan: components/AtanmisAnketPaneli.jsx (antd'ye geçirildi)
+Adım 4'te silinen CSS: atanmis-anket-paneli.css
+Adım 5'te dokunulan: pages/SoruSecPage.jsx, pages/AnketKullaniciSecPage.jsx,
+                 pages/AnketGrupSecPage.jsx (üçü de antd'ye geçirildi)
+Adım 5'te silinen CSS: soru-sec.css
+Adım 6'da dokunulan: pages/AnketDoldurPage.jsx, components/AnketDoldurForm.jsx,
+                 components/AnketDoldurSoruKarti.jsx (üçü de antd'ye geçirildi)
+Adım 6'da silinen CSS: anket-doldur.css
+================================================================================

@@ -1,0 +1,932 @@
+===============================================================================
+POSTGRESQL GECIS NOTLARI — YETKI / ROL MODELI
+Son guncelleme: 2026-07-29
+===============================================================================
+
+BU DOSYA NEDIR
+--------------
+Savronik'in calisan PostgreSQL sistemine anket modulu olarak girerken, YETKI
+(rol/izin) tarafinda verilen kararlarin ve HENUZ CEVAPLANMAMIS sorularin kaydi.
+
+YENI SESSION ICIN: Savronik'ten cevaplar geldiginde ONCE bu dosyayi oku, sonra
+"BEKLEYEN IS" bolumunden devam et. Cevaplari "SAVRONIK'E SORULACAKLAR"
+bolumunun altina isle ve o soruyu CEVAPLANDI olarak isaretle.
+
+Ilgili dosyalar:
+  database/migrations_pg/001_ilk_sema.sql     (host replikasi: role, roleright,
+                                               rolerightmapping, rolepermissions, staff)
+  database/migrations_pg/003_host_user.sql    (host replikasi: "user")
+  database/migrations_pg/002_anket_modulu.sql (BIZIM modulumuz)
+  postgresql_semasi.dbml                      (sema ozeti + test verisi notu)
+  backend/common/db_pg.py                     (PostgreSQL baglantisi; .env.pg)
+  backend/repositories/yetki_repository.py    (sayfa hakki okumasi)
+  backend/repositories/yetki_sorgulari.py     (yetki zinciri SQL metni)
+
+
+===============================================================================
+1. KESIN BILDIKLERIMIZ
+===============================================================================
+
+1.1 Kullanicidan alinan bilgi (2026-07-28):
+    - "user" = sistemin KULLANICISI (hesap). Bir kisi staff olup user OLMAYABILIR.
+    - Anket STAFF'a atanir (hesaba degil).
+    - User, staff ile JOIN yapip kendi anketlerini bulur.
+    - role_id 3, 5 ve 10 olan kisiler anket OLUSTURMA + ATAMA + SORU EKLEME
+      yetkisine sahiptir.
+
+1.2 Semadan dogrulanan (replikada canli olarak kontrol edildi):
+    - "user".id hem PK hem staff(staff_id)'ye FK  -> hesap<->personel 1:1, AYNI DEGER
+      (constraint: user_pk, user_staff_fk)
+    - "user".role_id -> role(id)  (constraint: user_role_fk)
+    - survey_assignment.staff_id -> staff(staff_id)  (fk_survey_assignment_staff)
+    - MariaDB Kullanici.kullanici_kodu SADECE RAKAM (chk_kullanici_kodu_rakam,
+      migration 006) -> host'un staff_id bigint'ine sorunsuz karsilik gelir.
+    - Host semasinda IKI AYRI yetki mekanizmasi vardir:
+        (a) rolepermissions (role_id, endpoint varchar)      -> uc/endpoint bazli
+        (b) roleright (webpage_id, ability_id)
+            + rolerightmapping (role_id, right_id)           -> sayfa+eylem bazli
+
+1.3 SAVRONIK CEVABI (2026-07-28) — YENI SAYFA/UC KAYIT YORDAMI  [S1 + S2 kapandi]
+    Yeni bir endpoint'e sahip sayfa olusturuldugunda veritabaninda YALNIZCA su
+    3 tabloya satir eklenir; BASKA TABLOYA EKLEME GEREKMEZ:
+      1) webpage                    -> sayfanin adi.  Or: WorkPlan  (webpage id 37)
+      2) roleright                  -> (webpage_id, ability_id).  Or: 37 | 5
+         (ability_id 5 = "Hepsi" yetenegi; yetenek listesi page_abilities tablosunda)
+      3) roleright_endpoint_mapping -> (roleright_id, endpoint).  Or: 156 | "workPlan/"
+         (156 = az once eklenen roleright kaydinin id'si, "workPlan/" = controller
+          sinifindaki endpoint uzantisi)
+
+    ENDPOINT YAZIM BICIMI — GERCEK HOST SATIRLARI (2026-07-29, dump):
+      86 | 30 | /system/access-group/get/**
+      82 | 29 | /system/access-group/post
+    Ilk turdaki "workPlan/" ornegi SADELESTIRILMISTIR; gercek konvansiyon sudur:
+      - Yol BASINDA '/' vardir ve "api/" oneki YOKTUR ("/system/..." ile baslar).
+      - Joker '**' ile yazilir (Ant/Spring yol kalibi gorunumu), '/' ile bitirme
+        degil. '**' = altindaki tum segmentler.
+      - Jokersiz satir (".../post") TAM ESLESME gibi durur.
+      - !!! EYLEM ADI YOLUN ICINDEDIR: ".../get/**" ve ".../post" AYRI satirlardir
+        ve AYRI right_id'lere (30 ve 29) baglidir. Yani host, okuma ve yazmayi
+        HTTP METODUYLA degil, YOLDAKI FIIL SEGMENTIYLE ayiriyor.
+    SONUC: Host uygulamasi REST konvansiyonu (ayni yol + farkli metot) DEGIL,
+    "fiil yolda" konvansiyonu kullaniyor. Bizim uclarimiz (GET/PUT/DELETE
+    /api/anketler/{id}) bu konvansiyona UYMUYOR (bkz. 2.6).
+
+    BUNUN IKI BUYUK SONUCU:
+    (a) Izin birimi TEK UC DEGILDIR; SAYFA (+yetenek) duzeyindeki YOL ONEKIDIR.
+        "14 uc icin 14 izin anahtari" fikri host modeline UYMAZ (bkz. 4.2 revizyonu).
+    (b) Metot bilgisi olmadigi icin AYNI YOL uzerindeki GET/PUT/DELETE ayrimi
+        host mekanizmasiyla YAPILAMAZ. Ince ayrim isteniyorsa YOLLARIN kendisi
+        ayrilmalidir (bkz. 2.6).
+
+1.4 page_abilities ICERIGI — HOST VERISI (2026-07-29, host dump'indan):
+      1 read | 2 create | 3 delete | 4 update | 5 all
+    (Bu satirlar UYDURMA DEGILDIR, host'tan geldi. Replikaya seed edilirken
+     ID'ler AYNEN korunacak; "5 = Hepsi/all" ornegiyle tutarli.)
+    DIKKAT — GUCLU BIR CIKARIM (dogrulanmali, bkz. S13): yetenek isimleri
+    HTTP metotlariyla birebir ortusuyor (read~GET, create~POST, update~PUT,
+    delete~DELETE). Bu, endpoint eslemesinde metot yazilmamasini ACIKLAR:
+    metot bilgisi ABILITY tarafindan tasiniyor olabilir. Dogruysa 2.6'daki
+    "metot ayrimi yapilamaz" tespiti YUMUSAR: ayni yol onegi altinda GET'i
+    read'e, PUT'u update'e bagli tutmak mumkun olur.
+
+1.5 Onceki turda alinmis ve gecerliligini koruyan kararlar:
+    - Anket modulu "user" tablosuna FK VERMEZ. Aktor KISIdir, hesap degil.
+      survey.created_by / question.prepared_by / survey_assignment.staff_id
+      hepsi staff'a bagli kalir. (Gerekce: 003_host_user.sql dosya basi)
+    - Oturum -> personel cozumu UYGULAMA KATMANINDA "user.id = staff.staff_id"
+      esitligiyle yapilir.
+    - Yetki karari KOD KATMANINDA verilir (CLAUDE.md). PostgreSQL'de trigger/RLS
+      ile zorlanmaz; DB hesabi yetkisi (savronik_app = CRUD-only) ile karistirilmaz.
+
+
+===============================================================================
+2. BILMEDIKLERIMIZ  (!!! EN KRITIK BOLUM !!!)
+===============================================================================
+
+2.1 Gelistirme replikasindaki role/rolepermissions VERISI UYDURMADIR.
+    2026-07-27'de bu projede uretilmistir; HOST VERISI DEGILDIR ve uretimi
+    TARIF ETMEZ. postgresql_semasi.dbml bunu kendi notunda yazar.
+    Bu yuzden asagidakilerin HICBIRI dogrulanmis bilgi degildir:
+      - role tablosundaki 10 satirin isimleri
+        (1 Employee, 2 Manager, 3 HumanResources, 4 QualityAssurance, 5 Admin,
+         6 ProjectManager, 7 Finance, 8 ITSupport, 9 Auditor,
+         10 HumanResourcesManager)
+        -> "3 = HumanResources" iddiasinin ARKASINDA KAYNAK YOKTUR.
+      - rolepermissions'taki 39 satir (13 uc x 3 rol)
+      - endpoint yazim konvansiyonu ("POST /api/surveys" bicimi)
+
+2.2 [COZULDU 2026-07-28 — bkz. 1.3] Mekanizma sorusu kapandi: yeni sayfa/uc kaydi
+    webpage + roleright + roleright_endpoint_mapping uclusuyle yapilir.
+    ONCEKI CIKARIMIMIZ YANLISTI: rolepermissions'i "endpoint kolonu var" diye
+    secmistik; yeni sayfa icin o tabloya EKLEME YAPILMIYOR. rolepermissions'in
+    bugun ne ise yaradigi / hala kullanilip kullanilmadigi ise BILINMIYOR (S10).
+    Buna dayali her sey (eski B2 sorgusu, 42 satirlik izin plani) GECERSIZDIR.
+
+2.3 [ARTIK KONU DISI] Replikadaki 39 satirlik rolepermissions test verisinin
+    kodumuzla ortusup ortusmedigi onemsizlesti; o tablo izin akisinin parcasi
+    degil. Satirlar YINE DE UYDURMADIR ve silinmelidir (bkz. B5 revizyonu).
+
+2.4 Diger acik konular (onceki turlardan devreden):
+    - Grup bazli anket atamasi host'ta hangi tabloya baglanacak?
+      ("group" / department / unit / team)  -> survey.access_group_id BILINCLI
+      olarak FK'siz birakildi (002_anket_modulu.sql icindeki BLOKE notu).
+    - Modul ayri bir servis mi olacak, yoksa host uygulamaya mi gomulecek?
+      Bu, oturum dogrulamasinin nasil yapilacagini ve endpoint adlarini belirler.
+    - "user".editor_role_id host'ta role(id)'ye FK mi? (003'te CIKARIM olarak
+      isaretli, FK KURULMADI.)
+
+2.5 [COZULDU 2026-07-29 — MIGRATION 006 YAZILDI VE REPLIKAYA UYGULANDI]
+    Asagidaki tespit ARTIK GECMISTIR: ucu de replikada MEVCUTTUR. Yapilanlar:
+      - database/migrations_pg/006_host_yetki_tablolari.sql yazildi
+        (webpage + page_abilities + roleright_endpoint_mapping, 3 sequence,
+         DEFAULT nextval + OWNED BY, 3 PK, "mapping_right_FK" NOT VALID, GRANT'ler).
+      - Gelistirme replikasina UYGULANDI ve canli olarak dogrulandi: tablolar/
+        kolonlar, sequence'lar, PK'ler, FK'nin convalidated = FALSE (NOT VALID)
+        olusu, savronik_app'in CRUD + sequence USAGE/SELECT yetkisi.
+      - page_abilities'in 5 satiri (1 read..5 all) MIGRATION'A KONMADI (kullanici
+        karari: DB verisi git'e girmez); dosyada calistirilamaz yorum olarak durur
+        ve replikaya ELLE uygulandi + setval(...,5,true) yapildi. DOGRULANDI.
+      - roleright.webpage_id / ability_id FK'leri KURULMADI (S15 hala acik;
+        ad uydurulmaz). 001'in "kurulmayan FK'ler" NOTU guncellendi (DDL'ine
+        DOKUNULMADI).
+      - CLAUDE.md proje haritasi guncellendi.
+    SONUC: FAZ B'nin B2 adimi BITTI; B3'un yetki sorgusu artik replikada
+    CALISTIRILABILIR (veri icin B5 gerekir: staff/"user"/roleright satirlari).
+
+    --- ASAGISI TARIHCEDIR (2026-07-28/29 tespiti) ---
+    GELISTIRME REPLIKASINDA 3 TABLO EKSIK (2026-07-28'de canli olarak dogrulandi).
+    Yordamin gectigi tablolarin ucu de replikada YOKTUR:
+      webpage, page_abilities, roleright_endpoint_mapping
+    Replikada bulunan yetki tablolari yalnizca: role, roleright, rolerightmapping,
+    rolepermissions. Ayrica roleright.webpage_id ve ability_id FK'siz kalmisti
+    (001'in "kurulmayan FK'ler" notu) — cunku hedef tablolar alinmamisti.
+    SONUC: Yetki sorgusu replikada TEST EDILEMEZ. Once bu 3 tablonun host DDL'i
+    alinip yeni bir migration_pg dosyasiyla replikaya eklenmeli (S11).
+
+    DURUM (2026-07-29, host dump parcalari geldi):
+      [TAM]    page_abilities — CREATE TABLE + sequence + DEFAULT + OWNED BY + PK
+                                elimizde. Veri de geldi (bkz. 1.4).
+      [TAM]    webpage        — CREATE TABLE (id bigint NOT NULL, name varchar)
+                                + PK (webpage_pkey) + sequence bagi
+                                (category_id_seq OWNED BY webpage.id) elimizde.
+                                Ornek satir: 23 | WorkhoursSummary.
+                                HOST TUHAFLIGI: webpage.id'yi besleyen sequence
+                                "category_id_seq" adini tasiyor (tablo bir zamanlar
+                                "category" olabilir). role_rigth_id_seq gibi bu da
+                                REPLIKADA AYNEN KORUNACAK.
+                                TEK KUCUK EKSIK: CREATE SEQUENCE category_id_seq
+                                govdesi ve webpage.id'nin DEFAULT nextval satiri.
+                                001'deki dort sequence'in govdesi BIREBIR AYNI
+                                (START 1 / INCREMENT 1 / NO MINVALUE / NO MAXVALUE
+                                / CACHE 1) oldugundan bu ikisi ayni kalibla
+                                yazilabilir; migration'da CIKARIM olarak isaretlenir.
+      [TAM]    roleright_endpoint_mapping — CREATE TABLE (id bigint NOT NULL,
+                                right_id bigint, endpoint varchar) + PK
+                                (category_endpoint_mapping_pkey) + DEFAULT nextval
+                                + OWNED BY (category_endpoint_mapping_id_seq).
+                                ADLANDIRMA DOGRULANDI: hem sequence hem PK adi
+                                "category_" ile basliyor -> webpage'in
+                                category_id_seq'i ile ayni izi tasiyor; bu iki
+                                tablo host'ta bir zamanlar category /
+                                category_endpoint_mapping olmali. Adlar replikada
+                                AYNEN korunur (role_rigth_id_seq gibi).
+                                NOT: 2026-07-29'da "ikisini de attim" denilerek
+                                gonderilen tablo rolerightmapping idi (isim
+                                benzerligi); o zaten replikada VARDI.
+
+    KALAN KUCUK EKSIKLER (migration'i BLOKE ETMEZ):
+      - CREATE SEQUENCE govdeleri: category_id_seq, category_endpoint_mapping_id_seq
+        ve page_abilities_id_seq disindakiler. 001'deki dort sequence BIREBIR ayni
+        kalipta (START 1 / INCREMENT 1 / NO MINVALUE / NO MAXVALUE / CACHE 1);
+        ayni kalip kullanilir ve migration'da CIKARIM olarak isaretlenir.
+      - webpage.id'nin DEFAULT nextval satiri (OWNED BY geldigi icin varligi kesin,
+        metni gelmedi).
+      - FK DURUMU (2026-07-29 guncellemesi, S15 kismen cevaplandi):
+          [VAR]      roleright_endpoint_mapping.right_id -> roleright(id)
+                     constraint adi: "mapping_right_FK"   ve  NOT VALID'dir.
+                     NOT VALID = host'ta mevcut satirlar DOGRULANMAMIS; kisit
+                     yalniz yeni/degisen satirlara uygulaniyor. Yani host'ta
+                     roleright'ta karsiligi olmayan (oksuz) right_id satirlari
+                     BULUNABILIR. Replikaya AYNEN NOT VALID olarak alinir.
+          [VAR]      rolerightmapping.right_id -> roleright(id)
+                     constraint adi: "mapping_right_FK" (NOT VALID DEGIL).
+                     -> Replikada 001 ile ZATEN KURULU; dogrulandi.
+                     DIKKAT: Iki farkli tablodaki FK AYNI ADI tasiyor. Bu
+                     PostgreSQL'de gecerlidir (constraint adi tablo bazindadir)
+                     ve iki tablonun kardesligini gosterir; ad DEGISTIRILMEZ.
+          [BILINMIYOR] roleright.webpage_id -> webpage(id)
+          [BILINMIYOR] roleright.ability_id -> page_abilities(id)
+                     Bu ikisi icin dump'tan FK satiri GELMEDI. 001'in dosya sonu
+                     notu bunlarin "uretimde zaten kurulu" oldugunu SOYLUYOR ama
+                     bu bir VARSAYIMDI, dogrulanmadi. Host'ta gercekten yoksa
+                     001'in NOTU YANLISTIR ve duzeltilmelidir (bkz. S15).
+                     006'da KURULMAZ; ad uydurulmaz.
+      - HOST'TA GORULEN, KAPSAM DISI TUTULAN TABLO: user_favorite_pages
+        (page_id -> webpage(id), fk_ufp_page). Kullanicinin favori sayfalari;
+        anket modulunu ilgilendirmiyor, replikaya ALINMAZ (kullanici karari).
+        Buraya yalnizca "webpage'e baska tablolar da bagli" bilgisi icin yazildi.
+    DOGRULANDI: Gelen rolerightmapping DDL'i replikamizdakiyle BIREBIR AYNI
+    (id/role_id/right_id + role_right_mapping_id_seq) -> 001 replikasi bu tabloda
+    sadik. roleright icin de ayni sadakati bekliyoruz.
+
+2.6 HOST'UN YOL KONVANSIYONU BIZIM URL TASARIMIMIZLA CAKISIYOR (kritik).
+    GUNCELLEME (2026-07-29): Gercek satirlar gelince tablo netlesti. Host
+    "fiil yolda" yaziyor (/system/access-group/get/** ile .../post AYRI haklar).
+    Bizde ayni yol uzerinde metot degisiyor (GET/PUT/DELETE /api/anketler/{id}).
+    Iki secenek var:
+      (S-1) UCLARIMIZI HOST KONVANSIYONUNA UYDURMAK: /anket/get/**, /anket/post,
+            /anket/put, /anket/delete/** ... Host'un mekanizmasi olduğu gibi
+            calisir, ozel bir sey yazmayiz. Bedeli: backend rotalari + frontend
+            api/ dosyalari yeniden yazilir, REST bicimimizden vazgeceriz.
+      (S-2) REST'I KORUYUP TEK ONEK ALMAK: yalniz "/anket/**" gibi tek bir hak;
+            okuma/yazma ayrimini host degil BIZIM Service katmanimiz yapar.
+            Bedeli: host'un ability granulaligini kullanmamis oluruz.
+    KARAR (2026-07-29, kullanici): S-1 SECILDI — uclarimiz host konvansiyonuna
+    UYDURULACAK. Ayrinti ve nihai yol haritasi: 4.7.
+
+    ESKI TESPIT (hala gecerli olan kismi):
+    Bugunku uclarimiz:
+      admin (izin ister)   : /api/anketler..., /api/sorular...
+      herkese acik (sahiplik): /api/anketlerim,
+                               /api/anketler/{id}/doldur,
+                               /api/anketler/{id}/cevaplar
+    Sahiplige dayali son iki uc, admin uclariyla AYNI "/api/anketler/" onekinin
+    altindadir. Onek bazli izinde bu ikisi ayrilamaz: onek admin rolune verilirse
+    normal personel anketi DOLDURAMAZ; herkese verilirse admin uclari da acilir.
+    COZUM YONU (karar bekliyor): uclar onek duzeyinde AYRISTIRILIR, or.
+      /api/anket-yonetimi/...  (sayfa: AnketYonetimi — izin ister)
+      /api/anketlerim/...      (sayfa: Anketlerim — tum personel)
+    Bu bir URL degisikligi demektir ve frontend api/ dosyalarini da etkiler.
+
+
+===============================================================================
+3. SAVRONIK'E SORULACAKLAR
+===============================================================================
+[X] S1. Yetki kontrolu gercekte HANGI tablodan yapiliyor: rolepermissions mi,
+        yoksa roleright + rolerightmapping mi?
+        CEVAP (2026-07-28, Savronik): Yeni bir endpoint'e sahip sayfa eklerken
+        SADECE 3 tabloya satir eklenir: webpage (sayfa adi) -> roleright
+        (webpage_id + ability_id) -> roleright_endpoint_mapping (roleright_id +
+        endpoint oneki). Baska tabloya ekleme gerekmez. Yani rolepermissions
+        DEGIL. Ayrinti ve ornek satirlar: 1.3.
+
+[X] S2. Endpoint alanindaki GERCEK yazim bicimi nedir?
+        CEVAP (2026-07-28, Savronik): HTTP metodu YOK, sadece controller'daki
+        yol uzantisi ve ONEK eslemesi. Ornek: "workPlan/" -> "workPlan/ ile
+        baslayan tum isteklere izin ver". Bkz. 1.3 ve dogurdugu sorun 2.6.
+
+[ ] S3. role tablosunda 3, 5 ve 10 numarali rollerin GERCEK isimleri nedir?
+        NEDEN ONEMLI: Replikadaki isimler uydurma; dogru isim olmadan hangi
+        rolun ne oldugunu kimse dogrulayamaz.
+        CEVAP:
+
+[~] S4. Anket modulunun izin satirlarini kim ekleyecek?
+        KISMI CEVAP (2026-07-28): Yordam BIZE anlatildi ("...eklemelisiniz"),
+        yani satirlari EKLEYEN BIZIZ. ACIK KALAN: bunu uretimde nasil yapacagiz —
+        migration SQL ile mi, host'un yonetim ekranindan elle mi? Ayrica webpage
+        id / roleright id degerleri uretimde farkli olacagi icin satirlar
+        SABIT ID ile yazilamaz (id'ler nextval'dan alinmali).
+
+[ ] S5. Grup bazli atama host'ta hangi tabloya karsilik geliyor?
+        ("group" / department / unit / team)
+        NEDEN ONEMLI: survey.access_group_id'nin FK'si hala kurulamadi.
+        CEVAP:
+
+[ ] S6. !!! ARTIK EN KRITIK SORU (bkz. 4.5/4.6) — kismen cevaplandi:
+        DB'ler BIRLESTIRILECEK, login/oturum host'ta kalacak, biz yalnizca
+        anket modulunu ekliyoruz. ACIK KALAN TEKNIK KISIM:
+        Giris yapmis kullanicinin KIMLIGINI (staff_id) bize hangi yolla
+        gecireceksiniz? (Ortak session/cookie mi, JWT mi, header mi, yoksa
+        modul host uygulamanin icine mi gomulecek?)
+        NEDEN ONEMLI: "Bana atanmis anketler" ve tum sahiplik kontrolleri
+        buna bagli; kimlik olmadan modul calismaz.
+
+--- S1/S2 cevabinin DOGURDUGU YENI SORULAR (2026-07-28) ---
+
+[X] S7. page_abilities yetenek listesi nedir?
+        CEVAP (2026-07-29, host dump): 1 read, 2 create, 3 delete, 4 update,
+        5 all. Yani 5 = "Hepsi". Bkz. 1.4 ve dogurdugu yeni soru S13.
+
+[ ] S8. Onek kontrolunu HANGI katman yapiyor (API gateway / filter / backend
+        interceptor)? Kontrol TUM isteklere mi uygulaniyor — yani hicbir
+        roleright onegine uymayan istek otomatik REDDEDILIYOR mu, yoksa sadece
+        eslesen yollar mi korunuyor?
+        NEDEN ONEMLI: "herkese acik uc" diye bir sey mumkun mu, buna bagli.
+
+[ ] S9. Tum personele acik olmasi gereken uclar (anketi doldurma) nasil
+        kaydediliyor? Herkesin sahip oldugu ortak bir webpage/roleright var mi,
+        yoksa her role tek tek rolerightmapping satiri mi ekleniyor?
+        NEDEN ONEMLI: Bkz. 2.6 — bizim 3 sahiplik ucumuz buna bagli.
+
+[ ] S10. rolepermissions tablosu ne ise yariyor, hala kullaniliyor mu?
+         (Yeni sayfa icin gerekmiyorsa legacy mi?)
+
+[X] S11. webpage, page_abilities ve roleright_endpoint_mapping DDL'i.
+         CEVAP TAMAMLANDI (2026-07-29): ucunun de CREATE TABLE + PK'si elimizde;
+         ayrinti ve kalan kucuk eksikler 2.5'te. Migration 006 YAZILABILIR.
+         --- eski kayit (tarihce) ---
+         KISMI CEVAP (2026-07-29): page_abilities TAM geldi; webpage'ten yalniz
+         PK + sequence bagi geldi; roleright_endpoint_mapping HIC gelmedi.
+         EK BILGI (2026-07-29): roleright_endpoint_mapping'in KOLONLARI ogrenildi
+         -> (id, right_id, endpoint). DIKKAT: kolon adi "right_id"dir
+         (rolerightmapping ile ayni konvansiyon), "roleright_id" DEGIL.
+         GUNCELLEME (2026-07-29): webpage'in CREATE TABLE + PK'si geldi -> TAM.
+         HALA GEREKEN (bkz. 2.5) — tek tablo kaldi:
+           (a) roleright_endpoint_mapping: CREATE TABLE (kolon TIPLERI) +
+               CREATE SEQUENCE + DEFAULT nextval + PK + varsa FK
+           (b) roleright'in webpage/page_abilities'e giden FK satirlari
+               (constraint ADLARIYLA; replika sadakati icin)
+           (c) [kucuk] CREATE SEQUENCE public.category_id_seq govdesi +
+               webpage.id'nin DEFAULT nextval satiri
+         Tek komut yeter:
+           pg_dump -s -t public.roleright_endpoint_mapping -t public.roleright \
+                   -t public.webpage <db_adi>
+
+[ ] S13. Istek METODU ile ability ESLESTIRILIYOR mu? (read~GET, create~POST,
+         update~PUT, delete~DELETE) Yoksa ability yalnizca menu/ekran
+         gorunurlugu icin mi kullaniliyor ve endpoint kontrolu metottan
+         bagimsiz mi?
+         NEDEN ONEMLI: Bkz. 1.4. Cevap "evet" ise ayni yol onegi altinda
+         okuma/yazma ayrimi mumkun; "hayir" ise 2.6'daki yol ayrimi sart.
+
+[X] S12. Onek yazim konvansiyonu nedir?
+         CEVAP (2026-07-29, gercek satirlar): basta '/' VAR, "api/" oneki YOK,
+         joker '**' ile yazilir, eylem adi YOLUN ICINDEDIR (/get/**, /post).
+         Bkz. 1.3. ACIK KALAN KARAR: biz bu konvansiyona uyacak miyiz (2.6'daki
+         S-1) yoksa tek onek alip ayrimi kendimiz mi yapacagiz (S-2)?
+
+[~] S15. Su uc FK host'ta KURULU mu, kuruluysa CONSTRAINT ADLARI ne?
+         CEVAPLANAN (2026-07-29):
+           roleright_endpoint_mapping.right_id -> roleright(id)
+             = "mapping_right_FK", NOT VALID.  (rolerightmapping'inki de ayni
+               adi tasiyor ama NOT VALID degil; ikisi de dogrulandi.)
+         HALA ACIK — TEK SORU:
+           Dump'ta tablosu "public.roleright" olan HERHANGI bir
+           "ADD CONSTRAINT ... FOREIGN KEY" satiri var mi?
+             - VARSA: webpage_id ve ability_id FK'lerinin constraint adlari.
+             - YOKSA: host'ta bu FK'ler GERCEKTEN YOK demektir; o zaman
+               001_ilk_sema.sql'in dosya sonundaki "uretimde zaten kuruludur"
+               notu YANLIStir ve duzeltilecektir (yalniz YORUM degisir).
+         Her iki durumda da 006'yi BLOKE ETMEZ.
+
+[ ] S14. Yol kaliplari Spring/Ant matcher semantigiyle mi degerlendiriliyor
+         ('**' = tum alt segmentler, '*' = tek segment)? Jokersiz satir
+         (".../post") TAM ESLESME midir?
+         NEDEN ONEMLI: Modul ayri servis olursa (S6) ayni eslestirmeyi BIZ
+         uygulayacagiz; basit "LIKE onek%" bunu DOGRU karsilamaz.
+
+
+===============================================================================
+4. ONAYLANAN TASARIM KARARLARI (2026-07-28)
+===============================================================================
+
+4.1 Atama listesi: staff INNER JOIN "user".
+    Yalnizca HESABI OLAN personele anket atanabilir. Gerekce: hesabi olmayan
+    kisi anketi asla dolduramaz, raporda surekli "yanitlamadi" gorunur.
+    (DB tasarimi hesapsiz atamaya IZIN VERIR; kisit uygulama katmanindadir.)
+
+4.2 [GECERSIZ — 2026-07-28, S1/S2 cevabiyla] "Uc basina izin anahtari" fikri
+    host modeline uymuyor. Host izni SAYFA(+yetenek) duzeyinde bir YOL ONEKIdir
+    (bkz. 1.3). Bizim gercek uclarimizi (Turkce) kullanma karari yol ONEKI
+    duzeyinde gecerliligini korur; degisen sey GRANULARITEdir: 14 ayri anahtar
+    degil, 1-2 onek.
+    ONEMLI AYRIM: Host'un izni KABA (sayfaya girebilir mi). Uc/eylem bazli ince
+    karar (or. "bu anketi gorebilir mi") YINE BIZIM Service katmanimizda kalir;
+    host mekanizmasi onu ikame etmez.
+
+4.3 Yetki karari Service katmanindadir; hangi iznin gerektigini EYLEMIN KENDISI
+    bilir (Controller degil).
+
+4.4 Kullanici yonetimi yetkisi (kullanici_service / grup_service /
+    secenek_service) anket yetkisiyle BIRLESTIRILMEZ. Sekilleri ayni gorunse de
+    farkli amaclara hizmet eder (yanlis DRY); host'ta kullanici yonetiminin
+    karsiligi zaten vardir ve izin listesinde yer almazlar.
+
+4.5 KAPSAM KARARI (2026-07-29, kullanici): VERITABANLARI BIRLESTIRILECEK ve
+    host'a YALNIZCA ANKET MODULU eklenecek.
+    - Login ekrani, sifre belirleme, kullanici yonetimi, grup yonetimi vb.
+      ekranlara IHTIYAC YOK; host'ta zaten calisiyor.
+    - Sisteme ZATEN GIRIS YAPMIS bir kullanicinin uzerine ekleniyoruz.
+
+4.6 YETKI KAPSAMI DARALTILDI (2026-07-29, kullanici): Kendi rol/izin
+    kontrolumuzu YAPMAYACAGIZ. Tek bakacagimiz sey SAYFA GORUNURLUGUDUR:
+    kullanicinin anket sayfasina erisim hakki (roleright zinciri) var mi, yok mu.
+    - Bugunku "kullanici_turu == 'admin'" kontrollerinin (13 nokta) yerini TEK
+      sayfa-hakki kontrolu alir; uc bazli ayri izin anahtari YOKTUR (bkz. 4.2).
+    - !!! ISTISNA — SAHIPLIK KONTROLLERI KALIR: "bu anket bana atandi mi",
+      "bu cevaplar benim mi" kontrolleri ROL kontrolu DEGIL, sahiplik/IDOR
+      korumasidir ve KALDIRILMAZ (CLAUDE.md guvenlik kurali). Aksi halde
+      giris yapmis herhangi biri baskasinin anketini doldurabilir/gorebilir.
+    - !!! BAGIMLILIK — KIMLIK: Sahiplik kontrolu icin "istegi yapan kim"
+      (staff_id) bilgisine ihtiyacimiz var. Bunu host'tan nasil alacagimiz
+      HALA ACIK (S6) ve artik FAZ B'nin en kritik kilididir; kimlik gelmezse
+      "bana atanmis anketler" ekrani calismaz.
+
+
+4.7 URL KONVANSIYONU: HOST'A UYULACAK (2026-07-29, kullanici karari; bkz. 2.6 S-1)
+    Uclarimiz "fiil yolda" bicimine cevrilir; host'un ability granulaligi
+    (read/create/update/delete) oldugu gibi kullanilabilir hale gelir.
+    Bedeli kabul edildi: backend rotalari + frontend api/ dosyalari yeniden yazilir.
+
+    HOST'A KAYDEDILECEK ONEKLER:
+      Sayfa "Anket" (yonetim; izin ister)
+        /anket/get/**      GET    liste, detay, atamalar, bir kisinin cevaplari
+        /anket/post/**     POST   olusturma
+        /anket/put/**      PUT    guncelleme + durum degistirme (Aktif<->Pasif)
+        /soru/get/**       GET    liste, detay, Excel sablonu
+        /soru/post/**      POST   ekleme + Excel toplu yukleme
+        /soru/put/**       PUT    guncelleme
+        /soru/delete/**    DELETE silme
+      Sayfa "Anketlerim" (tum personel; bkz. 2.6 cakismasinin cozumu)
+        /anketlerim/get/**   GET  bana atanmis anketler + doldurma gorunumu
+        /anketlerim/post/**  POST cevap gonderme
+    HTTP METODU KORUNUR: fiil hem YOLDA hem METOTTA olur (PUT /anket/put/{id}).
+    Yol kontrolu host'un isi, metot ise kendi rotamizin dogru okunmasi icin;
+    ikisini de dogru tutmak bize hicbir sey kaybettirmiyor.
+
+    UC ESLEME TABLOSU (ESKI -> YENI). Bu tablo yeni session icin BAGLAYICIDIR;
+    sohbetten yeniden turetilmesin.
+      GET    /api/anketler                        -> GET    /anket/get
+      POST   /api/anketler                        -> POST   /anket/post
+      GET    /api/anketler/{id}                   -> GET    /anket/get/{id}
+      PUT    /api/anketler/{id}                   -> PUT    /anket/put/{id}
+      POST   /api/anketler/{id}/durum             -> PUT    /anket/put/{id}/durum
+      GET    /api/anketler/{id}/atamalar          -> GET    /anket/get/{id}/atamalar
+      GET    /api/anketler/{id}/cevaplar/{kod}    -> GET    /anket/get/{id}/cevaplar/{kod}
+      GET    /api/sorular                         -> GET    /soru/get
+      POST   /api/sorular                         -> POST   /soru/post
+      GET    /api/sorular/sablon                  -> GET    /soru/get/sablon
+      POST   /api/sorular/toplu-yukle             -> POST   /soru/post/toplu-yukle
+      GET    /api/sorular/{id}                    -> GET    /soru/get/{id}
+      PUT    /api/sorular/{id}                    -> PUT    /soru/put/{id}
+      DELETE /api/sorular/{id}                    -> DELETE /soru/delete/{id}
+      GET    /api/anketlerim                      -> GET    /anketlerim/get
+      GET    /api/anketler/{id}/doldur            -> GET    /anketlerim/get/{id}
+      POST   /api/anketler/{id}/cevaplar          -> POST   /anketlerim/post/{id}
+    DOKUNULMAZ: /api/auth/* (login/me/logout). 4.5 ile kapsam disina cikacak ama
+    bugunku MariaDB uygulamasi onlara bagli; aceleyle tasinmaz. Ayrica
+    /api/kullanicilar*, /api/gruplar*, /api/secenekler* ve /health de dokunulmaz
+    (4.4/4.5 geregi kapsam disi) — "/api" onegini KORURLAR.
+    "/api" ONEKI DUSER (host'ta yok) — yalniz bu 17 ucta.
+    !!! DUZELTME (2026-07-29, uygulama sirasinda): frontend/vite.config.js'te
+    PROXY TANIMI YOKTUR (dosya 8 satir, sadece react plugin'i). Frontend backend'e
+    API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000' ile
+    DOGRUDAN gidiyor. Yani "/api" onegini dusurmek proxy'yi degil yalnizca
+    fetch URL'lerini ilgilendiriyor; vite.config.js DEGISMEDI ve degismesi
+    gerekmiyor. Bu madde yanlis varsayima dayaniyordu.
+    DEGISECEK DOSYALAR (gerceklesen): backend/api/http_app.py (yalniz yollar;
+    Controller/Service/Repository imzalari DEGISMEDI), backend/requirements.txt
+    (yalniz yorum), frontend/src/api/anketApi.js, frontend/src/api/soruApi.js,
+    frontend/src/components/SoruEkleForm.jsx (yalniz yorum), CLAUDE.md haritasi.
+    NEDEN AYRI IKI SAYFA: Sahiplik uclari artik admin uclariyla ayni onegin
+    altinda DEGIL; biri herkese, digeri yetkili rollere verilebilir (2.6 cozuldu).
+    NEDEN HER SATIRDA '**': Host'ta jokersiz satir (".../post") TAM ESLESME gibi
+    duruyor; bizim POST uclarimizin altinda ek segment var (or. /post/toplu-yukle).
+    Kesinlesmesi S14'e bagli.
+    KORUNAN KISIT: Sabit segment parametrik olandan ONCE tanimlanir
+    (/soru/get/sablon, /soru/get/{soru_id}'den once) — bugunku kisitin aynisi.
+    ACIK: Yol adlari TURKCE kaliyor (4.2 karari); host ornekleri INGILIZCE
+    ("access-group"). Savronik bir adlandirma kurali dayatiyor mu, sorulmali.
+
+    B7 ICIN NOT — SAYFA <-> ONEK ESLEMESI (2026-07-29, FAZ A ile sabitlendi).
+    Uretimde webpage -> roleright -> roleright_endpoint_mapping satirlari
+    yazilirken kullanilacak nihai liste budur; kod tarafindaki karsiligi
+    backend/common/izinler.py'deki TEK anahtardir (ANKET_YONETIMI).
+      Sayfa "Anket"      (izin ister; kod anahtari: ANKET_YONETIMI)
+        /anket/get/**    /anket/post/**    /anket/put/**
+        /soru/get/**     /soru/post/**     /soru/put/**    /soru/delete/**
+      Sayfa "Anketlerim" (tum personel; KOD ANAHTARI YOK — yetki sahiplik/IDOR
+                          kontroludur, dogrula_izin cagirilmaz)
+        /anketlerim/get/**    /anketlerim/post/**
+    Iki sayfa AYRI kalir: biri yetkili rollere, digeri herkese verilebilsin
+    (2.6'daki cakismanin cozumu).
+
+===============================================================================
+5. KODDAKI MEVCUT DURUM (degistirilmeden once)
+===============================================================================
+
+!!! ARTIK GECMISTIR (2026-07-29, FAZ A) !!!
+Asagida sayilan 13 kontrol noktasi TEK cagriya indi:
+  yetki_service.dogrula_izin(talep_eden, izinler.ANKET_YONETIMI)
+_ADMIN_TURU artik anket/soru servislerinde YOKTUR; yalniz yetki_service'te ve
+kapsam disi 3 serviste (kullanici/grup/secenek) durur. Guncel satir numaralari
+ve ayrinti: bolum 6 / FAZ A / A3. Asagisi TARIHCE olarak korunur (uc listesi
+hala gecerlidir; yalniz yollar 4.7 ile degismistir).
+
+Yetki bugun "kullanici_turu == 'admin'" ile veriliyor. _ADMIN_TURU sabiti
+7 serviste AYRI AYRI tanimli; anket/soru tarafinda 13 kontrol noktasi var:
+
+  services/anket_service.py        : 80, 127, 159, 225, 284           (5)
+  services/soru_service.py         : 219, 270, 284, 299, 328          (5)
+  services/soru_yukleme_service.py : 186, 223                         (2)
+  services/anket_sonuc_service.py  : 113 (_dogrula_yetki_ve_coz_grup) (1)
+                                     -> tek yardimcidan 2 uc beslenir
+
+DOKUNULMAYACAK (bkz. 4.4):
+  services/kullanici_service.py, services/grup_service.py,
+  services/secenek_service.py
+
+ADMIN KONTROLLU 14 UC ve karsilik gelen Service fonksiyonu:
+  GET    /api/anketler                              list_anketler
+  POST   /api/anketler                              ekle_anket
+  GET    /api/anketler/{anket_id}                   get_anket
+  PUT    /api/anketler/{anket_id}                   guncelle_anket
+  POST   /api/anketler/{anket_id}/durum             degistir_anket_durumu
+  GET    /api/anketler/{anket_id}/atamalar          list_anket_atamalari
+  GET    /api/anketler/{anket_id}/cevaplar/{kod}    get_kullanici_cevaplari
+  GET    /api/sorular                               list_sorular
+  POST   /api/sorular                               ekle_soru
+  GET    /api/sorular/sablon                        uret_sablon_verisi
+  POST   /api/sorular/toplu-yukle                   yukle_sorular
+  GET    /api/sorular/{soru_id}                     get_soru      <-- test
+                                                     verisinde EKSIK olan uc
+  PUT    /api/sorular/{soru_id}                     guncelle_soru
+  DELETE /api/sorular/{soru_id}                     sil_soru
+
+IZIN GEREKTIRMEYEN uclar (yetki ROLE degil SAHIPLIGE dayali — izin listesine
+KONMAZ):
+  GET    /api/anketlerim
+  GET    /api/anketler/{anket_id}/doldur
+  POST   /api/anketler/{anket_id}/cevaplar
+
+
+===============================================================================
+6. ONAYLANAN PLAN VE DURUMU
+===============================================================================
+
+REVIZYON NOTU (2026-07-28): S1/S2 cevaplandi. FAZ A ayakta kaldi (yalnizca A1'in
+icerigi daraldi); FAZ B tumuyle YENIDEN YAZILDI — eski B2 sorgusu ve B5'teki
+42 satirlik rolepermissions plani GECERSIZDIR.
+
+FAZ A — Izin modeli gercek hale gelir (calisan uygulamayi BOZMAZ)
+  FAZ A BITTI — YAPILDI 2026-07-29. Davranis BIREBIR korundu: yeni hata tipi,
+  yeni HTTP yanidi, yeni imza YOK; Controller/Repository/frontend DEGISMEDI.
+  [X] A1. backend/common/izinler.py — YAPILDI 2026-07-29. Izin katalogu TEK
+          sabittir: ANKET_YONETIMI = "anket_yonetimi". "Anketlerim" icin sabit
+          BILEREK TANIMLANMADI: sahiplik uclari izin degil SAHIPLIK (IDOR)
+          kontrolu yapar, dogrula_izin cagirmaz -> cagirilmayan sabit olu kod
+          olurdu (CLAUDE.md over-engineering yasagi). Anahtarin host'taki gercek
+          webpage.name ile eslemesi FAZ B'de yetki_service icinde yapilacak.
+  [X] A2. backend/services/yetki_service.py — YAPILDI 2026-07-29. Tek public
+          fonksiyon: dogrula_izin(talep_eden: OturumSahibi, izin: str) -> None;
+          hakki yoksa MEVCUT common.errors.YetkiYokError firlar (kod/severity
+          DEGISMEDI, hata burada LOGLANMAZ). Govde bugun hala
+          kullanici_turu != "admin" karsilastirmasidir ve GECICIDIR; _ADMIN_TURU
+          sabiti artik BU dosyadadir. `izin` parametresi govdede kullanilmiyor
+          ama imzada DURUR (Faz B'de sayfa ayrimini o tasiyacak) — gerekcesi
+          fonksiyon yorumunda yazilidir.
+  [X] A3. 13 kontrol noktasi tek cagriya indi — YAPILDI 2026-07-29:
+            anket_service.py        : 80, 126, 157, 222, 280   (5)
+            soru_service.py         : 220, 270, 283, 297, 325  (5)
+            soru_yukleme_service.py : 184, 220                 (2)
+            anket_sonuc_service.py  : 114 (_dogrula_yetki_ve_coz_grup) (1)
+          Bu 4 dosyada yerel _ADMIN_TURU sabitleri SILINDI, gereksiz kalan
+          YetkiYokError import'lari kaldirildi, "yalnizca admin" diyen yorumlar
+          "anket yonetimi sayfa hakki gerekir" diline cevrildi (sahiplik/
+          gorunurluk cumlelerine DOKUNULMADI). Kontrol hala fonksiyonun ILK isi
+          (veri erisimine gecmeden). DOKUNULMAYANLAR (4.4): kullanici_service,
+          grup_service, secenek_service kendi _ADMIN_TURU sabitleriyle DURUYOR;
+          anket_doldur_service (sahiplik) zaten rol kontrolu yapmiyordu.
+  [X] A4. CLAUDE.md proje haritasi guncellendi (common/izinler.py +
+          services/yetki_service.py satirlari; anket/soru/soru_yukleme/
+          anket_sonuc servislerinin yetki anlatimi tek karar noktasina atif
+          yapiyor). Bu dosyanin 4.7 / 5 / 6 / 7 bolumleri de guncellendi.
+          NOT: ~/Desktop/kontratlar.txt'ye DOKUNULMADI — katman imzalari
+          (Controller/Service/Repository) DEGISMEDI ve "gecis netlesmeden
+          kontratlara dokunma" talimati surdu.
+
+FAZ B — Kontrol gercekten roleright zincirinden okunur  (YENI, 2026-07-28)
+  !!! Onkosul: S11 (3 tablonun DDL'i). Onsuz replikada test EDILEMEZ.
+  [X] B0. UCLARIN HOST KONVANSIYONUNA TASINMASI (4.7'deki yol haritasi).
+          YAPILDI (2026-07-29). 17 ucun tamami tasindi; Controller/Service/
+          Repository imzalari DEGISMEDI. Tek metot degisikligi:
+          POST /api/anketler/{id}/durum -> PUT /anket/put/{id}/durum.
+          vite.config.js DEGISMEDI (proxy yok — bkz. 4.7 DUZELTME).
+          Yapilan dogrulama: backend import + uvicorn ile canli rota tablosu,
+          GET /health 200, GET /soru/get/sablon 401 (422 DEGIL -> rota sirasi
+          dogru), PUT /anket/put/{id}/durum 401 + ayni yola POST 405 (metot
+          degisimi etkin), eski GET /api/anketler 404, GET /api/kullanicilar
+          401 (kapsam disi korunuyor); frontend `npm run build` basarili;
+          backend+frontend kalinti yol taramasi TEMIZ; 17 rota <-> 17 fetch
+          URL'i capraz denetimden birebir gecti.
+          KALAN: /verify ile gercek arayuzde uctan uca surulmedi (ekranlarda
+          tiklayarak dogrulama HENUZ YAPILMADI).
+  [X] B1. psycopg bagimliligi + backend/common/db_pg.py — YAPILDI 2026-07-29.
+          requirements.txt'e psycopg[binary]==3.2.9 eklendi ve .venv'e kuruldu.
+          db_pg.py .env.pg'yi okur, savronik_app (CRUD-only) ile baglanir,
+          postgres_baglantisi() context manager'ini verir (commit/rollback/close).
+          !!! TUZAK VE COZUMU (dosya basi yorumuna da yazildi): .env ve .env.pg
+          AYNI anahtar adlarini kullanir (DB_HOST/DB_PORT/DB_NAME/DB_USER/
+          DB_PASSWORD). common/db.py bunlari os.environ'a SETDEFAULT ile yazar;
+          ayni kalip kopyalansaydi db.py once yuklendiginde .env.pg degerleri
+          YAZILMAZ ve PostgreSQL'e MariaDB kimlik bilgileriyle baglanilmaya
+          calisilirdi (sessiz hata). COZUM: db_pg.py os.environ'a HICBIR SEY
+          YAZMAZ, .env.pg'yi yerel bir sozluge ayristirir; gercek ortam degiskeni
+          onceligi cakismayan "PG_" onegiyle korunur (PG_DB_HOST > dosyadaki
+          DB_HOST). common/db.py DEGISMEDI; uygulama MariaDB'de calismaya devam
+          eder. TLS icin istege bagli DB_SSLMODE / DB_SSL_CA okunur.
+          Baglanti hatasi DataAccessError'a sarilir (sir sizmaz, `from` ile
+          zincirlenir), BURADA loglanmaz.
+  [X] B2. database/migrations_pg/006_host_yetki_tablolari.sql — YAPILDI 2026-07-29.
+          webpage + page_abilities + roleright_endpoint_mapping replikaya eklendi
+          (3 sequence, DEFAULT nextval + OWNED BY, 3 PK, "mapping_right_FK"
+          host'taki gibi NOT VALID, savronik_app'e CRUD + sequence USAGE/SELECT).
+          001'in "kurulmayan FK'ler" NOTU guncellendi, DDL'ine DOKUNULMADI.
+          SAPMA (bilincli): roleright'in bekleyen FK'leri (webpage_id, ability_id)
+          KURULMADI — host'ta var mi / adlari ne bilinmiyor (S15). Ad uydurmak
+          replika sadakatini bozar; cevap gelince 005 kalibiyla AYRI migration.
+          Ayrinti ve dogrulama ciktilari: 2.5 basi.
+  [X] B3. backend/repositories/yetki_repository.py + yetki_sorgulari.py —
+          YAPILDI 2026-07-29. Tek public fonksiyon:
+            sayfa_hakki_var_mi(staff_id: int, sayfa_adi: str) -> bool
+          Calisan sorgu (parametreli, %s; string birlestirme YOK):
+            SELECT 1 FROM "user" u
+              JOIN rolerightmapping m ON m.role_id = u.role_id
+              JOIN roleright r        ON r.id = m.right_id
+              JOIN webpage w          ON w.id = r.webpage_id
+             WHERE u.id = %s AND w.name = %s
+             LIMIT 1
+          SAPMA (bilincli) — plandaki taslak kullanicinin ENDPOINT ONEKLERINI
+          donduruyor, kalip<->istek eslestirmesini Service'e birakiyordu. Bunun
+          yerine SAYFA ADIYLA soruldu, cunku:
+            (a) 4.6 geregi baktigimiz TEK sey sayfa gorunurlugudur;
+            (b) host'un '**' kalip semantigi hala cevapsiz (S14) ve SQL LIKE ile
+                DOGRU karsilanmaz — yanlis pozitif/negatif uretirdi;
+            (c) host'un yetkilendirme ekrani da yetkiyi SAYFA olarak veriyor.
+          roleright_endpoint_mapping bu sorguda KULLANILMAZ; o tablo host'un
+          kendi yol kontrolu icin doldurulur (B5/B7).
+          Ability (yetenek) suzgeci YOKTUR: sayfaya bagli herhangi bir hak,
+          sayfanin gorunur oldugu anlamina gelir. Oturumdaki sicil -> u.id
+          (= staff_id, 1:1). Baglanti common/db_pg.py'dir (MariaDB DEGIL).
+          Teknik hata DataAccessError'a sarilip yukari firlatilir; False'a
+          cevrilerek YUTULMAZ ("hak yok" ile "sorgu calismadi" karismasin).
+          NOT: Modul host uygulamaya gomulurse (S6) bu sorgu HIC GEREKMEYEBILIR —
+          kontrolu host'un kendi mekanizmasi yapar.
+  [ ] B4. yetki_service'in govdesi bu repository'ye baglanir.
+          ERTELENDI (2026-07-29, kullanici karari: "b4 haric devam"). Gerekce:
+            - Uygulama BUGUN MariaDB uzerinde calisiyor; kimlik oradan geliyor.
+            - Replikada staff/"user"/roleright 0 SATIRDI ve role verisi UYDURMA
+              (bkz. 2.1). Yetki kaynagini "uretimi tarif etmez" diye isaretli bir
+              replikaya baglamak, canli admin ekranlarini uydurma rol eslemesine
+              baglardi.
+          B4 yapildiginda DEGISECEK TEK DOSYA backend/services/yetki_service.py'dir
+          (Faz A bunu garanti etti). ON KOSULLARI: (1) B5 verisinin gercek/onayli
+          hale gelmesi, (2) S6'nin cevaplanmasi (kimligin host'tan nasil gelecegi).
+  [X] B5. Gelistirme verisi — YAPILDI 2026-07-29. Replikaya MariaDB'deki 23
+          kullaniciya karsilik 23 staff + 23 "user" satiri yazildi
+          (staff_id = kullanici_kodu, "user".id = staff_id, ad+soyad tek "name"
+          kolonunda). ROL: kullanici_turu 'admin' -> role_id 5, 'user' -> role_id 1
+          (tek gercek host bilgisi 1.1'dir: role 3/5/10 anket yetkilidir; role
+          tablosundaki ISIMLER uydurma oldugu icin yalniz ID kullanildi).
+          Anket modulunun kayit uclusu de yazildi: webpage 'Anket' + 'Anketlerim'
+          -> roleright (ability_id=5 'all') -> roleright_endpoint_mapping
+          (4.7'deki 9 onek) + rolerightmapping ('Anket' -> rol 3,5,10;
+          'Anketlerim' -> rol 1..10). ID'ler SABIT YAZILMADI (RETURNING id).
+          Yukleme betigi TEKRAR CALISTIRILABILIR (yoksa ekle) ve GIT'E GIRMEDI —
+          repo disi scratchpad'de kaldi (DB verisi repoya girmez kurali).
+          Dogrulanan satir sayilari: staff 23, "user" 23, webpage 2, roleright 2,
+          roleright_endpoint_mapping 9, rolerightmapping 13.
+          ACIK: 'Anket' / 'Anketlerim' sayfa ADLARI Savronik onayli DEGIL
+          (4.7'nin acik maddesi); betikte TEK yerde sabit tutuldu, degisirse
+          oradan degisir.
+  [X] B6. Replikadaki 39 satirlik UYDURMA rolepermissions verisi SILINDI
+          (2026-07-29). Once 39, sonra 0 satir; TABLO DUSURULMEDI (host
+          replikasinin parcasi). role tablosundaki 10 uydurma satira
+          DOKUNULMADI — B5 onlara role_id ile baglaniyor.
+  [X] B7. URETIM KAYIT ADIMI yazildi — YAPILDI 2026-07-29. Yordam bu dosyanin
+          8. bolumundedir (webpage -> roleright -> roleright_endpoint_mapping +
+          host arayuzunden personele SAYFA yetkisi). ID'ler SABIT YAZILMAZ
+          (RETURNING/nextval). S4'un acik kalan kismina cevap uretir.
+
+HER IKI FAZDA ORTAK
+  [ ] C1. docs/mariadb_postgresql_esleme.md — Kullanici -> staff + "user" kolon
+          eslemesi. Dikkat edilecek farklar:
+            - MariaDB'de ad + soyad AYRI; host'ta tek "name" kolonu.
+            - MariaDB'de sirket/bolum/birim/kadro_unvani... SERBEST METIN
+              VARCHAR; host'ta FK'li *_id kolonlari.
+            - kullanici_kodu VARCHAR(20) -> staff_id BIGINT
+            - kullanici_turu ('admin'/'user') -> "user".role_id
+            - KullaniciKimlik.sifre_hash -> "user".password / temp_password
+            - Oturum tablosunun host karsiligi BELIRSIZ (bkz. S6)
+            - KullaniciGrubu'nun host karsiligi BELIRSIZ (bkz. S5)
+  [ ] C2. 003_host_user.sql ve postgresql_semasi.dbml YORUMLARINA rol kuralinin
+          islenmesi. (Uygulanmis migration'in DDL'i DEGISTIRILMEZ; yalniz yorum
+          guncellenir — 004'un 001'e yaptiginin aynisi.)
+
+
+===============================================================================
+7. BEKLEYEN IS — YENI SESSION BURADAN DEVAM ETSIN
+===============================================================================
+
+DURUM (2026-07-29): S1, S2, S7, S11, S12 cevaplandi; S6 kismen cevaplandi
+(kapsam netlesti: DB birlesimi + yalniz anket modulu + yetki = sayfa gorunurlugu;
+bkz. 4.5/4.6). Plan buna gore revize edildi.
+
+YAPILANLAR (2026-07-29): B0 (uclarin host yol konvansiyonuna tasinmasi),
+B2/(1) (migration 006 — 3 host yetki tablosu), FAZ A (A1-A4: 13 admin kontrol
+noktasi -> tek dogrula_izin cagrisi) ve FAZ B'nin B1 + B3 + B5 + B6 + B7 adimlari
+BITTI. B4 BILEREK ERTELENDI (bkz. bolum 6 / FAZ B / B4).
+SIRADAKI IS:
+  (a) B0'in KALAN dogrulamasi: /verify ile calisan arayuzde uctan uca surulmesi
+      (ekranlarda tiklayarak dogrulama HENUZ YAPILMADI).
+  (b) B4 — yetki_service.dogrula_izin govdesinin yetki_repository'ye baglanmasi.
+      ERTELENDI: uygulama bugun MariaDB'de calisiyor, replikadaki role verisi
+      UYDURMA (2.1) ve kimligin host'tan nasil gelecegi belirsiz (S6). Bagladigimiz
+      anda canli admin ekranlari uydurma rol eslemesine baglanir.
+      ON KOSUL: B5 verisinin gercek/onayli hale gelmesi + S6'nin cevaplanmasi.
+      DEGISECEK TEK DOSYA: backend/services/yetki_service.py (Faz A garantisi).
+      Hazir bekleyen parca: yetki_repository.sayfa_hakki_var_mi(staff_id,
+      sayfa_adi) -> bool; izinler.ANKET_YONETIMI anahtarinin host'taki webpage
+      adina ('Anket') eslenmesi de o dosyada TEK yerde yapilacak.
+
+*******************************************************************************
+YENI SESSION BUNLARLA BASLAYABILIR — UCU DE ONAYLI, HICBIRI CEVAP BEKLEMIYOR
+Kullanici karari (2026-07-29): "Bunlari not al, bir sonraki session baslatsin."
+Sira onemli: (1) ve (2) farkli dosyalara dokunur, paralel gidebilir; (3) ise
+(2) ile AYNI dosyalara dokundugu icin (2) BITTIKTEN SONRA yapilmali.
+
+ (1) [BITTI 2026-07-29] MIGRATION 006 — db-uzmani ajani
+     YAPILDI: dosya yazildi, replikaya uygulandi, canli olarak dogrulandi.
+     page_abilities'in 5 satiri migration'a KONMADI (kullanici karari: DB verisi
+     git'e girmez) — dosyada yorum olarak durur, replikaya ELLE uygulandi.
+     roleright.webpage_id / ability_id FK'leri KURULMADI (S15). Ayrinti: 2.5 basi.
+     --- asagisi is tanimidir (tarihce) ---
+     Dosya: database/migrations_pg/006_host_yetki_tablolari.sql
+     Icerik: webpage + page_abilities + roleright_endpoint_mapping tablolari,
+       sequence'lari (category_id_seq, page_abilities_id_seq,
+       category_endpoint_mapping_id_seq), DEFAULT nextval + OWNED BY baglari,
+       PK'leri (webpage_pkey, page_abilities_pkey,
+       category_endpoint_mapping_pkey) — hepsi HOST ADLARIYLA BIREBIR; bozuk
+       gorunen adlar DUZELTILMEZ (001'deki role_rigth_id_seq karari).
+     + page_abilities host verisi: 1 read, 2 create, 3 delete, 4 update, 5 all
+       (id'ler aynen; bu satirlar UYDURMA DEGIL, host dump'indan geldi).
+     + savronik_app'e CRUD + sequence USAGE/SELECT grant'leri.
+     + 001'in "kurulmayan FK'ler" NOTU guncellenir (DDL'ine DOKUNULMAZ —
+       004'un 001'e yaptiginin aynisi).
+     FK'ler (bkz. 2.5 FK DURUMU):
+       KURULUR   : roleright_endpoint_mapping.right_id -> roleright(id),
+                   constraint adi "mapping_right_FK", AYNEN "NOT VALID" ile
+                   (host'taki hali budur; NOT VALID atlanirsa replika host'tan
+                   DAHA KATI olur ve host'ta gecen bir veri lokalde reddedilir).
+       KURULMAZ  : roleright.webpage_id / roleright.ability_id — host'ta var mi,
+                   adlari ne, bilinmiyor (S15). Ad UYDURULMAZ; cevap gelince
+                   005 kalibiyla AYRI migration.
+     CIKARIM OLARAK ISARETLENECEK: CREATE SEQUENCE govdeleri ve webpage.id'nin
+       DEFAULT nextval satiri gelmedi; 001'deki dort sequence ile ayni kalip
+       kullanilir (START 1 / INCREMENT 1 / NO MINVALUE / NO MAXVALUE / CACHE 1).
+     Bitince: replikada uygulanip dogrulanir, dosya basi yorumuna "gelistirme
+       replikasina UYGULANDI (tarih)" not dusulur, CLAUDE.md haritasi guncellenir.
+
+ (2) [BITTI 2026-07-29] URL TASIMA — backend + frontend ajanlari
+     Kaynak: 4.7'deki UC ESLEME TABLOSU (baglayici; yeniden turetilmesin).
+     Yapilan: backend/api/http_app.py (17 rota yolu + 1 metot) +
+       backend/requirements.txt yorumu + frontend/src/api/anketApi.js (10 fetch)
+       + soruApi.js (7 fetch) + SoruEkleForm.jsx yorumlari + CLAUDE.md haritasi.
+       Controller/Service/Repository imzalari DEGISMEDI.
+       vite.config.js DEGISMEDI — proxy yoktu (bkz. 4.7 DUZELTME).
+       ~/Desktop/kontratlar.txt GOVDESI GUNCELLENMEDI (59 satirda eski yol var);
+       "gecis netlesmeden dokunma" talimati geregi dosya BASINA uyari notu
+       dusuldu. Gercek guncelleme gecis kesinlesince tek seferde yapilacak.
+     KALAN: /verify ile calisan arayuzde surulmesi (anket listesi, anket
+       olusturma/guncelleme, durum degistirme, sonuc kutulari, soru CRUD,
+       Excel sablon+yukleme, ana ekran + anket doldurma). HENUZ YAPILMADI.
+
+ (3) [BITTI 2026-07-29] FAZ A — backend ajani  (bkz. 6. bolum A1-A4)
+     YAPILDI: common/izinler.py (tek anahtar ANKET_YONETIMI) + services/
+     yetki_service.py (dogrula_izin) yazildi; 4 serviste 13 kontrol noktasi bu
+     cagriya indi, yerel _ADMIN_TURU sabitleri silindi, yorumlar "sayfa hakki"
+     diline cevrildi. Davranis BIREBIR korundu (yeni hata tipi/HTTP yaniti/imza
+     YOK; Controller/Repository/frontend DEGISMEDI). Dogrulama: backend import
+     temiz, grep ile 13 cagri + 1 tanim, kapsam disi 3 serviste _ADMIN_TURU
+     yerinde, uvicorn ile GET /anket/get oturumsuz istekte 401 (degismedi).
+     --- asagisi is tanimidir (tarihce) ---
+     13 admin kontrol noktasi tek sayfa-hakki kontroluna iner (4.6).
+     Davranis BIREBIR korunur: bugun admin olan yine admin.
+*******************************************************************************
+
+KAPSAM DARALMASININ KOD TARAFINDAKI KARSILIGI (henuz yapilmadi):
+  - 13 admin kontrol noktasi (bkz. 5) TEK sayfa-hakki kontroluna iner.
+  - Login/sifre-belirleme/kullanici-grup-secenek yonetimi ekranlari ve
+    onlarin backend katmanlari MODUL KAPSAMI DISINA cikar. NE ZAMAN ve
+    NASIL cikarilacagi (silme mi, birakip baglamama mi) AYRI BIR KARAR —
+    bugunku calisan MariaDB uygulamasi onlara bagli, aceleyle silinmez.
+  - Sahiplik/IDOR kontrolleri KALIR (bkz. 4.6 istisnasi).
+
+Cevaplar gelmeden yapilabilecekler:
+  - FAZ A'nin tamami (A1-A4) -> YAPILDI 2026-07-29 (bkz. bolum 6 / FAZ A ve
+    bolum 7/(3)). A1 katalogu sonunda TEK anahtara indi (ANKET_YONETIMI);
+    sahiplik uclari icin sabit tanimlanmadi.
+  - C1 (esleme dokumani) — S5/S6 basliklari "BELIRSIZ" olarak isaretlenerek.
+
+Cevap bekleyenler:
+  - B2 (3 tablonun replikaya eklenmesi) -> YAPILDI 2026-07-29 (migration 006;
+    bkz. 2.5 basi ve bolum 7/(1)). Beklenen hicbir cevap kalmadi.
+  - B0 (uclarin tasinmasi) -> YAPILDI 2026-07-29 (bkz. FAZ B B0 ve bolum 7/(2)).
+  - B1/B3/B5/B6/B7 -> YAPILDI 2026-07-29 (bkz. bolum 6 / FAZ B ve bolum 8).
+    B3 sorgusunun kolon adlari S11 ile kapanmisti; sorgu replikada CALISTI.
+  - Sayfa ADLARI ('Anket' / 'Anketlerim') Savronik onayli DEGIL -> 4.7'nin
+    acik maddesi. Onay gelene kadar B5 verisi ve bolum 8 yordami bu adlari
+    kullanir; degisirse iki yerde de tek satir degisir.
+  - B4 (yetki_service'in repository'ye baglanmasi) -> S6 + B5 verisinin
+    gercek/onayli hale gelmesi. BILEREK ERTELENDI (bkz. FAZ B / B4).
+  - Kontrolun nerede zorlandigi          -> S8
+  - survey.access_group_id FK'si         -> S5
+  - Oturum dogrulama tasarimi            -> S6
+
+CALISMA MODELI HATIRLATMASI (CLAUDE.md):
+  - Ana ajan kod YAZMAZ; db-uzmani (Repository/SQL/migration) ve backend
+    (Controller/Service) ajanlarina dagitir.
+  - Plan onaylanmadan koda baslanmaz.
+  - Dosya eklenince/degisince CLAUDE.md proje haritasi AYNI degisiklikte
+    guncellenir.
+
+REPLIKAYA BAGLANMA (dogrulama icin):
+  cd database
+  set -a && . ./.env.migration.pg && set +a
+  PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+      -U "$DB_USER" -d "$DB_NAME"
+  (.env.migration.pg repoya GIRMEZ; sifre hicbir yere yazilmaz/loglanmaz.)
+
+
+===============================================================================
+8. URETIM KAYIT YORDAMI — ANKET MODULUNUN HOST'A TANITILMASI  (B7)
+===============================================================================
+
+NE ICIN: Anket modulu uretime alinirken host'un yetki zincirine TANITILMALIDIR;
+aksi halde hicbir personel sayfalari goremez. Bu bir YORDAM dokumanidir, veri
+dokumu DEGILDIR (DB verisi repoya girmez).
+
+KAYNAK: 1.3 (Savronik'in tarif ettigi 3 tablo) + 4.7 (bizim 9 yol onegimiz).
+
+ON KOSUL / DIKKAT
+  - ID'ler SABIT YAZILMAZ. webpage.id ve roleright.id uretimde bizim
+    replikamizdakinden FARKLI olacaktir; degerler nextval/RETURNING ile alinir.
+  - Islem TEK TRANSACTION icinde calistirilir (yarim kayit birakmamak icin).
+  - Sayfa ADLARI ('Anket' / 'Anketlerim') Savronik ONAYINDAN GECMEMISTIR
+    (4.7'nin acik maddesi). Onay gelirse asagidaki iki :sayfa_adi degeri
+    degistirilir; baska hicbir yer degismez.
+  - ability_id = 5 ('all', bkz. 1.4). Ince ayrim (read/create/update/delete)
+    istenirse sayfa basina birden cok roleright satiri acilir; o zaman her
+    yetenegin kendi onek kumesi olur.
+  - IKI AYRI SAYFA sarttir: 'Anket' yalnizca yetkili rollere, 'Anketlerim' TUM
+    personele verilir (2.6'daki cakismanin cozumu).
+
+ADIM 1 — SAYFA + HAK + YOL ONEKLERI (SQL; her sayfa icin bir kez)
+  Sayfa "Anket" (yonetim; izin ister):
+
+    WITH yeni_sayfa AS (
+      INSERT INTO webpage (name) VALUES ('Anket') RETURNING id
+    ), yeni_hak AS (
+      INSERT INTO roleright (webpage_id, ability_id)
+      SELECT id, 5 FROM yeni_sayfa RETURNING id
+    )
+    INSERT INTO roleright_endpoint_mapping (right_id, endpoint)
+    SELECT yeni_hak.id, onek
+    FROM yeni_hak, (VALUES
+        ('/anket/get/**'), ('/anket/post/**'), ('/anket/put/**'),
+        ('/soru/get/**'),  ('/soru/post/**'),  ('/soru/put/**'),
+        ('/soru/delete/**')
+    ) AS onekler(onek);
+
+  Sayfa "Anketlerim" (tum personel) — ayni kalip, iki onekle:
+
+    WITH yeni_sayfa AS (
+      INSERT INTO webpage (name) VALUES ('Anketlerim') RETURNING id
+    ), yeni_hak AS (
+      INSERT INTO roleright (webpage_id, ability_id)
+      SELECT id, 5 FROM yeni_sayfa RETURNING id
+    )
+    INSERT INTO roleright_endpoint_mapping (right_id, endpoint)
+    SELECT yeni_hak.id, onek
+    FROM yeni_hak, (VALUES
+        ('/anketlerim/get/**'), ('/anketlerim/post/**')
+    ) AS onekler(onek);
+
+ADIM 2 — YETKININ PERSONELE VERILMESI (host arayuzunden)
+  Yetki ATAMASI (rolerightmapping satirlari) SQL ile ELLE YAZILMAZ: host'un
+  kendi yetkilendirme ekranindan yapilir. Orada
+    - "Anket" sayfasi anket yonetimi yapacak rollere (1.1'e gore aday: 3, 5, 10),
+    - "Anketlerim" sayfasi TUM personel rollerine
+  verilir. Boylece atamalar host'un kendi denetim/kayit akisindan gecer.
+  (Gerekirse ayni sey rolerightmapping'e (role_id, right_id) INSERT'i ile de
+   yapilabilir; right_id ADIM 1'de olusan hak satirindan SELECT ile bulunur,
+   sabit yazilmaz.)
+
+ADIM 3 — DOGRULAMA
+  Asagidaki sorgu, bir personelin sayfayi gorup goremedigini soyler; uygulamanin
+  calistirdigi sorgunun AYNISIDIR (backend/repositories/yetki_sorgulari.py):
+
+    SELECT 1 FROM "user" u
+      JOIN rolerightmapping m ON m.role_id = u.role_id
+      JOIN roleright r        ON r.id = m.right_id
+      JOIN webpage w          ON w.id = r.webpage_id
+     WHERE u.id = :staff_id AND w.name = :sayfa_adi
+     LIMIT 1;
+
+  Beklenen: yetkili personel icin 'Anket' -> satir DONER; yetkisiz personel icin
+  'Anket' -> satir YOK ama 'Anketlerim' -> satir DONER.
+
+GERI ALMA (rollback)
+  Sirasiyla: rolerightmapping -> roleright_endpoint_mapping -> roleright ->
+  webpage satirlari silinir (FK yonu geregi tersten). Tablolar DUSURULMEZ;
+  bunlar HOST'un tablolaridir.

@@ -214,10 +214,20 @@ ALTER TABLE ONLY public.rolepermissions
 --   staff:       company_id, department_id, group_id, team_id, unit_id, kadro,
 --                location_id, location2, duty_title_id, education_id,
 --                profession_id, workplace, manager_id
---   roleright:   webpage_id, ability_id
+--   roleright:   webpage_id, ability_id   (bkz. aşağıdaki DÜZELTME)
 --   act_id_user: picture_id_
 -- SONRADAN KAPATILDI: staff.cadre_title_id FK'si 004_host_cadre_title.sql ile
 -- kurulmuştur (hedef tablo cadre_title replikaya orada eklendi).
+--
+-- DÜZELTME (2026-07-29) — roleright.webpage_id / roleright.ability_id:
+-- Hedef tablolar (webpage, page_abilities) 006_host_yetki_tablolari.sql ile
+-- replikaya EKLENDİ; yani "hedef tablo yok" gerekçesi artık geçerli değildir.
+-- BUNA RAĞMEN FK'ler HÂLÂ KURULMADI: bu iki FK'nin host'ta gerçekten var olup
+-- olmadığı ve —varsa— CONSTRAINT ADLARI BİLİNMİYOR (host dump'ında bu satırlar
+-- gelmedi; docs/postgresql_gecis_notlari.txt S15 açık). Yukarıdaki "ÜRETİMDE
+-- ZATEN KURULUDUR" ifadesi bu iki kolon için DOĞRULANMIŞ DEĞİL, bir VARSAYIMDIR.
+-- Ad uydurmak replika sadakatini bozacağı için beklenmektedir; cevap gelince
+-- 005 kalıbıyla AYRI bir migration ile eklenecektir.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
